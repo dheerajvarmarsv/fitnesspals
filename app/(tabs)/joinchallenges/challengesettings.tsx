@@ -88,7 +88,7 @@ export default function JoinChallengesScreen() {
           >
             <Text style={styles.challengeTitle}>{item.title}</Text>
             <Text style={styles.challengeMode}>
-              Mode: {item.mode?.toUpperCase() || '(none)'}
+            Mode: {item.challenge_type?.toUpperCase() || item.mode?.toUpperCase() || '(none)'}
             </Text>
             <Text style={styles.challengeDescription}>{item.description}</Text>
             <Text style={styles.challengeDates}>

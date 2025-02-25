@@ -31,7 +31,8 @@ const { width, height } = Dimensions.get('window');
 const isSmallDevice = height < 700;
 const isTablet = width >= 768;
 
-type ChallengeMode = 'race' | 'survival' | 'streak' | 'custom';
+const VALID_CHALLENGE_TYPES = ['race', 'survival', 'streak', 'custom'] as const;
+type ChallengeMode = typeof VALID_CHALLENGE_TYPES[number];
 type Step = 1 | 2 | 3 | 4 | 5;
 type GlobalTimeframe = 'day' | 'week';
 
@@ -675,29 +676,50 @@ export default function CreateChallenge() {
   // Create in DB
   const createChallengeInDB = async () => {
     if (!userId) throw new Error('You must be logged in first');
-    if (!selectedMode) throw new Error('No mode selected');
-
+    
+    // Add explicit type checking
+    if (!selectedMode) {
+      throw new Error('Challenge mode must be selected');
+    }
+  
+    // Validate challenge type before creation
+    if (!VALID_CHALLENGE_TYPES.includes(selectedMode as ChallengeMode)) {
+      console.error(`Invalid challenge type: ${selectedMode}`);
+      throw new Error(`Invalid challenge type: ${selectedMode}`);
+    }
+  
     const selectedActivities = activities.filter((a) => a.isSelected);
-    const newChallenge = await createChallengeInSupabase({
-      userId,
-      challengeType: selectedMode,
-      name: details.name,
-      description: details.description,
-      startDate: details.startDate,
-      endDate: details.endDate,
-      isOpenEnded: details.isOpenEnded,
-      selectedActivities: selectedActivities.map((act) => ({
-        activityType: act.activityType,
-        threshold: act.threshold,
-        points: act.points,
-        timeframe: details.globalTimeframe, // Use global timeframe for all activities
-      })),
-      globalTimeframe: details.globalTimeframe,
-    });
-    console.log('Created challenge in DB:', newChallenge);
-    return newChallenge.id;
+    try {
+      // Add more explicit type handling
+      const newChallenge = await createChallengeInSupabase({
+        userId,
+        challengeType: selectedMode, // Now explicitly validated
+        name: details.name,
+        description: details.description || '',
+        startDate: details.startDate,
+        endDate: details.endDate,
+        isOpenEnded: details.isOpenEnded,
+        selectedActivities: selectedActivities.map((act) => ({
+          activityType: act.activityType,
+          threshold: act.threshold,
+          points: act.points,
+          timeframe: details.globalTimeframe,
+        })),
+      });
+  
+      // Add logging for verification
+      console.log('Challenge created:', {
+        id: newChallenge.id,
+        type: newChallenge.challenge_type,
+        title: newChallenge.title,
+      });
+  
+      return newChallenge.id;
+    } catch (error) {
+      console.error('Challenge creation error:', error);
+      throw error;
+    }
   };
-
   // Progress bar instead of dots
   const renderProgressBar = () => (
     <View style={styles.progressBarContainer}>
@@ -1336,7 +1358,7 @@ export default function CreateChallenge() {
                     style={styles.actionButton}
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      router.replace('/(tabs)/joinchallenges/racetrack copy');
+                      router.replace('/(tabs)/joinchallenges/challengesettings');
                     }}
                   >
                     <LinearGradient
