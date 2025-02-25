@@ -25,6 +25,7 @@ import { supabase } from '../../../lib/supabase';
 import { createChallengeInSupabase } from '../../../lib/challenges';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import * as Haptics from 'expo-haptics';
+import FriendSelectionModal from '../../../components/FriendSelectionModal';
 
 const { width, height } = Dimensions.get('window');
 const isSmallDevice = height < 700;
@@ -213,6 +214,219 @@ interface ActivityRule {
   isCustom?: boolean;
 }
 
+// Friend model for the Friend Selection modal
+interface Friend {
+  id: string;
+  nickname: string;
+  avatar_url: string;
+  selected?: boolean;
+}
+
+// Friend Selection Modal component
+function LocalFriendSelectionModal({ 
+  visible, 
+  onClose, 
+  onInvite, 
+  challengeId
+}: { 
+  visible: boolean; 
+  onClose: () => void; 
+  onInvite: (selectedFriends: Friend[]) => void;
+  challengeId: string | null;
+}) {
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [inviting, setInviting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load friends when modal opens
+  useEffect(() => {
+    if (visible) {
+      loadFriends();
+    }
+  }, [visible]);
+
+  const loadFriends = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Get user's friends from supabase
+      const { data, error } = await supabase
+        .from('friends')
+        .select(`
+          friend_id,
+          friend:profiles!friends_friend_id_fkey (
+            id,
+            nickname,
+            avatar_url
+          )
+        `);
+
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        const friendsList = data.map(item => ({
+          id: item.friend_id,
+          nickname: item.friend.nickname,
+          avatar_url: item.friend.avatar_url,
+          selected: false
+        }));
+        setFriends(friendsList);
+      } else {
+        setFriends([]);
+      }
+    } catch (e: any) {
+      console.error('Error loading friends:', e);
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleFriendSelection = (id: string) => {
+    setFriends(prev => 
+      prev.map(friend => 
+        friend.id === id 
+          ? { ...friend, selected: !friend.selected } 
+          : friend
+      )
+    );
+  };
+
+  const handleInvite = async () => {
+    const selectedFriends = friends.filter(f => f.selected);
+    if (selectedFriends.length === 0) {
+      Alert.alert('Selection Required', 'Please select at least one friend to invite');
+      return;
+    }
+
+    if (!challengeId) {
+      Alert.alert('Error', 'Challenge ID is missing');
+      return;
+    }
+
+    setInviting(true);
+    
+    try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      // Create invites for each selected friend
+      const invites = selectedFriends.map(friend => ({
+        challenge_id: challengeId,
+        sender_id: user.id,
+        receiver_id: friend.id,
+        status: 'pending'
+      }));
+
+      const { error } = await supabase
+        .from('challenge_invites')
+        .insert(invites);
+
+      if (error) throw error;
+      
+      onInvite(selectedFriends);
+      onClose();
+      Alert.alert('Success', `Invitations sent to ${selectedFriends.length} friend${selectedFriends.length > 1 ? 's' : ''}!`);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to send invitations');
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View style={modalStyles.overlay}>
+        <View style={modalStyles.container}>
+          <View style={modalStyles.header}>
+            <Text style={modalStyles.title}>Invite Friends</Text>
+            <TouchableOpacity onPress={onClose}>
+              <Ionicons name="close" size={24} color="#333" />
+            </TouchableOpacity>
+          </View>
+
+          {loading ? (
+            <View style={modalStyles.loadingContainer}>
+              <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                <Ionicons name="refresh" size={24} color="#4A90E2" />
+              </Animated.View>
+              <Text style={modalStyles.loadingText}>Loading friends...</Text>
+            </View>
+          ) : error ? (
+            <View style={modalStyles.errorContainer}>
+              <Text style={modalStyles.errorText}>{error}</Text>
+              <TouchableOpacity 
+                style={modalStyles.retryButton}
+                onPress={loadFriends}
+              >
+                <Text style={modalStyles.retryText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : friends.length === 0 ? (
+            <View style={modalStyles.emptyContainer}>
+              <Text style={modalStyles.emptyText}>
+                You don't have any friends yet.{'\n'}
+                Add friends to invite them to your challenge!
+              </Text>
+            </View>
+          ) : (
+            <ScrollView style={modalStyles.friendsList}>
+              {friends.map(friend => (
+                <TouchableOpacity
+                  key={friend.id}
+                  style={[
+                    modalStyles.friendItem,
+                    friend.selected && modalStyles.friendItemSelected
+                  ]}
+                  onPress={() => toggleFriendSelection(friend.id)}
+                >
+                  <Image 
+                    source={{ uri: friend.avatar_url }} 
+                    style={modalStyles.avatar} 
+                  />
+                  <Text style={modalStyles.friendName}>{friend.nickname}</Text>
+                  <View style={[
+                    modalStyles.checkbox,
+                    friend.selected && modalStyles.checkboxSelected
+                  ]}>
+                    {friend.selected && (
+                      <Ionicons name="checkmark" size={18} color="#fff" />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+
+          <View style={modalStyles.footer}>
+            <TouchableOpacity
+              style={[
+                modalStyles.inviteButton,
+                (friends.length === 0 || !friends.some(f => f.selected) || inviting) && 
+                  modalStyles.inviteButtonDisabled
+              ]}
+              onPress={handleInvite}
+              disabled={friends.length === 0 || !friends.some(f => f.selected) || inviting}
+            >
+              <Text style={modalStyles.inviteButtonText}>
+                {inviting ? 'Sending Invites...' : 'Invite Selected Friends'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function CreateChallenge() {
   // Steps & transitions
   const [currentStep, setCurrentStep] = useState<Step>(1);
@@ -254,6 +468,10 @@ export default function CreateChallenge() {
     threshold: '',
     points: '3',
   });
+
+  // Friend invitation modal
+  const [showFriendModal, setShowFriendModal] = useState(false);
+  const [createdChallengeId, setCreatedChallengeId] = useState<string | null>(null);
 
   // Date pickers
   const [showStartPicker, setShowStartPicker] = useState(false);
@@ -420,6 +638,17 @@ export default function CreateChallenge() {
     return true;
   };
 
+  // Share & Invite Friends
+  const handleShareChallenge = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert('Share', 'Challenge link copied to clipboard!');
+  };
+
+  const handleInviteFriends = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setShowFriendModal(true);
+  };
+
   // Continue or create
   const handleNext = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -432,7 +661,8 @@ export default function CreateChallenge() {
     if (currentStep === 4) {
       try {
         setIsCreating(true);
-        await createChallengeInDB();
+        const challengeId = await createChallengeInDB();
+        setCreatedChallengeId(challengeId);
         setIsCreating(false);
         animateStepTransition(true); // go to step 5
       } catch (err: any) {
@@ -484,7 +714,12 @@ export default function CreateChallenge() {
     </View>
   );
 
-  // Render activity item
+  // Handle friend invitations
+  const handleFriendInvites = (selectedFriends: Friend[]) => {
+    console.log('Invited friends:', selectedFriends);
+  };
+
+  // Activity item renderer
   const renderActivityItem = ({ item, index }: { item: ActivityRule; index: number }) => {
     const isExpanded = expandedActivity === index;
     const iconName = ACTIVITY_ICONS[item.activityType] || 'star';
@@ -661,10 +896,10 @@ export default function CreateChallenge() {
                   <Text style={styles.inputLabel}>Challenge Name</Text>
                   <TextInput
                     style={styles.textInput}
-                    placeholder="Give your challenge a catchy name"
-                    placeholderTextColor="#999"
                     value={details.name}
-                    onChangeText={(txt) => setDetails({ ...details, name: txt })}
+                    onChangeText={(text) => setDetails({ ...details, name: text })}
+                    placeholder="e.g., 10K Steps Daily Challenge"
+                    placeholderTextColor="#999"
                     maxLength={40}
                   />
                   <Text style={styles.characterCount}>
@@ -679,11 +914,13 @@ export default function CreateChallenge() {
                   </Text>
                   <TextInput
                     style={[styles.textInput, styles.textAreaInput]}
-                    placeholder="What is this challenge about? Add details to get people excited!"
+                    value={details.description}
+                    onChangeText={(text) => setDetails({ ...details, description: text })}
+                    placeholder="Tell us more about your challenge"
                     placeholderTextColor="#999"
                     multiline
-                    value={details.description}
-                    onChangeText={(txt) => setDetails({ ...details, description: txt })}
+                    numberOfLines={4}
+                    textAlignVertical="top"
                     maxLength={200}
                   />
                   <Text style={styles.characterCount}>
@@ -779,7 +1016,7 @@ export default function CreateChallenge() {
                   }}
                   onCancel={() => setShowEndPicker(false)}
                   minimumDate={details.startDate || new Date()}
-                />
+/>
               </View>
             )}
 
@@ -948,98 +1185,98 @@ export default function CreateChallenge() {
               <View style={styles.reviewContainer}>
                 <Text style={styles.mainTitle}>Review Your Challenge</Text>
                 <Text style={styles.subtitle}>Check the details before creating</Text>
-  {/* Wrap the reviewCard in a gradient */}
-  <LinearGradient
-    colors={['#4776E6', '#8E54E9']}
-    start={{ x: 0, y: 0 }}
-    end={{ x: 1, y: 0 }}
-    style={styles.reviewCardGradient}
-  >
-                <View style={styles.reviewCard}>
-                  <View style={styles.reviewSection}>
-                    <View style={styles.reviewHeader}>
-                      <View
-                        style={[
-                          styles.reviewIcon,
-                          selectedMode === 'race'
-                            ? { backgroundColor: '#FF416C' }
-                            : selectedMode === 'survival'
-                            ? { backgroundColor: '#4776E6' }
-                            : selectedMode === 'streak'
-                            ? { backgroundColor: '#FF8008' }
-                            : { backgroundColor: '#11998e' },
-                        ]}
-                      >
-                        <Text style={styles.reviewIconText}>
-                          {CHALLENGE_MODES.find((m) => m.id === selectedMode)?.icon}
-                        </Text>
-                      </View>
-                      <View style={styles.reviewHeaderText}>
-                        <Text style={styles.reviewTitle}>{details.name}</Text>
-                        <Text style={styles.reviewType}>
-                          {selectedMode?.toUpperCase()} CHALLENGE
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  {details.description ? (
+                
+                <LinearGradient
+                  colors={['#4776E6', '#8E54E9']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.reviewCardGradient}
+                >
+                  <View style={styles.reviewCard}>
                     <View style={styles.reviewSection}>
-                      <Text style={styles.reviewSectionTitle}>DESCRIPTION</Text>
-                      <Text style={styles.reviewDescription}>{details.description}</Text>
-                    </View>
-                  ) : null}
-
-                  <View style={styles.reviewSection}>
-                    <Text style={styles.reviewSectionTitle}>DURATION</Text>
-                    <View style={styles.reviewDetail}>
-                      <Ionicons name="calendar-outline" size={20} color="#666" />
-                      <Text style={styles.reviewDetailText}>
-                        Starts: {details.startDate?.toDateString()}
-                      </Text>
-                    </View>
-                    <View style={styles.reviewDetail}>
-                      <Ionicons name="calendar-outline" size={20} color="#666" />
-                      <Text style={styles.reviewDetailText}>
-                        {details.isOpenEnded
-                          ? 'No end date (open-ended)'
-                          : `Ends: ${details.endDate?.toDateString()}`}
-                      </Text>
-                    </View>
-                    <View style={styles.reviewDetail}>
-                      <Ionicons name="time-outline" size={20} color="#666" />
-                      <Text style={styles.reviewDetailText}>
-                        Tracking: {details.globalTimeframe === 'day' ? 'Daily' : 'Weekly'}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.reviewSection}>
-                    <Text style={styles.reviewSectionTitle}>ACTIVITIES</Text>
-                    {activities.filter((a) => a.isSelected).map((act, idx) => (
-                      <View key={`${act.activityType}-${idx}`} style={styles.activityReview}>
-                        <View 
+                      <View style={styles.reviewHeader}>
+                        <View
                           style={[
-                            styles.activityIconCircle,
-                            { backgroundColor: ACTIVITY_GRADIENTS[act.activityType]?.[0] || '#4A90E2' }
+                            styles.reviewIcon,
+                            selectedMode === 'race'
+                              ? { backgroundColor: '#FF416C' }
+                              : selectedMode === 'survival'
+                              ? { backgroundColor: '#4776E6' }
+                              : selectedMode === 'streak'
+                              ? { backgroundColor: '#FF8008' }
+                              : { backgroundColor: '#11998e' },
                           ]}
                         >
-                          <FontAwesome5 
-                            name={ACTIVITY_ICONS[act.activityType] || 'star'} 
-                            size={16} 
-                            color="#fff" 
-                          />
+                          <Text style={styles.reviewIconText}>
+                            {CHALLENGE_MODES.find((m) => m.id === selectedMode)?.icon}
+                          </Text>
                         </View>
-                        <View style={styles.activityReviewDetail}>
-                          <Text style={styles.activityReviewName}>{act.activityType}</Text>
-                          <Text style={styles.activityReviewMeta}>
-                            Target: {act.threshold} • {act.points} points
+                        <View style={styles.reviewHeaderText}>
+                          <Text style={styles.reviewTitle}>{details.name}</Text>
+                          <Text style={styles.reviewType}>
+                            {selectedMode?.toUpperCase()} CHALLENGE
                           </Text>
                         </View>
                       </View>
-                    ))}
+                    </View>
+
+                    {details.description ? (
+                      <View style={styles.reviewSection}>
+                        <Text style={styles.reviewSectionTitle}>DESCRIPTION</Text>
+                        <Text style={styles.reviewDescription}>{details.description}</Text>
+                      </View>
+                    ) : null}
+
+                    <View style={styles.reviewSection}>
+                      <Text style={styles.reviewSectionTitle}>DURATION</Text>
+                      <View style={styles.reviewDetail}>
+                        <Ionicons name="calendar-outline" size={20} color="#666" />
+                        <Text style={styles.reviewDetailText}>
+                          Starts: {details.startDate?.toDateString()}
+                        </Text>
+                      </View>
+                      <View style={styles.reviewDetail}>
+                        <Ionicons name="calendar-outline" size={20} color="#666" />
+                        <Text style={styles.reviewDetailText}>
+                          {details.isOpenEnded
+                            ? 'No end date (open-ended)'
+                            : `Ends: ${details.endDate?.toDateString()}`}
+                        </Text>
+                      </View>
+                      <View style={styles.reviewDetail}>
+                        <Ionicons name="time-outline" size={20} color="#666" />
+                        <Text style={styles.reviewDetailText}>
+                          Tracking: {details.globalTimeframe === 'day' ? 'Daily' : 'Weekly'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.reviewSection}>
+                      <Text style={styles.reviewSectionTitle}>ACTIVITIES</Text>
+                      {activities.filter((a) => a.isSelected).map((act, idx) => (
+                        <View key={`${act.activityType}-${idx}`} style={styles.activityReview}>
+                          <View 
+                            style={[
+                              styles.activityIconCircle,
+                              { backgroundColor: ACTIVITY_GRADIENTS[act.activityType]?.[0] || '#4A90E2' }
+                            ]}
+                          >
+                            <FontAwesome5 
+                              name={ACTIVITY_ICONS[act.activityType] || 'star'} 
+                              size={16} 
+                              color="#fff" 
+                            />
+                          </View>
+                          <View style={styles.activityReviewDetail}>
+                            <Text style={styles.activityReviewName}>{act.activityType}</Text>
+                            <Text style={styles.activityReviewMeta}>
+                              Target: {act.threshold} • {act.points} points
+                            </Text>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
                   </View>
-                </View>
                 </LinearGradient>
               </View>
             )}
@@ -1059,10 +1296,7 @@ export default function CreateChallenge() {
                 <View style={styles.actionButtons}>
                   <Pressable
                     style={styles.actionButton}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      Alert.alert('Share', 'Challenge link copied to clipboard!');
-                    }}
+                    onPress={handleShareChallenge}
                   >
                     <LinearGradient
                       colors={['#4776E6', '#8E54E9']}
@@ -1077,10 +1311,7 @@ export default function CreateChallenge() {
 
                   <Pressable
                     style={styles.actionButton}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      router.push('/friends');
-                    }}
+                    onPress={handleInviteFriends}
                   >
                     <LinearGradient
                       colors={['#FF416C', '#FF4B2B']}
@@ -1148,11 +1379,151 @@ export default function CreateChallenge() {
           </Pressable>
         </View>
       )}
+
+      {/* Friend Selection Modal */}
+      <FriendSelectionModal
+        visible={showFriendModal}
+        onClose={() => setShowFriendModal(false)}
+        onInvite={handleFriendInvites}
+        challengeId={createdChallengeId}
+      />
     </SafeAreaView>
   );
 }
 
-// --- Styles ---
+const modalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  container: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '80%',
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#666',
+    fontSize: 16,
+  },
+  errorContainer: {
+    backgroundColor: '#FEE2E2',
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+  },
+  errorText: {
+    color: '#DC2626',
+    marginBottom: 10,
+  },
+  retryButton: {
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 4,
+  },
+  retryText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  emptyContainer: {
+    padding: 30,
+    alignItems: 'center',
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#666',
+    lineHeight: 22,
+  },
+  friendsList: {
+    flex: 1,
+  },
+  friendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  friendItemSelected: {
+    backgroundColor: '#EBF5FF',
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
+  },
+  friendName: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#ddd',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxSelected: {
+    backgroundColor: '#4A90E2',
+    borderColor: '#4A90E2',
+  },
+  footer: {
+    marginTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    paddingTop: 16,
+  },
+  inviteButton: {
+    backgroundColor: '#4A90E2',
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  inviteButtonDisabled: {
+    opacity: 0.5,
+  },
+  inviteButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  }
+});
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1165,7 +1536,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: Platform.OS === 'android' ? 12 : 8,
     paddingBottom: 12,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
@@ -1179,7 +1550,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   
-  // Progress bar (replaced dots)
+  // Progress bar
   progressBarContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -1206,7 +1577,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   scrollContent: {
-    paddingBottom: 40, // Enough space so inputs won't be cut off
+    paddingBottom: 40, // Space for inputs
   },
   stepContent: {
     flex: 1,
@@ -1384,6 +1755,30 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontStyle: 'italic',
   },
+  timeframeToggle: {
+    flexDirection: 'row',
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#ddd',
+    alignSelf: 'flex-start',
+  },
+  timeframeOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    alignItems: 'center',
+    width: 80,
+  },
+  timeframeSelected: {
+    backgroundColor: '#4A90E2',
+  },
+  timeframeText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#555',
+  },
+  timeframeTextSelected: {
+    color: '#fff',
+  },
   // Activity list
   activitiesListContainer: {
     marginTop: 8,
@@ -1501,31 +1896,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 8,
   },
-  // Timeframe toggle
-  timeframeToggle: {
-    flexDirection: 'row',
-    borderRadius: 8,
-    overflow: 'hidden',
-    backgroundColor: '#ddd',
-    alignSelf: 'flex-start',
-  },
-  timeframeOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    alignItems: 'center',
-    width: 80,
-  },
-  timeframeSelected: {
-    backgroundColor: '#4A90E2',
-  },
-  timeframeText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#555',
-  },
-  timeframeTextSelected: {
-    color: '#fff',
-  },
   noActivitiesWarning: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1625,24 +1995,21 @@ const styles = StyleSheet.create({
   reviewContainer: {
     flex: 1,
   },
-reviewCardGradient: {
-  // Outer gradient container that wraps your card
-  borderRadius: 16,
-  padding: 2, // Some padding so the white card appears inset
-  marginBottom: 20,
-},
-reviewCard: {
-  // Your existing card style, but tweak it
-  backgroundColor: '#fff',
-  borderRadius: 16,
-  padding: 20,
-  // Add a bigger shadow for a 3D effect
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.15,
-  shadowRadius: 6,
-  elevation: 6,
-},
+  reviewCardGradient: {
+    borderRadius: 16,
+    padding: 2,
+    marginBottom: 20,
+  },
+  reviewCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 6,
+  },
   reviewSection: {
     marginBottom: 20,
     paddingBottom: 20,
