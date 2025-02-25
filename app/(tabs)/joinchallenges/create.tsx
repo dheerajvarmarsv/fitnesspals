@@ -810,25 +810,33 @@ export default function CreateChallenge() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={handleBack}
-          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-        >
-          <Ionicons name="chevron-back" size={24} color="#333" />
-        </TouchableOpacity>
-        
-        {/* Progress bars in header instead of title */}
-        {currentStep < 5 && renderProgressBar()}
-        
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => router.back()}
-          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-        >
-          <Ionicons name="close" size={24} color="#333" />
-        </TouchableOpacity>
-      </View>
+  {currentStep < 5 ? (
+    <>
+      <TouchableOpacity
+        style={styles.headerButton}
+        onPress={handleBack}
+        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+      >
+        <Ionicons name="chevron-back" size={24} color="#333" />
+      </TouchableOpacity>
+      
+      {renderProgressBar()}
+      
+      <TouchableOpacity
+        style={styles.headerButton}
+        onPress={() => router.back()}
+        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+      >
+        <Ionicons name="close" size={24} color="#333" />
+      </TouchableOpacity>
+    </>
+  ) : (
+    // For step 5, do not show any header buttons.
+    <View style={{ width: '100%', alignItems: 'center', justifyContent: 'center' }}>
+      <Text style={{ fontSize: 18, fontWeight: '700', color: '#333' }}>Success</Text>
+    </View>
+  )}
+</View>
 
       {/* Content area */}
       <View style={{ flex: 1 }}>
@@ -1328,7 +1336,7 @@ export default function CreateChallenge() {
                     style={styles.actionButton}
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      router.replace('/(tabs)');
+                      router.replace('/(tabs)/joinchallenges/racetrack copy');
                     }}
                   >
                     <LinearGradient
