@@ -1,3 +1,5 @@
+// app/(tabs)/joinchallenges/challengedetails.tsx
+
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   StyleSheet,
@@ -19,7 +21,7 @@ import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { supabase } from '../../../lib/supabase';
 import { useUser } from '../../../components/UserContext';
 
-// Get screen dimensions for responsive design
+// Get screen dimensions
 const { width } = Dimensions.get('window');
 const isSmallDevice = width < 375;
 const isTablet = width >= 768;
@@ -52,7 +54,6 @@ const ACTIVITY_ICONS: { [key: string]: string } = {
   Custom: 'star',
 };
 
-// Define types
 interface Challenge {
   id: string;
   title: string;
@@ -101,7 +102,7 @@ interface Activity {
 export default function ChallengeDetailsScreen() {
   const { challenge_id } = useLocalSearchParams();
   const { settings } = useUser();
-  
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [challenge, setChallenge] = useState<Challenge | null>(null);
@@ -113,7 +114,7 @@ export default function ChallengeDetailsScreen() {
   const fetchChallengeDetails = useCallback(async () => {
     try {
       if (!challenge_id) return;
-      
+
       const { data, error } = await supabase
         .from('challenges')
         .select(`
@@ -125,17 +126,17 @@ export default function ChallengeDetailsScreen() {
         `)
         .eq('id', challenge_id)
         .single();
-      
+
       if (error) throw error;
       setChallenge(data as Challenge);
-      
+
       // Extract activities from challenge rules
       if (data && data.rules && data.rules.points_per_activity) {
         const activitiesData = Object.entries(data.rules.points_per_activity).map(
           ([activity_type, points]) => ({
             activity_type,
             points,
-            threshold: 'Custom Target' // Default value
+            threshold: 'Custom Target' // Default
           })
         );
         setActivities(activitiesData);
@@ -150,7 +151,7 @@ export default function ChallengeDetailsScreen() {
   const fetchParticipants = useCallback(async () => {
     try {
       if (!challenge_id) return;
-      
+
       const { data, error } = await supabase
         .from('challenge_participants')
         .select(`
@@ -168,7 +169,7 @@ export default function ChallengeDetailsScreen() {
         `)
         .eq('challenge_id', challenge_id)
         .order('total_points', { ascending: false });
-      
+
       if (error) throw error;
       setParticipants(data as Participant[]);
     } catch (err) {
@@ -176,22 +177,21 @@ export default function ChallengeDetailsScreen() {
     }
   }, [challenge_id]);
 
-  // Fetch challenge activities details
+  // Fetch challenge activities
   const fetchChallengeActivities = useCallback(async () => {
     try {
       if (!challenge_id) return;
-      
+
       const { data, error } = await supabase
         .from('challenge_activities')
         .select('*')
         .eq('challenge_id', challenge_id);
-      
+
       if (error) throw error;
-      
-      // If activities data is available, enhance the activities state
+
+      // If activities data is available, update the activities state
       if (data && data.length > 0) {
         const activityMap = new Map();
-        
         data.forEach(item => {
           activityMap.set(item.activity_type, {
             activity_type: item.activity_type,
@@ -199,7 +199,6 @@ export default function ChallengeDetailsScreen() {
             threshold: item.threshold || 'Custom Target'
           });
         });
-        
         if (activityMap.size > 0) {
           setActivities(Array.from(activityMap.values()));
         }
@@ -249,13 +248,13 @@ export default function ChallengeDetailsScreen() {
     });
   };
 
-  // Get gradient colors based on challenge type
+  // Get gradient colors
   const getChallengeGradient = () => {
     if (!challenge) return CHALLENGE_TYPE_GRADIENTS.custom;
     return CHALLENGE_TYPE_GRADIENTS[challenge.challenge_type] || CHALLENGE_TYPE_GRADIENTS.custom;
   };
 
-  // Render loading state
+  // Render loading
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
@@ -266,7 +265,7 @@ export default function ChallengeDetailsScreen() {
     );
   }
 
-  // Render error state
+  // Render error
   if (error || !challenge) {
     return (
       <SafeAreaView style={styles.errorContainer}>
@@ -274,10 +273,7 @@ export default function ChallengeDetailsScreen() {
         <Ionicons name="alert-circle-outline" size={64} color="#FF4B4B" />
         <Text style={styles.errorTitle}>Oops!</Text>
         <Text style={styles.errorMessage}>{error || 'Challenge not found'}</Text>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Text style={styles.backButtonText}>Go Back</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -288,23 +284,12 @@ export default function ChallengeDetailsScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
       
-      {/* Header with back button */}
-      <View style={styles.headerRow}>
-        <TouchableOpacity
-          style={styles.backButtonContainer}
-          onPress={() => router.back()}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="chevron-back" size={28} color="#fff" />
-        </TouchableOpacity>
-      </View>
-      
+      {/* We removed the local "Header with back button" block here */}
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* Challenge Header */}
         <LinearGradient
@@ -320,27 +305,20 @@ export default function ChallengeDetailsScreen() {
                   {challenge.challenge_type.toUpperCase()}
                 </Text>
               </View>
-              
+
               <View style={styles.visibilityTag}>
-                <Ionicons
-                  name={challenge.is_private ? "lock-closed" : "globe"}
-                  size={14}
-                  color="#fff"
-                />
+                <Ionicons name={challenge.is_private ? "lock-closed" : "globe"} size={14} color="#fff" />
                 <Text style={styles.visibilityText}>
                   {challenge.is_private ? "Private" : "Public"}
                 </Text>
               </View>
             </View>
-            
+
             <Text style={styles.challengeTitle}>{challenge.title}</Text>
-            
             {challenge.description && (
-              <Text style={styles.challengeDescription}>
-                {challenge.description}
-              </Text>
+              <Text style={styles.challengeDescription}>{challenge.description}</Text>
             )}
-            
+
             <View style={styles.creatorRow}>
               <Image
                 source={{
@@ -352,18 +330,14 @@ export default function ChallengeDetailsScreen() {
                 Created by <Text style={styles.creatorName}>{challenge.creator?.nickname || 'Unknown'}</Text>
               </Text>
             </View>
-            
+
             <View style={styles.dateRow}>
               <View style={styles.dateItem}>
                 <Ionicons name="calendar-outline" size={16} color="#fff" />
                 <Text style={styles.dateLabel}>Starts</Text>
-                <Text style={styles.dateText}>
-                  {formatDate(challenge.start_date)}
-                </Text>
+                <Text style={styles.dateText}>{formatDate(challenge.start_date)}</Text>
               </View>
-              
               <View style={styles.dateDivider} />
-              
               <View style={styles.dateItem}>
                 <Ionicons name="calendar-outline" size={16} color="#fff" />
                 <Text style={styles.dateLabel}>Ends</Text>
@@ -374,11 +348,10 @@ export default function ChallengeDetailsScreen() {
             </View>
           </View>
         </LinearGradient>
-        
+
         {/* Activities Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Challenge Activities</Text>
-          
           {activities.length === 0 ? (
             <View style={styles.noActivitiesContainer}>
               <Text style={styles.noActivitiesText}>No activities defined</Text>
@@ -394,12 +367,10 @@ export default function ChallengeDetailsScreen() {
                       color="#fff"
                     />
                   </View>
-                  
                   <View style={styles.activityDetails}>
                     <Text style={styles.activityName}>{activity.activity_type}</Text>
                     <Text style={styles.activityThreshold}>{activity.threshold}</Text>
                   </View>
-                  
                   <View style={styles.pointsContainer}>
                     <Text style={styles.pointsValue}>{activity.points}</Text>
                     <Text style={styles.pointsLabel}>pts</Text>
@@ -409,14 +380,13 @@ export default function ChallengeDetailsScreen() {
             </View>
           )}
         </View>
-        
+
         {/* Participants Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Leaderboard</Text>
           <Text style={styles.participantsCount}>
             {participants.length} {participants.length === 1 ? 'participant' : 'participants'}
           </Text>
-          
           {participants.length === 0 ? (
             <View style={styles.noParticipantsContainer}>
               <Text style={styles.noParticipantsText}>No participants yet</Text>
@@ -424,8 +394,8 @@ export default function ChallengeDetailsScreen() {
           ) : (
             <View style={styles.leaderboardContainer}>
               {participants.map((participant, index) => (
-                <View 
-                  key={participant.id} 
+                <View
+                  key={participant.id}
                   style={[
                     styles.participantRow,
                     index === 0 && styles.firstPlaceRow,
@@ -435,26 +405,30 @@ export default function ChallengeDetailsScreen() {
                 >
                   <View style={styles.rankContainer}>
                     {index < 3 ? (
-                      <View style={[
-                        styles.medalIcon,
-                        index === 0 && styles.goldMedal,
-                        index === 1 && styles.silverMedal,
-                        index === 2 && styles.bronzeMedal
-                      ]}>
+                      <View
+                        style={[
+                          styles.medalIcon,
+                          index === 0 && styles.goldMedal,
+                          index === 1 && styles.silverMedal,
+                          index === 2 && styles.bronzeMedal
+                        ]}
+                      >
                         <Text style={styles.medalText}>{index + 1}</Text>
                       </View>
                     ) : (
                       <Text style={styles.rankText}>{index + 1}</Text>
                     )}
                   </View>
-                  
+
                   <Image
                     source={{
-                      uri: participant.profile?.avatar_url || 'https://ui-avatars.com/api/?name=User&background=random'
+                      uri:
+                        participant.profile?.avatar_url ||
+                        'https://ui-avatars.com/api/?name=User&background=random'
                     }}
                     style={styles.participantAvatar}
                   />
-                  
+
                   <View style={styles.participantInfo}>
                     <Text style={styles.participantName}>
                       {participant.profile?.nickname || 'Unknown'}
@@ -463,7 +437,7 @@ export default function ChallengeDetailsScreen() {
                       {participant.status.charAt(0).toUpperCase() + participant.status.slice(1)}
                     </Text>
                   </View>
-                  
+
                   <View style={styles.scoreContainer}>
                     <Text style={styles.scoreValue}>{participant.total_points}</Text>
                     <Text style={styles.scoreLabel}>pts</Text>
@@ -527,20 +501,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 24,
-  },
-  headerRow: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 15 : 20,
-    left: 15,
-    zIndex: 10,
-  },
-  backButtonContainer: {
-    width: 36,
-    height: 36,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   headerGradient: {
     paddingBottom: 24,

@@ -1,6 +1,7 @@
+// app/(tabs)/joinchallenges/steps/challenges.ts
 import { supabase } from './supabase';
 
-// Defined valid challenge types to ensure type safety
+// Valid challenge types
 export const VALID_CHALLENGE_TYPES = ['race', 'survival', 'streak', 'custom'] as const;
 export type ChallengeType = typeof VALID_CHALLENGE_TYPES[number];
 
@@ -20,10 +21,12 @@ interface ChallengeCreationParams {
   endDate: Date | null;
   isOpenEnded: boolean;
   selectedActivities: SelectedActivity[];
+  isPrivate: boolean; // <-- ensures we store the correct is_private value
 }
 
 /**
  * Insert a new challenge into `challenges` plus any related `challenge_activities`.
+ * Also adds the creator as a participant in `challenge_participants`.
  */
 export async function createChallengeInSupabase({
   userId,
@@ -34,6 +37,7 @@ export async function createChallengeInSupabase({
   endDate,
   isOpenEnded,
   selectedActivities,
+  isPrivate,
 }: ChallengeCreationParams) {
   // Validate challenge type
   if (!VALID_CHALLENGE_TYPES.includes(challengeType as ChallengeType)) {
@@ -42,16 +46,11 @@ export async function createChallengeInSupabase({
     throw new Error(errorMessage);
   }
 
-  // Validate required fields
-  if (!userId) {
-    throw new Error('User ID is required');
-  }
+  // Basic checks
+  if (!userId) throw new Error('User ID is required');
+  if (!name || name.trim().length === 0) throw new Error('Challenge name is required');
 
-  if (!name || name.trim().length === 0) {
-    throw new Error('Challenge name is required');
-  }
-
-  // Prepare challenge data
+  // Prepare the main insert
   const challengeData = {
     creator_id: userId,
     challenge_type: challengeType as ChallengeType,
@@ -60,17 +59,18 @@ export async function createChallengeInSupabase({
     start_date: startDate ? startDate.toISOString() : null,
     end_date: isOpenEnded ? null : (endDate ? endDate.toISOString() : null),
     status: 'active' as const,
+    is_private: isPrivate, // <-- Save the toggle
     rules: {
       challenge_mode: challengeType,
-      allowed_activities: selectedActivities.map(act => act.activityType),
+      allowed_activities: selectedActivities.map((act) => act.activityType),
       points_per_activity: selectedActivities.reduce((acc, act) => {
         acc[act.activityType] = act.points;
         return acc;
       }, {} as Record<string, number>),
-    }
+    },
   };
 
-  // Insert challenge
+  // Insert the challenge
   const { data: createdChallenge, error: challengeError } = await supabase
     .from('challenges')
     .insert([challengeData])
@@ -81,12 +81,11 @@ export async function createChallengeInSupabase({
     console.error('Challenge creation error:', challengeError);
     throw challengeError;
   }
-
   if (!createdChallenge) {
     throw new Error('Failed to insert challenge');
   }
 
-  // Insert selected activities
+  // Insert any selected activities
   if (selectedActivities.length > 0) {
     const activityRows = selectedActivities.map((act) => ({
       challenge_id: createdChallenge.id,
@@ -106,7 +105,19 @@ export async function createChallengeInSupabase({
     }
   }
 
-  // Log successful challenge creation
+  // === ADD THE CREATOR AS A PARTICIPANT ===
+  const { error: participantError } = await supabase
+    .from('challenge_participants')
+    .insert({
+      challenge_id: createdChallenge.id,
+      user_id: userId,
+      status: 'active',
+    });
+  if (participantError) {
+    console.error('Error adding creator as participant:', participantError);
+    throw participantError;
+  }
+
   console.log(`Challenge created: ${createdChallenge.title} (Type: ${challengeType})`, {
     id: createdChallenge.id,
     type: createdChallenge.challenge_type,
@@ -120,7 +131,6 @@ export async function createChallengeInSupabase({
  */
 export async function getActiveChallenges() {
   const { data: { user } } = await supabase.auth.getUser();
-  
   if (!user) {
     throw new Error('User not authenticated');
   }
@@ -144,14 +154,12 @@ export async function getActiveChallenges() {
   }
 
   // Debug logging
-  data?.forEach(challenge => {
-    console.log('Active Challenge Details:', {
+  data?.forEach((challenge) => {
+    console.log('Active Challenge:', {
       id: challenge.id,
       title: challenge.title,
       challenge_type: challenge.challenge_type,
-      description: challenge.description,
-      start_date: challenge.start_date,
-      end_date: challenge.end_date
+      is_private: challenge.is_private,
     });
   });
 
