@@ -26,6 +26,7 @@ interface Friend {
   nickname: string;
   avatar_url: string;
   selected?: boolean;
+  inviteStatus?: 'pending' | 'accepted' | 'rejected' | 'not_invited';
 }
 
 interface FriendSelectionModalProps {
@@ -70,14 +71,14 @@ export default function FriendSelectionModal({
 
   // Load friends when modal becomes visible
   useEffect(() => {
-    if (visible) {
-      loadFriends();
+    if (visible && challengeId) {
+      loadFriendsWithInviteStatus();
     } else {
       // Reset when closing
       setSearchQuery('');
       setFriends([]);
     }
-  }, [visible]);
+  }, [visible, challengeId]);
 
   // Filter friends based on search query
   const filteredFriends = searchQuery.trim() !== ''
@@ -85,8 +86,8 @@ export default function FriendSelectionModal({
         friend.nickname.toLowerCase().includes(searchQuery.toLowerCase()))
     : friends;
 
-  // Load user's friends from database
-  const loadFriends = async () => {
+  // Load user's friends from database and check their invitation status
+  const loadFriendsWithInviteStatus = async () => {
     try {
       setLoading(true);
       setError(null);
@@ -99,7 +100,7 @@ export default function FriendSelectionModal({
       }
 
       // Fetch friends
-      const { data, error } = await supabase
+      const { data: friendsData, error: friendsError } = await supabase
         .from('friends')
         .select(`
           id,
@@ -112,21 +113,53 @@ export default function FriendSelectionModal({
         `)
         .eq('user_id', user.id);
 
-      if (error) throw error;
+      if (friendsError) throw friendsError;
 
-      // Format friend data
-      if (data && data.length > 0) {
-        const formattedFriends = data
-          .filter(item => item.friend) // Make sure friend data exists
-          .map(item => ({
-            id: item.friend_id,
+      if (!friendsData || friendsData.length === 0) {
+        setFriends([]);
+        setLoading(false);
+        return;
+      }
+
+      // If we have a challengeId, fetch existing invites for this challenge
+      let invitesMap = new Map();
+      
+      if (challengeId) {
+        const { data: invitesData, error: invitesError } = await supabase
+          .from('challenge_invites')
+          .select('receiver_id, status')
+          .eq('challenge_id', challengeId)
+          .eq('sender_id', user.id);
+          
+        if (invitesError) throw invitesError;
+        
+        // Create a map of receiver_id -> status
+        if (invitesData) {
+          invitesData.forEach(invite => {
+            invitesMap.set(invite.receiver_id, invite.status);
+          });
+        }
+      }
+      
+      // Format friend data with invite status
+      const formattedFriends = friendsData
+        .filter(item => item.friend) // Make sure friend data exists
+        .map(item => {
+          const friendId = item.friend_id;
+          const inviteStatus = invitesMap.has(friendId) 
+            ? invitesMap.get(friendId) 
+            : 'not_invited';
+            
+          return {
+            id: friendId,
             nickname: item.friend?.nickname || 'Unknown',
             avatar_url: item.friend?.avatar_url || 'https://via.placeholder.com/40',
-            selected: false
-          }));
-          
-        setFriends(formattedFriends);
-      }
+            selected: false,
+            inviteStatus: inviteStatus
+          };
+        });
+        
+      setFriends(formattedFriends);
     } catch (e: any) {
       console.error('Error loading friends:', e);
       setError(e.message || 'Failed to load friends');
@@ -135,14 +168,16 @@ export default function FriendSelectionModal({
     }
   };
 
-  // Toggle friend selection
+  // Toggle friend selection (only for those who haven't been invited or rejected the invite)
   const toggleFriendSelection = (id: string) => {
     setFriends(prev => 
-      prev.map(friend => 
-        friend.id === id 
-          ? { ...friend, selected: !friend.selected } 
-          : friend
-      )
+      prev.map(friend => {
+        // Only toggle if the friend is not already invited and pending
+        if (friend.id === id && friend.inviteStatus !== 'pending' && friend.inviteStatus !== 'accepted') {
+          return { ...friend, selected: !friend.selected };
+        }
+        return friend;
+      })
     );
   };
 
@@ -182,11 +217,20 @@ export default function FriendSelectionModal({
 
       if (error) throw error;
       
+      // Update local state to reflect the new invites
+      setFriends(prev => 
+        prev.map(friend => {
+          if (friend.selected) {
+            return { ...friend, selected: false, inviteStatus: 'pending' };
+          }
+          return friend;
+        })
+      );
+      
       // Success
       Alert.alert(
         'Success', 
-        `Invitations sent to ${selectedFriends.length} friend${selectedFriends.length > 1 ? 's' : ''}!`,
-        [{ text: 'OK', onPress: onClose }]
+        `Invitations sent to ${selectedFriends.length} friend${selectedFriends.length > 1 ? 's' : ''}!`
       );
     } catch (e: any) {
       setError(e.message || 'Failed to send invitations');
@@ -195,31 +239,80 @@ export default function FriendSelectionModal({
     }
   };
 
+  // Get the appropriate button text based on invite status
+  const getInviteStatusDisplay = (status: string | undefined) => {
+    switch(status) {
+      case 'pending': 
+        return 'Invited';
+      case 'accepted': 
+        return 'Joined';
+      case 'rejected': 
+        return 'Invite Again';
+      default: 
+        return '';
+    }
+  };
+
   // Render each friend item
-  const renderFriendItem = ({ item }: { item: Friend }) => (
-    <TouchableOpacity
-      style={[
-        styles.friendItem,
-        item.selected && styles.friendItemSelected
-      ]}
-      onPress={() => toggleFriendSelection(item.id)}
-      activeOpacity={0.7}
-    >
-      <Image 
-        source={{ uri: item.avatar_url }} 
-        style={styles.avatar} 
-      />
-      <Text style={styles.friendName}>{item.nickname}</Text>
-      <View style={[
-        styles.checkbox,
-        item.selected && styles.checkboxSelected
-      ]}>
-        {item.selected && (
-          <Ionicons name="checkmark" size={18} color="#fff" />
+  const renderFriendItem = ({ item }: { item: Friend }) => {
+    const isPending = item.inviteStatus === 'pending';
+    const isAccepted = item.inviteStatus === 'accepted';
+    const isRejected = item.inviteStatus === 'rejected';
+    const isNotInvited = item.inviteStatus === 'not_invited';
+    
+    // Determine if this friend can be selected
+    const isSelectable = isNotInvited || isRejected;
+    
+    return (
+      <TouchableOpacity
+        style={[
+          styles.friendItem,
+          item.selected && styles.friendItemSelected,
+          (isPending || isAccepted) && styles.friendItemDisabled
+        ]}
+        onPress={() => isSelectable ? toggleFriendSelection(item.id) : null}
+        activeOpacity={isSelectable ? 0.7 : 1}
+      >
+        <Image 
+          source={{ uri: item.avatar_url }} 
+          style={styles.avatar} 
+        />
+        <View style={styles.friendInfo}>
+          <Text style={styles.friendName}>{item.nickname}</Text>
+          {isPending && (
+            <Text style={styles.pendingText}>Invited</Text>
+          )}
+          {isAccepted && (
+            <Text style={styles.acceptedText}>Already joined</Text>
+          )}
+          {isRejected && (
+            <Text style={styles.rejectedText}>Declined previously</Text>
+          )}
+        </View>
+        
+        {isSelectable ? (
+          <View style={[
+            styles.checkbox,
+            item.selected && styles.checkboxSelected
+          ]}>
+            {item.selected && (
+              <Ionicons name="checkmark" size={18} color="#fff" />
+            )}
+          </View>
+        ) : (
+          <View style={[
+            styles.statusBadge,
+            isPending && styles.pendingBadge,
+            isAccepted && styles.acceptedBadge
+          ]}>
+            <Text style={styles.statusBadgeText}>
+              {getInviteStatusDisplay(item.inviteStatus)}
+            </Text>
+          </View>
         )}
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <Modal
@@ -266,7 +359,7 @@ export default function FriendSelectionModal({
                   ) : (
                     <TouchableOpacity
                       style={styles.retryButton}
-                      onPress={loadFriends}
+                      onPress={loadFriendsWithInviteStatus}
                     >
                       <Text style={styles.retryButtonText}>Retry</Text>
                     </TouchableOpacity>
@@ -456,17 +549,38 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#4A90E2',
   },
+  friendItemDisabled: {
+    opacity: 0.8,
+    backgroundColor: '#f0f0f0',
+  },
   avatar: {
     width: 50,
     height: 50,
     borderRadius: 25,
     marginRight: 12,
   },
-  friendName: {
+  friendInfo: {
     flex: 1,
+  },
+  friendName: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
+  },
+  pendingText: {
+    fontSize: 13,
+    color: '#F59E0B',
+    marginTop: 4,
+  },
+  acceptedText: {
+    fontSize: 13,
+    color: '#10B981',
+    marginTop: 4,
+  },
+  rejectedText: {
+    fontSize: 13,
+    color: '#EF4444',
+    marginTop: 4,
   },
   checkbox: {
     width: 24,
@@ -481,6 +595,23 @@ const styles = StyleSheet.create({
   checkboxSelected: {
     backgroundColor: '#4A90E2',
     borderColor: '#4A90E2',
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pendingBadge: {
+    backgroundColor: '#FEF3C7',
+  },
+  acceptedBadge: {
+    backgroundColor: '#D1FAE5',
+  },
+  statusBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   footer: {
     padding: 16,
