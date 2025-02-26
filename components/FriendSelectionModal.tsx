@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+// components/FriendSelectionModal.tsx
+import React, { useEffect, useState, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -17,20 +18,14 @@ import {
   Easing
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../lib/supabase';
-import { getFriends } from '../lib/friends';
 
 interface Friend {
   id: string;
-  user_id: string;
-  friend_id: string;
-  created_at: string;
-  friend?: {
-    id?: string;
-    nickname: string;
-    avatar_url: string;
-    email: string;
-  };
+  nickname: string;
+  avatar_url: string;
+  selected?: boolean;
 }
 
 interface FriendSelectionModalProps {
@@ -45,16 +40,19 @@ export default function FriendSelectionModal({
   challengeId
 }: FriendSelectionModalProps) {
   const [friends, setFriends] = useState<Friend[]>([]);
-  const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [inviting, setInviting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Animation for loading spinner
-  const spinValue = new Animated.Value(0);
   
-  // Create the spinning animation when inviting
+  // Animation for spinner
+  const spinValue = useRef(new Animated.Value(0)).current;
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg']
+  });
+
+  // Start spinning animation when inviting
   useEffect(() => {
     if (inviting) {
       Animated.loop(
@@ -68,203 +66,275 @@ export default function FriendSelectionModal({
     } else {
       spinValue.setValue(0);
     }
-  }, [inviting]);
-  
-  // Interpolate the spin value to create the rotation
-  const spin = spinValue.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg']
-  });
+  }, [inviting, spinValue]);
 
+  // Load friends when modal becomes visible
   useEffect(() => {
     if (visible) {
       loadFriends();
+    } else {
+      // Reset when closing
+      setSearchQuery('');
+      setFriends([]);
     }
   }, [visible]);
 
+  // Filter friends based on search query
+  const filteredFriends = searchQuery.trim() !== ''
+    ? friends.filter(friend => 
+        friend.nickname.toLowerCase().includes(searchQuery.toLowerCase()))
+    : friends;
+
+  // Load user's friends from database
   const loadFriends = async () => {
     try {
       setLoading(true);
       setError(null);
-      const friendsData = await getFriends();
-      setFriends(friendsData);
+
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setError('Not authenticated');
+        return;
+      }
+
+      // Fetch friends
+      const { data, error } = await supabase
+        .from('friends')
+        .select(`
+          id,
+          friend_id,
+          friend:profiles!friends_friend_id_fkey (
+            id,
+            nickname,
+            avatar_url
+          )
+        `)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      // Format friend data
+      if (data && data.length > 0) {
+        const formattedFriends = data
+          .filter(item => item.friend) // Make sure friend data exists
+          .map(item => ({
+            id: item.friend_id,
+            nickname: item.friend?.nickname || 'Unknown',
+            avatar_url: item.friend?.avatar_url || 'https://via.placeholder.com/40',
+            selected: false
+          }));
+          
+        setFriends(formattedFriends);
+      }
     } catch (e: any) {
       console.error('Error loading friends:', e);
-      setError(e.message);
+      setError(e.message || 'Failed to load friends');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleToggleSelect = (friendId: string) => {
-    setSelectedFriends(prev => 
-      prev.includes(friendId)
-        ? prev.filter(id => id !== friendId)
-        : [...prev, friendId]
+  // Toggle friend selection
+  const toggleFriendSelection = (id: string) => {
+    setFriends(prev => 
+      prev.map(friend => 
+        friend.id === id 
+          ? { ...friend, selected: !friend.selected } 
+          : friend
+      )
     );
   };
 
+  // Invite selected friends
   const handleInvite = async () => {
-    if (!challengeId || selectedFriends.length === 0) return;
+    const selectedFriends = friends.filter(f => f.selected);
     
+    if (!challengeId) {
+      Alert.alert('Error', 'Challenge ID is missing');
+      return;
+    }
+    
+    if (selectedFriends.length === 0) {
+      Alert.alert('Selection Required', 'Please select at least one friend to invite');
+      return;
+    }
+
     try {
       setInviting(true);
       setError(null);
-      
+
+      // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
+
+      // Create invites for each selected friend
+      const invites = selectedFriends.map(friend => ({
+        challenge_id: challengeId,
+        sender_id: user.id,
+        receiver_id: friend.id,
+        status: 'pending'
+      }));
+
+      const { error } = await supabase
+        .from('challenge_invites')
+        .insert(invites);
+
+      if (error) throw error;
       
-      // Create invite entries in the database
-      const promises = selectedFriends.map(friendId => 
-        supabase
-          .from('challenge_invites')
-          .insert({
-            challenge_id: challengeId,
-            sender_id: user.id,
-            receiver_id: friendId,
-            status: 'pending'
-          })
-      );
-      
-      await Promise.all(promises);
-      
+      // Success
       Alert.alert(
         'Success', 
-        `Invited ${selectedFriends.length} friend${selectedFriends.length > 1 ? 's' : ''}!`,
+        `Invitations sent to ${selectedFriends.length} friend${selectedFriends.length > 1 ? 's' : ''}!`,
         [{ text: 'OK', onPress: onClose }]
       );
     } catch (e: any) {
-      console.error('Error inviting friends:', e);
-      setError(e.message);
+      setError(e.message || 'Failed to send invitations');
     } finally {
       setInviting(false);
     }
   };
 
-  const renderFriendItem = ({ item }: { item: Friend }) => {
-    if (!item.friend) return null;
-    
-    const isSelected = selectedFriends.includes(item.friend_id);
-    
-    return (
-      <TouchableOpacity 
-        style={[styles.friendItem, isSelected && styles.friendItemSelected]} 
-        onPress={() => handleToggleSelect(item.friend_id)}
-      >
-        <View style={styles.friendItemContent}>
-          <Image 
-            source={{ uri: item.friend.avatar_url }} 
-            style={styles.avatar} 
-          />
-          <View style={styles.friendInfo}>
-            <Text style={styles.friendName}>{item.friend.nickname}</Text>
-            <Text style={styles.friendEmail}>{item.friend.email}</Text>
-          </View>
-          <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
-            {isSelected && <Ionicons name="checkmark" size={18} color="#fff" />}
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  // Filter friends based on search query
-  const filteredFriends = friends.filter(friend => 
-    friend.friend?.nickname.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    friend.friend?.email.toLowerCase().includes(searchQuery.toLowerCase())
+  // Render each friend item
+  const renderFriendItem = ({ item }: { item: Friend }) => (
+    <TouchableOpacity
+      style={[
+        styles.friendItem,
+        item.selected && styles.friendItemSelected
+      ]}
+      onPress={() => toggleFriendSelection(item.id)}
+      activeOpacity={0.7}
+    >
+      <Image 
+        source={{ uri: item.avatar_url }} 
+        style={styles.avatar} 
+      />
+      <Text style={styles.friendName}>{item.nickname}</Text>
+      <View style={[
+        styles.checkbox,
+        item.selected && styles.checkboxSelected
+      ]}>
+        {item.selected && (
+          <Ionicons name="checkmark" size={18} color="#fff" />
+        )}
+      </View>
+    </TouchableOpacity>
   );
 
   return (
     <Modal
       visible={visible}
-      transparent={true}
+      transparent
       animationType="slide"
       onRequestClose={onClose}
     >
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback>
-            <View style={styles.modalContent}>
+            <View style={styles.container}>
               <View style={styles.header}>
-                <Text style={styles.headerTitle}>Invite Friends</Text>
+                <Text style={styles.title}>Invite Friends</Text>
                 <TouchableOpacity 
-                  style={styles.closeButton} 
+                  style={styles.closeButton}
                   onPress={onClose}
-                  hitSlop={{ top: 15, right: 15, bottom: 15, left: 15 }}
                 >
                   <Ionicons name="close" size={24} color="#333" />
                 </TouchableOpacity>
               </View>
-              
+
               <View style={styles.searchContainer}>
                 <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
                 <TextInput
                   style={styles.searchInput}
-                  placeholder="Search friends"
+                  placeholder="Search friends..."
                   placeholderTextColor="#999"
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                 />
               </View>
-              
+
               {error && (
                 <View style={styles.errorContainer}>
                   <Text style={styles.errorText}>{error}</Text>
+                  {error === 'Not authenticated' ? (
+                    <TouchableOpacity
+                      style={styles.retryButton}
+                      onPress={onClose}
+                    >
+                      <Text style={styles.retryButtonText}>Close</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.retryButton}
+                      onPress={loadFriends}
+                    >
+                      <Text style={styles.retryButtonText}>Retry</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               )}
-              
+
               {loading ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="large" color="#4A90E2" />
                   <Text style={styles.loadingText}>Loading friends...</Text>
                 </View>
               ) : friends.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyStateTitle}>No Friends Yet</Text>
-                  <Text style={styles.emptyStateText}>
-                    You need to add friends before you can invite them to challenges.
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>
+                    You don't have any friends yet.{'\n'}
+                    Add friends to invite them to your challenge!
                   </Text>
                 </View>
               ) : filteredFriends.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyStateText}>
-                    No results matching "{searchQuery}"
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>
+                    No friends found matching "{searchQuery}"
                   </Text>
                 </View>
               ) : (
                 <FlatList
                   data={filteredFriends}
                   renderItem={renderFriendItem}
-                  keyExtractor={item => item.id}
-                  style={styles.friendsList}
-                  contentContainerStyle={styles.friendsListContent}
+                  keyExtractor={(item) => item.id}
+                  contentContainerStyle={styles.friendsList}
+                  showsVerticalScrollIndicator={false}
                 />
               )}
-              
+
               <View style={styles.footer}>
-                {selectedFriends.length > 0 && (
-                  <Text style={styles.selectionText}>
-                    {selectedFriends.length} friend{selectedFriends.length > 1 ? 's' : ''} selected
-                  </Text>
-                )}
-                <TouchableOpacity 
+                <Text style={styles.selectedCount}>
+                  {friends.filter(f => f.selected).length} friend(s) selected
+                </Text>
+                
+                <TouchableOpacity
                   style={[
-                    styles.inviteButton, 
-                    (selectedFriends.length === 0 || inviting) && styles.inviteButtonDisabled
+                    styles.inviteButton,
+                    (inviting || !friends.some(f => f.selected)) && 
+                      styles.inviteButtonDisabled
                   ]}
                   onPress={handleInvite}
-                  disabled={selectedFriends.length === 0 || inviting}
+                  disabled={inviting || !friends.some(f => f.selected)}
                 >
-                  {inviting ? (
-                    <View style={styles.inviteButtonContent}>
-                      <Animated.View style={{ transform: [{ rotate: spin }] }}>
-                        <Ionicons name="refresh" size={24} color="#fff" />
-                      </Animated.View>
-                      <Text style={styles.inviteButtonText}>Inviting...</Text>
-                    </View>
-                  ) : (
-                    <Text style={styles.inviteButtonText}>Send Invites</Text>
-                  )}
+                  <LinearGradient
+                    colors={['#FF416C', '#FF4B2B']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.inviteButtonGradient}
+                  >
+                    {inviting ? (
+                      <View style={styles.invitingContainer}>
+                        <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                          <Ionicons name="refresh" size={20} color="#fff" />
+                        </Animated.View>
+                        <Text style={styles.inviteButtonText}>Sending Invites...</Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.inviteButtonText}>
+                        Send Invitations
+                      </Text>
+                    )}
+                  </LinearGradient>
                 </TouchableOpacity>
               </View>
             </View>
@@ -276,15 +346,14 @@ export default function FriendSelectionModal({
 }
 
 const { width, height } = Dimensions.get('window');
-const isSmallDevice = height < 700;
 
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
-  modalContent: {
+  container: {
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -294,22 +363,19 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
-    paddingVertical: 16,
-    position: 'relative',
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+  title: {
+    fontSize: 20,
+    fontWeight: '700',
     color: '#333',
-    textAlign: 'center',
   },
   closeButton: {
-    position: 'absolute',
-    right: 16,
-    top: 16,
+    padding: 5,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -327,12 +393,12 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: '#333',
+    paddingVertical: 8,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 30,
   },
   loadingText: {
     marginTop: 12,
@@ -342,80 +408,73 @@ const styles = StyleSheet.create({
   errorContainer: {
     margin: 16,
     backgroundColor: '#FEE2E2',
-    padding: 12,
+    padding: 16,
     borderRadius: 8,
+    alignItems: 'center',
   },
   errorText: {
     color: '#DC2626',
     textAlign: 'center',
+    marginBottom: 12,
   },
-  emptyState: {
+  retryButton: {
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
-  emptyStateTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 10,
-  },
-  emptyStateText: {
-    color: '#666',
+  emptyText: {
     textAlign: 'center',
     fontSize: 16,
-    lineHeight: 22,
+    color: '#666',
+    lineHeight: 24,
   },
   friendsList: {
-    flex: 1,
-  },
-  friendsListContent: {
     paddingHorizontal: 16,
+    paddingBottom: 20,
   },
   friendItem: {
-    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    marginBottom: 8,
+    backgroundColor: '#f8f9fa',
     borderRadius: 12,
-    backgroundColor: '#f9f9f9',
-    overflow: 'hidden',
   },
   friendItemSelected: {
     backgroundColor: '#EBF5FF',
     borderWidth: 1,
     borderColor: '#4A90E2',
   },
-  friendItemContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-  },
   avatar: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#ddd',
-  },
-  friendInfo: {
-    flex: 1,
-    marginLeft: 12,
+    marginRight: 12,
   },
   friendName: {
+    flex: 1,
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
   },
-  friendEmail: {
-    fontSize: 14,
-    color: '#666',
-  },
   checkbox: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: '#ddd',
     backgroundColor: '#fff',
-    marginLeft: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -428,22 +487,24 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#eee',
   },
-  selectionText: {
+  selectedCount: {
     textAlign: 'center',
     color: '#666',
     marginBottom: 12,
   },
   inviteButton: {
-    backgroundColor: '#4A90E2',
     borderRadius: 12,
+    overflow: 'hidden',
+  },
+  inviteButtonDisabled: {
+    opacity: 0.5,
+  },
+  inviteButtonGradient: {
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  inviteButtonDisabled: {
-    backgroundColor: '#ccc',
-  },
-  inviteButtonContent: {
+  invitingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
