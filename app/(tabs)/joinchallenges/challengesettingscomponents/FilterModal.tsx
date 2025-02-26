@@ -1,4 +1,5 @@
 // app/(tabs)/joinchallenges/challengesettingscomponents/FilterModal.tsx
+
 import React from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -39,16 +40,14 @@ export default function FilterModal({
                 key={option}
                 style={[
                   styles.filterOption,
-                  activeFilter === option && styles.filterOptionActive
+                  activeFilter === option && styles.filterOptionActive,
                 ]}
-                onPress={() => {
-                  onChangeFilter(option);
-                }}
+                onPress={() => onChangeFilter(option)}
               >
                 <Text
                   style={[
                     styles.filterOptionText,
-                    activeFilter === option && styles.filterOptionTextActive
+                    activeFilter === option && styles.filterOptionTextActive,
                   ]}
                 >
                   {option === 'all'

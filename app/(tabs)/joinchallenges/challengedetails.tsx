@@ -13,20 +13,17 @@ import {
   Dimensions,
   Platform,
   StatusBar,
-  SafeAreaView
+  SafeAreaView,
+  Modal,
 } from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
+import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { supabase } from '../../../lib/supabase';
 import { useUser } from '../../../components/UserContext';
 
-// Get screen dimensions
 const { width } = Dimensions.get('window');
-const isSmallDevice = width < 375;
-const isTablet = width >= 768;
 
-// Define gradient colors based on challenge type
 const CHALLENGE_TYPE_GRADIENTS = {
   race: ['#FF416C', '#FF4B2B'],
   survival: ['#4776E6', '#8E54E9'],
@@ -34,7 +31,6 @@ const CHALLENGE_TYPE_GRADIENTS = {
   custom: ['#11998e', '#38ef7d'],
 };
 
-// Activity icon mapping
 const ACTIVITY_ICONS: { [key: string]: string } = {
   Walking: 'walking',
   Running: 'running',
@@ -49,7 +45,7 @@ const ACTIVITY_ICONS: { [key: string]: string } = {
   'Weight Training': 'dumbbell',
   'Cardio Workout': 'heartbeat',
   'High-Intensity': 'fire',
-  'Stretching': 'child',
+  Stretching: 'child',
   'Bonus Points': 'star',
   Custom: 'star',
 };
@@ -67,10 +63,7 @@ interface Challenge {
   rules: {
     allowed_activities: string[];
     points_per_activity: Record<string, number>;
-    finish_line?: number;
-    minimum_threshold?: number;
-    streak_bonus?: number;
-    custom_rules?: any;
+    timeframe?: 'day' | 'week';
   };
   created_at: string;
   creator?: {
@@ -100,6 +93,15 @@ interface Activity {
 }
 
 export default function ChallengeDetailsScreen() {
+  return (
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ChallengeDetailsContent />
+    </>
+  );
+}
+
+function ChallengeDetailsContent() {
   const { challenge_id } = useLocalSearchParams();
   const { settings } = useUser();
 
@@ -110,11 +112,12 @@ export default function ChallengeDetailsScreen() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch challenge details including creator info
+  const [showAllActivities, setShowAllActivities] = useState(false);
+  const [showActivitiesInfo, setShowActivitiesInfo] = useState(false);
+
   const fetchChallengeDetails = useCallback(async () => {
     try {
       if (!challenge_id) return;
-
       const { data, error } = await supabase
         .from('challenges')
         .select(`
@@ -126,17 +129,16 @@ export default function ChallengeDetailsScreen() {
         `)
         .eq('id', challenge_id)
         .single();
-
       if (error) throw error;
+
       setChallenge(data as Challenge);
 
-      // Extract activities from challenge rules
-      if (data && data.rules && data.rules.points_per_activity) {
+      if (data?.rules?.points_per_activity) {
         const activitiesData = Object.entries(data.rules.points_per_activity).map(
           ([activity_type, points]) => ({
             activity_type,
             points,
-            threshold: 'Custom Target' // Default
+            threshold: 'Custom Target',
           })
         );
         setActivities(activitiesData);
@@ -147,11 +149,9 @@ export default function ChallengeDetailsScreen() {
     }
   }, [challenge_id]);
 
-  // Fetch participants sorted by total points (descending)
   const fetchParticipants = useCallback(async () => {
     try {
       if (!challenge_id) return;
-
       const { data, error } = await supabase
         .from('challenge_participants')
         .select(`
@@ -169,34 +169,30 @@ export default function ChallengeDetailsScreen() {
         `)
         .eq('challenge_id', challenge_id)
         .order('total_points', { ascending: false });
-
       if (error) throw error;
+
       setParticipants(data as Participant[]);
     } catch (err) {
       console.error('Error fetching participants:', err);
     }
   }, [challenge_id]);
 
-  // Fetch challenge activities
   const fetchChallengeActivities = useCallback(async () => {
     try {
       if (!challenge_id) return;
-
       const { data, error } = await supabase
         .from('challenge_activities')
         .select('*')
         .eq('challenge_id', challenge_id);
-
       if (error) throw error;
 
-      // If activities data is available, update the activities state
       if (data && data.length > 0) {
         const activityMap = new Map();
-        data.forEach(item => {
+        data.forEach((item) => {
           activityMap.set(item.activity_type, {
             activity_type: item.activity_type,
             points: item.points,
-            threshold: item.threshold || 'Custom Target'
+            threshold: item.threshold || 'Custom Target',
           });
         });
         if (activityMap.size > 0) {
@@ -208,7 +204,6 @@ export default function ChallengeDetailsScreen() {
     }
   }, [challenge_id]);
 
-  // Load all data
   const loadAllData = useCallback(async () => {
     try {
       setLoading(true);
@@ -216,7 +211,7 @@ export default function ChallengeDetailsScreen() {
       await Promise.all([
         fetchChallengeDetails(),
         fetchParticipants(),
-        fetchChallengeActivities()
+        fetchChallengeActivities(),
       ]);
     } catch (err) {
       console.error('Error loading challenge data:', err);
@@ -226,35 +221,30 @@ export default function ChallengeDetailsScreen() {
     }
   }, [fetchChallengeDetails, fetchParticipants, fetchChallengeActivities]);
 
-  // Pull-to-refresh
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadAllData();
     setRefreshing(false);
   }, [loadAllData]);
 
-  // Initial data load
   useEffect(() => {
     loadAllData();
   }, [loadAllData]);
 
-  // Format date for display
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Not set';
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
-      year: 'numeric'
+      year: 'numeric',
     });
   };
 
-  // Get gradient colors
   const getChallengeGradient = () => {
     if (!challenge) return CHALLENGE_TYPE_GRADIENTS.custom;
     return CHALLENGE_TYPE_GRADIENTS[challenge.challenge_type] || CHALLENGE_TYPE_GRADIENTS.custom;
   };
 
-  // Render loading
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
@@ -265,7 +255,6 @@ export default function ChallengeDetailsScreen() {
     );
   }
 
-  // Render error
   if (error || !challenge) {
     return (
       <SafeAreaView style={styles.errorContainer}>
@@ -280,68 +269,83 @@ export default function ChallengeDetailsScreen() {
     );
   }
 
+  const displayedActivities = showAllActivities ? activities : activities.slice(0, 3);
+  const timeframe = challenge.rules?.timeframe || 'day';
+  const timeframeLabel = timeframe === 'day' ? 'Daily' : 'Weekly';
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
-      
-      {/* We removed the local "Header with back button" block here */}
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* Challenge Header */}
+        {/* Full gradient top section */}
         <LinearGradient
           colors={getChallengeGradient()}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
+          style={styles.gradientContainer}
         >
-          <View style={styles.headerContent}>
-            <View style={styles.topRow}>
-              <View style={styles.challengeTypeTag}>
-                <Text style={styles.challengeTypeText}>
-                  {challenge.challenge_type.toUpperCase()}
-                </Text>
-              </View>
+          {/* Top row: back button + challenge name */}
+          <View style={styles.headerRow}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButtonContainer}>
+              <Ionicons name="chevron-back" size={26} color="#fff" />
+            </TouchableOpacity>
 
-              <View style={styles.visibilityTag}>
-                <Ionicons name={challenge.is_private ? "lock-closed" : "globe"} size={14} color="#fff" />
-                <Text style={styles.visibilityText}>
-                  {challenge.is_private ? "Private" : "Public"}
-                </Text>
-              </View>
+            <Text style={styles.challengeName} numberOfLines={1}>
+              {challenge.title}
+            </Text>
+
+            <View style={{ width: 26 }} />
+          </View>
+
+          {/* Sub row: type, created by, public/private */}
+          <View style={styles.subRow}>
+            <View style={[styles.subRowItem, styles.darkTag]}>
+              <Text style={styles.darkTagText}>{challenge.challenge_type.toUpperCase()}</Text>
             </View>
 
-            <Text style={styles.challengeTitle}>{challenge.title}</Text>
-            {challenge.description && (
-              <Text style={styles.challengeDescription}>{challenge.description}</Text>
-            )}
-
-            <View style={styles.creatorRow}>
-              <Image
-                source={{
-                  uri: challenge.creator?.avatar_url || 'https://ui-avatars.com/api/?name=User&background=random'
-                }}
-                style={styles.creatorAvatar}
-              />
-              <Text style={styles.creatorText}>
-                Created by <Text style={styles.creatorName}>{challenge.creator?.nickname || 'Unknown'}</Text>
+            <View style={styles.subRowItem}>
+              <Text style={styles.createdByText}>
+                by {challenge.creator?.nickname || 'Unknown'}
               </Text>
             </View>
+
+            <View style={[styles.subRowItem, styles.darkTag]}>
+              <Ionicons
+                name={challenge.is_private ? 'lock-closed' : 'globe'}
+                size={14}
+                color="#fff"
+                style={{ marginRight: 4 }}
+              />
+              <Text style={styles.darkTagText}>
+                {challenge.is_private ? 'Private' : 'Public'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Combined box: description + start/end dates, with 3D effect */}
+          <View style={styles.descDatesBox}>
+            {challenge.description ? (
+              <View style={styles.descriptionContainer}>
+                <Text style={styles.descriptionText}>{challenge.description}</Text>
+              </View>
+            ) : null}
 
             <View style={styles.dateRow}>
               <View style={styles.dateItem}>
                 <Ionicons name="calendar-outline" size={16} color="#fff" />
                 <Text style={styles.dateLabel}>Starts</Text>
-                <Text style={styles.dateText}>{formatDate(challenge.start_date)}</Text>
+                <Text style={styles.dateValue}>{formatDate(challenge.start_date)}</Text>
               </View>
               <View style={styles.dateDivider} />
               <View style={styles.dateItem}>
                 <Ionicons name="calendar-outline" size={16} color="#fff" />
                 <Text style={styles.dateLabel}>Ends</Text>
-                <Text style={styles.dateText}>
+                <Text style={styles.dateValue}>
                   {challenge.end_date ? formatDate(challenge.end_date) : 'Open-ended'}
                 </Text>
               </View>
@@ -349,114 +353,180 @@ export default function ChallengeDetailsScreen() {
           </View>
         </LinearGradient>
 
-        {/* Activities Section */}
+        {/* Activities */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Challenge Activities</Text>
-          {activities.length === 0 ? (
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Challenge Activities</Text>
+            <TouchableOpacity
+              style={styles.infoButtonGrayCircle}
+              onPress={() => setShowActivitiesInfo(true)}
+            >
+              <Ionicons name="information-circle" size={16} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          {displayedActivities.length === 0 ? (
             <View style={styles.noActivitiesContainer}>
               <Text style={styles.noActivitiesText}>No activities defined</Text>
             </View>
           ) : (
             <View style={styles.activitiesContainer}>
-              {activities.map((activity, index) => (
-                <View key={`${activity.activity_type}-${index}`} style={styles.activityCard}>
+              {displayedActivities.map((activity, index) => (
+                <View key={`${activity.activity_type}-${index}`} style={styles.activityRow}>
                   <View style={styles.activityIconContainer}>
                     <FontAwesome5
                       name={ACTIVITY_ICONS[activity.activity_type] || 'star'}
-                      size={18}
+                      size={16}
                       color="#fff"
                     />
                   </View>
-                  <View style={styles.activityDetails}>
+                  <View style={styles.activityInfo}>
                     <Text style={styles.activityName}>{activity.activity_type}</Text>
-                    <Text style={styles.activityThreshold}>{activity.threshold}</Text>
+                    <Text style={styles.activitySubText}>
+                      {activity.threshold} • {timeframeLabel}
+                    </Text>
                   </View>
-                  <View style={styles.pointsContainer}>
+                  <View style={styles.activityPoints}>
                     <Text style={styles.pointsValue}>{activity.points}</Text>
                     <Text style={styles.pointsLabel}>pts</Text>
                   </View>
                 </View>
               ))}
+
+              {activities.length > 3 && (
+                <TouchableOpacity
+                  onPress={() => setShowAllActivities(!showAllActivities)}
+                  style={styles.showMoreButton}
+                >
+                  <Ionicons
+                    name={showAllActivities ? 'chevron-up' : 'chevron-down'}
+                    size={20}
+                    color="#fff"
+                  />
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </View>
 
-        {/* Participants Section */}
+        {/* Leaderboard */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Leaderboard</Text>
           <Text style={styles.participantsCount}>
             {participants.length} {participants.length === 1 ? 'participant' : 'participants'}
           </Text>
+
           {participants.length === 0 ? (
             <View style={styles.noParticipantsContainer}>
               <Text style={styles.noParticipantsText}>No participants yet</Text>
             </View>
           ) : (
-            <View style={styles.leaderboardContainer}>
-              {participants.map((participant, index) => (
-                <View
-                  key={participant.id}
-                  style={[
-                    styles.participantRow,
-                    index === 0 && styles.firstPlaceRow,
-                    index === 1 && styles.secondPlaceRow,
-                    index === 2 && styles.thirdPlaceRow
-                  ]}
-                >
-                  <View style={styles.rankContainer}>
-                    {index < 3 ? (
-                      <View
-                        style={[
-                          styles.medalIcon,
-                          index === 0 && styles.goldMedal,
-                          index === 1 && styles.silverMedal,
-                          index === 2 && styles.bronzeMedal
-                        ]}
-                      >
-                        <Text style={styles.medalText}>{index + 1}</Text>
+            <View style={{ maxHeight: 300 }}>
+              <ScrollView nestedScrollEnabled>
+                <View style={styles.leaderboardContainer}>
+                  {participants.map((participant, index) => (
+                    <View
+                      key={participant.id}
+                      style={[
+                        styles.participantRow,
+                        index === 0 && styles.firstPlaceRow,
+                        index === 1 && styles.secondPlaceRow,
+                        index === 2 && styles.thirdPlaceRow,
+                      ]}
+                    >
+                      <View style={styles.rankContainer}>
+                        {index < 3 ? (
+                          <View
+                            style={[
+                              styles.medalIcon,
+                              index === 0 && styles.goldMedal,
+                              index === 1 && styles.silverMedal,
+                              index === 2 && styles.bronzeMedal,
+                            ]}
+                          >
+                            <Text style={styles.medalText}>{index + 1}</Text>
+                          </View>
+                        ) : (
+                          <Text style={styles.rankText}>{index + 1}</Text>
+                        )}
                       </View>
-                    ) : (
-                      <Text style={styles.rankText}>{index + 1}</Text>
-                    )}
-                  </View>
 
-                  <Image
-                    source={{
-                      uri:
-                        participant.profile?.avatar_url ||
-                        'https://ui-avatars.com/api/?name=User&background=random'
-                    }}
-                    style={styles.participantAvatar}
-                  />
+                      <Image
+                        source={{
+                          uri:
+                            participant.profile?.avatar_url ||
+                            'https://ui-avatars.com/api/?name=User&background=random',
+                        }}
+                        style={styles.participantAvatar}
+                      />
 
-                  <View style={styles.participantInfo}>
-                    <Text style={styles.participantName}>
-                      {participant.profile?.nickname || 'Unknown'}
-                    </Text>
-                    <Text style={styles.participantStatus}>
-                      {participant.status.charAt(0).toUpperCase() + participant.status.slice(1)}
-                    </Text>
-                  </View>
+                      <View style={styles.participantInfo}>
+                        <Text style={styles.participantName}>
+                          {participant.profile?.nickname || 'Unknown'}
+                        </Text>
+                        <Text style={styles.participantStatus}>
+                          {participant.status.charAt(0).toUpperCase() + participant.status.slice(1)}
+                        </Text>
+                      </View>
 
-                  <View style={styles.scoreContainer}>
-                    <Text style={styles.scoreValue}>{participant.total_points}</Text>
-                    <Text style={styles.scoreLabel}>pts</Text>
-                  </View>
+                      <View style={styles.scoreContainer}>
+                        <Text style={styles.scoreValue}>{participant.total_points}</Text>
+                        <Text style={styles.scoreLabel}>pts</Text>
+                      </View>
+                    </View>
+                  ))}
                 </View>
-              ))}
+              </ScrollView>
             </View>
           )}
         </View>
       </ScrollView>
+
+      {/* Info Modal */}
+      <Modal
+        visible={showActivitiesInfo}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowActivitiesInfo(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowActivitiesInfo(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Activities Info</Text>
+              <Text style={styles.modalBodyText}>
+                This challenge includes multiple activities you can complete {timeframeLabel.toLowerCase()} 
+                to earn points. Stay consistent and have fun!
+              </Text>
+
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setShowActivitiesInfo(false)}
+              >
+                <Text style={styles.modalCloseButtonText}>Got it</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  // Container & Scroll
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
   },
+  scrollContent: {
+    paddingBottom: 16, // reduced so there's less extra space
+  },
+
+  // Loading / Error
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -465,8 +535,12 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 16,
-    fontSize: 16,
+    fontSize: 17,
     color: '#555',
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-Medium',
+      android: 'Roboto',
+    }),
   },
   errorContainer: {
     flex: 1,
@@ -481,12 +555,20 @@ const styles = StyleSheet.create({
     color: '#333',
     marginTop: 16,
     marginBottom: 8,
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-DemiBold',
+      android: 'Roboto',
+    }),
   },
   errorMessage: {
     fontSize: 16,
     color: '#666',
     textAlign: 'center',
     marginBottom: 24,
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-Regular',
+      android: 'Roboto',
+    }),
   },
   backButton: {
     backgroundColor: '#4A90E2',
@@ -498,88 +580,115 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-DemiBold',
+      android: 'Roboto',
+    }),
   },
-  scrollContent: {
-    paddingBottom: 24,
-  },
-  headerGradient: {
-    paddingBottom: 24,
+
+  // Gradient Container
+  gradientContainer: {
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
+    paddingBottom: 16,
   },
-  headerContent: {
-    paddingTop: 70,
-    paddingHorizontal: 24,
-  },
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  challengeTypeTag: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 16,
-  },
-  challengeTypeText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 12,
-    letterSpacing: 1,
-  },
-  visibilityTag: {
+
+  // Header row
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 16,
+    marginTop: 10,
+    paddingHorizontal: 16,
+    justifyContent: 'space-between',
   },
-  visibilityText: {
+  backButtonContainer: {
+    width: 40,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  challengeName: {
+    flex: 1,
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+    marginHorizontal: 8,
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-Bold',
+      android: 'Roboto',
+    }),
+  },
+
+  // Sub row
+  subRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingHorizontal: 16,
+    justifyContent: 'space-between',
+  },
+  subRowItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  darkTag: {
+    backgroundColor: 'rgba(0,0,0,0.25)',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginRight: 10,
+  },
+  darkTagText: {
     color: '#fff',
     fontWeight: '600',
     fontSize: 12,
-    marginLeft: 4,
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-DemiBold',
+      android: 'Roboto',
+    }),
   },
-  challengeTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
+  createdByText: {
     color: '#fff',
-    marginBottom: 12,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    fontSize: 13,
+    fontWeight: '600',
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-Medium',
+      android: 'Roboto',
+    }),
   },
-  challengeDescription: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.9)',
-    marginBottom: 20,
-    lineHeight: 22,
+
+  // Description + Dates in one box
+  descDatesBox: {
+    marginTop: 12,
+    marginHorizontal: 16,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 12,
+    padding: 14,
+    // Subtle shadow for 3D effect
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
   },
-  creatorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
+  descriptionContainer: {
+    marginBottom: 10,
   },
-  creatorAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#ddd',
-    marginRight: 10,
-  },
-  creatorText: {
+  descriptionText: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
-  },
-  creatorName: {
-    fontWeight: '700',
+    lineHeight: 20,
+    color: '#fff',
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-Regular',
+      android: 'Roboto',
+    }),
   },
   dateRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(0,0,0,0.1)',
-    borderRadius: 12,
-    padding: 12,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 8,
+    padding: 10,
   },
   dateItem: {
     flex: 1,
@@ -587,110 +696,172 @@ const styles = StyleSheet.create({
   },
   dateLabel: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.7)',
-    marginTop: 4,
+    color: '#fff',
+    marginTop: 2,
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-Medium',
+      android: 'Roboto',
+    }),
   },
-  dateText: {
+  dateValue: {
     fontSize: 14,
     fontWeight: '600',
     color: '#fff',
     marginTop: 2,
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-DemiBold',
+      android: 'Roboto',
+    }),
   },
   dateDivider: {
     width: 1,
     height: '100%',
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.3)',
     marginHorizontal: 10,
   },
+
+  // Sections
   section: {
     backgroundColor: '#fff',
     marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 16,
+    marginTop: 12, // reduced
+    borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    paddingVertical: 16,
     elevation: 2,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#333',
-    marginBottom: 16,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-DemiBold',
+      android: 'Roboto',
+    }),
   },
+  infoButtonGrayCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#444',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Activities
   noActivitiesContainer: {
-    padding: 24,
+    padding: 16,
     alignItems: 'center',
     backgroundColor: '#f8f9fa',
     borderRadius: 8,
   },
   noActivitiesText: {
     color: '#888',
-    fontSize: 16,
+    fontSize: 14,
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-Regular',
+      android: 'Roboto',
+    }),
   },
   activitiesContainer: {
-    gap: 10,
+    gap: 8,
   },
-  activityCard: {
+  activityRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
     backgroundColor: '#f8f9fa',
-    borderRadius: 12,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   activityIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: '#4A90E2',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 10,
   },
-  activityDetails: {
+  activityInfo: {
     flex: 1,
   },
   activityName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#333',
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-Medium',
+      android: 'Roboto',
+    }),
   },
-  activityThreshold: {
-    fontSize: 14,
+  activitySubText: {
+    fontSize: 12,
     color: '#666',
     marginTop: 2,
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-Regular',
+      android: 'Roboto',
+    }),
   },
-  pointsContainer: {
+  activityPoints: {
     alignItems: 'center',
   },
   pointsValue: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#4A90E2',
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-DemiBold',
+      android: 'Roboto',
+    }),
   },
   pointsLabel: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#666',
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-Regular',
+      android: 'Roboto',
+    }),
   },
+  showMoreButton: {
+    alignSelf: 'center',
+    marginTop: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: '#444',
+  },
+
+  // Leaderboard
   participantsCount: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#666',
-    marginBottom: 16,
+    marginBottom: 6,
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-Regular',
+      android: 'Roboto',
+    }),
   },
   noParticipantsContainer: {
-    padding: 24,
+    padding: 16,
     alignItems: 'center',
     backgroundColor: '#f8f9fa',
     borderRadius: 8,
   },
   noParticipantsText: {
     color: '#888',
-    fontSize: 16,
+    fontSize: 14,
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-Regular',
+      android: 'Roboto',
+    }),
   },
   leaderboardContainer: {
     gap: 8,
@@ -698,10 +869,10 @@ const styles = StyleSheet.create({
   participantRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
     backgroundColor: '#f8f9fa',
-    borderRadius: 12,
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
   },
   firstPlaceRow: {
     backgroundColor: 'rgba(255, 215, 0, 0.1)',
@@ -719,14 +890,18 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(205, 127, 50, 0.3)',
   },
   rankContainer: {
-    width: 32,
+    width: 34,
     alignItems: 'center',
     marginRight: 8,
   },
   rankText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#666',
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-DemiBold',
+      android: 'Roboto',
+    }),
   },
   medalIcon: {
     width: 28,
@@ -748,36 +923,111 @@ const styles = StyleSheet.create({
   medalText: {
     color: '#fff',
     fontWeight: 'bold',
-    fontSize: 14,
+    fontSize: 12,
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-DemiBold',
+      android: 'Roboto',
+    }),
   },
   participantAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 8,
   },
   participantInfo: {
     flex: 1,
   },
   participantName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#333',
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-Medium',
+      android: 'Roboto',
+    }),
   },
   participantStatus: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666',
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-Regular',
+      android: 'Roboto',
+    }),
   },
   scoreContainer: {
     alignItems: 'center',
   },
   scoreValue: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-DemiBold',
+      android: 'Roboto',
+    }),
   },
   scoreLabel: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#666',
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-Regular',
+      android: 'Roboto',
+    }),
+  },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    width: '85%',
+    maxWidth: 400,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    elevation: 8,
+  },
+  modalContent: {},
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 16,
+    textAlign: 'center',
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-DemiBold',
+      android: 'Roboto',
+    }),
+  },
+  modalBodyText: {
+    fontSize: 14,
+    color: '#555',
+    lineHeight: 20,
+    marginBottom: 20,
+    textAlign: 'center',
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-Regular',
+      android: 'Roboto',
+    }),
+  },
+  modalCloseButton: {
+    backgroundColor: '#4A90E2',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalCloseButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-DemiBold',
+      android: 'Roboto',
+    }),
   },
 });
