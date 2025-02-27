@@ -215,27 +215,7 @@ function JoinCreateContent() {
         </View>
 
         {/* Search + Filter row */}
-        <View style={styles.searchFilterSection}>
-          <View style={styles.searchContainer}>
-            <Ionicons name="search" size={18} color="#999" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search challenges..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholderTextColor="#999"
-            />
-          </View>
-          <TouchableOpacity
-            style={styles.filterButton}
-            onPress={() => setShowFilterModal(true)}
-          >
-            <Ionicons name="filter" size={18} color="#fff" />
-            <Text style={styles.filterButtonText}>
-              {activeFilter === 'all' ? 'All' : activeFilter}
-            </Text>
-          </TouchableOpacity>
-        </View>
+
 
         {/* Bottom list => either active or upcoming */}
         {listTab === 'active' ? (
