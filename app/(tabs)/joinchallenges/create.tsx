@@ -1,6 +1,6 @@
 // app/(tabs)/joinchallenges/create.tsx
-
 import React, { useState, useRef, useEffect } from 'react';
+import { Picker } from '@react-native-picker/picker';
 import {
   StyleSheet,
   SafeAreaView,
@@ -11,8 +11,8 @@ import {
   TouchableOpacity,
   View,
   Text,
-  Image,
   Platform,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -41,9 +41,14 @@ export interface ChallengeDetails {
   isPrivate: boolean;
 }
 
+export type MetricType = 'steps' | 'distance_km' | 'distance_miles' | 'time' | 'calories';
+
 export interface ActivityRule {
-  activityType: string;
+  // threshold is a formatted string (for backward compatibility)
   threshold: string;
+  activityType: string;
+  metric: MetricType;
+  targetValue: number;
   points: number;
   isSelected: boolean;
   isCustom?: boolean;
@@ -57,6 +62,7 @@ export interface ModeInfo {
   gradient: string[];
 }
 
+// Allowed challenge modes
 const CHALLENGE_MODES: ModeInfo[] = [
   {
     id: 'race',
@@ -88,23 +94,34 @@ const CHALLENGE_MODES: ModeInfo[] = [
   },
 ];
 
+// DEFAULT_ACTIVITIES includes only the seven allowed activities
 const DEFAULT_ACTIVITIES: ActivityRule[] = [
-  { activityType: 'Walking', threshold: '5000 steps', points: 2, isSelected: false },
-  { activityType: 'Running', threshold: '3 km', points: 5, isSelected: false },
-  { activityType: 'Cycling', threshold: '5 km', points: 4, isSelected: false },
-  { activityType: 'Swimming', threshold: '1 km', points: 6, isSelected: false },
-  { activityType: 'Workout', threshold: '30 min', points: 3, isSelected: false },
-  { activityType: 'Yoga', threshold: '20 min', points: 3, isSelected: false },
-  { activityType: 'Hiking', threshold: '4 km', points: 5, isSelected: false },
-  { activityType: 'Steps', threshold: '10000 steps', points: 4, isSelected: false },
-  { activityType: 'Meditation', threshold: '15 min', points: 2, isSelected: false },
-  { activityType: 'Sleep Quality', threshold: '7 hours', points: 3, isSelected: false },
-  { activityType: 'Weight Training', threshold: '45 min', points: 4, isSelected: false },
-  { activityType: 'Cardio Workout', threshold: '30 min', points: 4, isSelected: false },
-  { activityType: 'High-Intensity', threshold: '20 min', points: 5, isSelected: false },
-  { activityType: 'Stretching', threshold: '10 min', points: 2, isSelected: false },
-  { activityType: 'Bonus Points', threshold: 'Complete all daily goals', points: 5, isSelected: false },
+  { activityType: 'Workout', threshold: '0 hours', points: 1, metric: 'time', targetValue: 0, isSelected: false },
+  { activityType: 'Steps', threshold: '0 steps', points: 1, metric: 'steps', targetValue: 0, isSelected: false },
+  { activityType: 'Sleep', threshold: '0 hours', points: 1, metric: 'time', targetValue: 0, isSelected: false },
+  { activityType: 'Screen Time', threshold: '0 hours', points: 1, metric: 'time', targetValue: 0, isSelected: false },
+  { activityType: 'No Sugars', threshold: '0 steps', points: 1, metric: 'steps', targetValue: 0, isSelected: false },
+  { activityType: 'Yoga', threshold: '0 hours', points: 1, metric: 'time', targetValue: 0, isSelected: false },
+  { activityType: 'High Intensity', threshold: '0 calories', points: 1, metric: 'calories', targetValue: 0, isSelected: false },
 ];
+
+// Helper to format the threshold string based on metric and value
+function formatThreshold(value: number, metric: string): string {
+  switch (metric) {
+    case 'steps':
+      return `${value} steps`;
+    case 'distance_km':
+      return `${value} km`;
+    case 'distance_miles':
+      return `${value} miles`;
+    case 'time':
+      return `${value} hours`;
+    case 'calories':
+      return `${value} calories`;
+    default:
+      return `${value}`;
+  }
+}
 
 export default function CreateChallenge() {
   const [currentStep, setCurrentStep] = useState<Step>(1);
@@ -124,9 +141,11 @@ export default function CreateChallenge() {
     globalTimeframe: 'day',
     isPrivate: false,
   });
+  // Use only the allowed default activities
   const [activities, setActivities] = useState<ActivityRule[]>(DEFAULT_ACTIVITIES);
+  // For custom activities, no default metric is pre-selected.
+  const [customActivity, setCustomActivity] = useState({ name: '', metric: '' as MetricType, targetValue: '', points: '3' });
   const [showCustomModal, setShowCustomModal] = useState(false);
-  const [customActivity, setCustomActivity] = useState({ name: '', threshold: '', points: '3' });
   const [showFriendModal, setShowFriendModal] = useState(false);
   const [createdChallengeId, setCreatedChallengeId] = useState<string | null>(null);
   const [showStartPicker, setShowStartPicker] = useState(false);
@@ -175,6 +194,47 @@ export default function CreateChallenge() {
     setDetails({ ...details, globalTimeframe: timeframe });
   };
 
+  const isNextEnabled = () => {
+    if (currentStep === 2) {
+      return (
+        details.name.trim().length > 0 &&
+        details.startDate !== null &&
+        (details.isOpenEnded || details.endDate !== null)
+      );
+    }
+    if (currentStep === 3) {
+      return activities.some((a) => a.isSelected);
+    }
+    return true;
+  };
+
+  // Maps selected activities to include the new fields and formatted threshold
+  const createChallengeInDB = async () => {
+    if (!userId) throw new Error('You must be logged in first');
+    if (!selectedMode) throw new Error('Challenge mode must be selected');
+    const selectedActivities = activities.filter((a) => a.isSelected);
+    const newChallenge = await createChallengeInSupabase({
+      userId,
+      challengeType: selectedMode,
+      name: details.name,
+      description: details.description,
+      startDate: details.startDate,
+      endDate: details.endDate,
+      isOpenEnded: details.isOpenEnded,
+      selectedActivities: selectedActivities.map((act) => ({
+        activityType: act.activityType,
+        targetValue: act.targetValue,
+        metric: act.metric,
+        points: act.points,
+        timeframe: details.globalTimeframe,
+        // Format threshold for backward compatibility
+        threshold: formatThreshold(act.targetValue, act.metric),
+      })),
+      isPrivate: details.isPrivate,
+    });
+    return newChallenge.id;
+  };
+
   const handleNext = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (currentStep < 4) {
@@ -190,7 +250,7 @@ export default function CreateChallenge() {
         animateStepTransition(true);
       } catch (err: any) {
         setIsCreating(false);
-        alert(err.message || 'Failed to create challenge');
+        Alert.alert('Error', err.message || 'Failed to create challenge');
       }
     }
   };
@@ -204,46 +264,9 @@ export default function CreateChallenge() {
     }
   };
 
-  const isNextEnabled = () => {
-    if (currentStep === 2) {
-      return (
-        details.name.trim().length > 0 &&
-        details.startDate !== null &&
-        (details.isOpenEnded || details.endDate !== null)
-      );
-    }
-    if (currentStep === 3) {
-      return activities.some((a) => a.isSelected);
-    }
-    return true;
-  };
-
-  const createChallengeInDB = async () => {
-    if (!userId) throw new Error('You must be logged in first');
-    if (!selectedMode) throw new Error('Challenge mode must be selected');
-    const selectedActivities = activities.filter((a) => a.isSelected);
-    const newChallenge = await createChallengeInSupabase({
-      userId,
-      challengeType: selectedMode,
-      name: details.name,
-      description: details.description,
-      startDate: details.startDate,
-      endDate: details.endDate,
-      isOpenEnded: details.isOpenEnded,
-      selectedActivities: selectedActivities.map((act) => ({
-        activityType: act.activityType,
-        threshold: act.threshold,
-        points: act.points,
-        timeframe: details.globalTimeframe,
-      })),
-      isPrivate: details.isPrivate,
-    });
-    return newChallenge.id;
-  };
-
   const handleShareChallenge = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    alert('Challenge link copied to clipboard!');
+    Alert.alert('Success', 'Challenge link copied to clipboard!');
   };
 
   const handleInviteFriends = () => {
@@ -299,12 +322,7 @@ export default function CreateChallenge() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Animated.View
-            style={[
-              styles.stepContent,
-              { opacity: fadeAnim, transform: [{ translateX: slideAnim }] },
-            ]}
-          >
+          <Animated.View style={[styles.stepContent, { opacity: fadeAnim, transform: [{ translateX: slideAnim }] }]}>
             {currentStep === 1 && (
               <Step1ModeSelection
                 CHALLENGE_MODES={CHALLENGE_MODES}
@@ -337,20 +355,27 @@ export default function CreateChallenge() {
                 customActivity={customActivity}
                 setCustomActivity={setCustomActivity}
                 handleAddCustomActivity={() => {
-                  if (!customActivity.name.trim() || !customActivity.threshold.trim()) {
-                    alert('Please enter valid custom activity details');
+                  if (
+                    !customActivity.name.trim() ||
+                    !customActivity.targetValue.trim() ||
+                    !customActivity.metric.trim()
+                  ) {
+                    Alert.alert('Error', 'Please enter valid custom activity details');
                     return;
                   }
-                  const points = parseInt(customActivity.points) || 1;
+                  const points = parseFloat(customActivity.points) || 1;
+                  const targetValue = parseFloat(customActivity.targetValue) || 0;
                   const newActivity: ActivityRule = {
                     activityType: customActivity.name.trim(),
-                    threshold: customActivity.threshold.trim(),
-                    points,
+                    metric: customActivity.metric,
+                    targetValue: targetValue,
+                    threshold: formatThreshold(targetValue, customActivity.metric),
+                    points: points,
                     isSelected: true,
                     isCustom: true,
                   };
                   setActivities([...activities, newActivity]);
-                  setCustomActivity({ name: '', threshold: '', points: '3' });
+                  setCustomActivity({ name: '', metric: '' as MetricType, targetValue: '', points: '3' });
                   setShowCustomModal(false);
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 }}
@@ -416,6 +441,7 @@ export default function CreateChallenge() {
     </SafeAreaView>
   );
 }
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   header: {
@@ -435,8 +461,8 @@ const styles = StyleSheet.create({
   activeProgressBar: { backgroundColor: '#4A90E2' },
   progressBarMargin: { marginRight: 8 },
   content: { flex: 1, backgroundColor: '#fff' },
-  scrollContent: { paddingBottom: 40 },
-  stepContent: { flex: 1, padding: 20 },
+  scrollContent: { paddingBottom: 30 },
+  stepContent: { flex: 1, padding: 16 },
   modeSelectionContainer: { flex: 1 },
   mainTitle: { fontSize: 26, fontWeight: '800', fontFamily: Platform.select({ ios: 'Avenir-Heavy', android: 'sans-serif-black' }), color: '#222', marginBottom: 10 },
   subtitle: { fontSize: 18, fontWeight: '600', fontFamily: Platform.select({ ios: 'Avenir-Medium', android: 'sans-serif-medium' }), color: '#555', marginBottom: 24 },
@@ -472,17 +498,25 @@ const styles = StyleSheet.create({
   timeframeDescription: { fontSize: 14, color: '#666', marginTop: 8, fontStyle: 'italic' },
   activitiesContainer: { flex: 1 },
   activitiesListContainer: { marginTop: 8 },
-  activityCard: { borderRadius: 12, marginBottom: 12, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
-  activityCardGradient: { borderRadius: 12 },
-  activityHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
+  activityCard: { 
+    borderRadius: 8, 
+    marginBottom: 8, 
+    overflow: 'hidden', 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 1 }, 
+    shadowOpacity: 0.1, 
+    shadowRadius: 2, 
+    elevation: 1
+  },  activityCardGradient: { borderRadius: 12 },
+  activityHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12 },
   activityHeaderContent: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   activityIconContainer: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   activityName: { fontSize: 16, fontWeight: '600', color: '#fff' },
   activityHeaderActions: { flexDirection: 'row', alignItems: 'center' },
-  activityCheckbox: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: 'rgba(255,255,255,0.7)', backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  activityCheckbox: { width: 24, height: 24, borderRadius: 4, borderWidth: 2, borderColor: 'rgba(255,255,255,0.7)', backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   activityCheckboxSelected: { backgroundColor: 'rgba(255,255,255,0.3)', borderColor: 'white' },
   expandButton: { marginLeft: 8, width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
-  activitySettings: { paddingHorizontal: 16, paddingBottom: 16, paddingTop: 0 },
+  activitySettings: { paddingHorizontal: 12, paddingBottom: 12, paddingTop: 0 },
   settingRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   settingLabel: { width: 60, fontSize: 15, color: '#fff', fontWeight: '500' },
   settingInput: { flex: 1, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: '#fff' },
@@ -497,7 +531,7 @@ const styles = StyleSheet.create({
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 20, fontWeight: '700', color: '#333' },
   modalBody: { marginBottom: 20 },
-  modalInputGroup: { marginBottom: 16 },
+  modalInputGroup: { marginBottom: 12 },
   modalInputLabel: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 8 },
   modalInput: { backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#ddd', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, fontSize: 16, color: '#333' },
   modalFooter: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12 },

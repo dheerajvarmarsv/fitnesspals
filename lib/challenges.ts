@@ -1,13 +1,12 @@
-// app/(tabs)/joinchallenges/steps/challenges.ts
 import { supabase } from './supabase';
 
-// Valid challenge types
 export const VALID_CHALLENGE_TYPES = ['race', 'survival', 'streak', 'custom'] as const;
 export type ChallengeType = typeof VALID_CHALLENGE_TYPES[number];
 
 interface SelectedActivity {
   activityType: string;
-  threshold: string;
+  targetValue: number;
+  metric: string; // 'steps', 'distance_km', 'distance_miles', 'time', 'calories'
   points: number;
   timeframe: 'day' | 'week';
 }
@@ -21,13 +20,9 @@ interface ChallengeCreationParams {
   endDate: Date | null;
   isOpenEnded: boolean;
   selectedActivities: SelectedActivity[];
-  isPrivate: boolean; // <-- ensures we store the correct is_private value
+  isPrivate: boolean;
 }
 
-/**
- * Insert a new challenge into `challenges` plus any related `challenge_activities`.
- * Also adds the creator as a participant in `challenge_participants`.
- */
 export async function createChallengeInSupabase({
   userId,
   challengeType,
@@ -39,18 +34,14 @@ export async function createChallengeInSupabase({
   selectedActivities,
   isPrivate,
 }: ChallengeCreationParams) {
-  // Validate challenge type
   if (!VALID_CHALLENGE_TYPES.includes(challengeType as ChallengeType)) {
     const errorMessage = `Invalid challenge type: ${challengeType}. Must be one of ${VALID_CHALLENGE_TYPES.join(', ')}`;
     console.error(errorMessage);
     throw new Error(errorMessage);
   }
-
-  // Basic checks
   if (!userId) throw new Error('User ID is required');
   if (!name || name.trim().length === 0) throw new Error('Challenge name is required');
 
-  // Prepare the main insert
   const challengeData = {
     creator_id: userId,
     challenge_type: challengeType as ChallengeType,
@@ -59,18 +50,21 @@ export async function createChallengeInSupabase({
     start_date: startDate ? startDate.toISOString() : null,
     end_date: isOpenEnded ? null : (endDate ? endDate.toISOString() : null),
     status: 'active' as const,
-    is_private: isPrivate, // <-- Save the toggle
+    is_private: isPrivate,
     rules: {
       challenge_mode: challengeType,
-      allowed_activities: selectedActivities.map((act) => act.activityType),
+      allowed_activities: selectedActivities.map(act => act.activityType),
       points_per_activity: selectedActivities.reduce((acc, act) => {
         acc[act.activityType] = act.points;
         return acc;
       }, {} as Record<string, number>),
+      metrics: selectedActivities.reduce((acc, act) => {
+        acc[act.activityType] = act.metric;
+        return acc;
+      }, {} as Record<string, string>),
     },
   };
 
-  // Insert the challenge
   const { data: createdChallenge, error: challengeError } = await supabase
     .from('challenges')
     .insert([challengeData])
@@ -81,31 +75,28 @@ export async function createChallengeInSupabase({
     console.error('Challenge creation error:', challengeError);
     throw challengeError;
   }
-  if (!createdChallenge) {
-    throw new Error('Failed to insert challenge');
-  }
+  if (!createdChallenge) throw new Error('Failed to insert challenge');
 
-  // Insert any selected activities
   if (selectedActivities.length > 0) {
-    const activityRows = selectedActivities.map((act) => ({
+    const activityRows = selectedActivities.map(act => ({
       challenge_id: createdChallenge.id,
       activity_type: act.activityType,
-      threshold: act.threshold,
+      metric: act.metric,           // the unit, e.g. "steps"
+      target_value: act.targetValue, // numeric value
       points: act.points,
       timeframe: act.timeframe,
+      threshold: act.targetValue,   // pass numeric value directly
     }));
 
     const { error: activitiesError } = await supabase
       .from('challenge_activities')
       .insert(activityRows);
-
     if (activitiesError) {
       console.error('Challenge activities insertion error:', activitiesError);
       throw activitiesError;
     }
   }
 
-  // === ADD THE CREATOR AS A PARTICIPANT ===
   const { error: participantError } = await supabase
     .from('challenge_participants')
     .insert({
@@ -117,23 +108,33 @@ export async function createChallengeInSupabase({
     console.error('Error adding creator as participant:', participantError);
     throw participantError;
   }
-
   console.log(`Challenge created: ${createdChallenge.title} (Type: ${challengeType})`, {
     id: createdChallenge.id,
     type: createdChallenge.challenge_type,
   });
-
   return createdChallenge;
 }
 
-/**
- * Fetch active challenges with comprehensive details
- */
+function formatThreshold(value: number, metric: string): string {
+  switch (metric) {
+    case 'steps':
+      return `${value} steps`;
+    case 'distance_km':
+      return `${value} km`;
+    case 'distance_miles':
+      return `${value} miles`;
+    case 'time':
+      return `${value} hours`;
+    case 'calories':
+      return `${value} calories`;
+    default:
+      return `${value}`;
+  }
+}
+
 export async function getActiveChallenges() {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    throw new Error('User not authenticated');
-  }
+  if (!user) throw new Error('User not authenticated');
 
   const { data, error } = await supabase
     .from('challenges')
@@ -152,23 +153,9 @@ export async function getActiveChallenges() {
     console.error('Error fetching active challenges:', error);
     throw error;
   }
-
-  // Debug logging
-  data?.forEach((challenge) => {
-    console.log('Active Challenge:', {
-      id: challenge.id,
-      title: challenge.title,
-      challenge_type: challenge.challenge_type,
-      is_private: challenge.is_private,
-    });
-  });
-
   return data || [];
 }
 
-/**
- * Get a specific challenge by ID
- */
 export async function getChallengeById(challengeId: string) {
   const { data, error } = await supabase
     .from('challenges')
@@ -187,6 +174,5 @@ export async function getChallengeById(challengeId: string) {
     console.error(`Error fetching challenge ${challengeId}:`, error);
     throw error;
   }
-
   return data;
 }

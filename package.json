@@ -48,7 +48,11 @@
     "react-native-pager-view": "6.5.1",
     "react-native-svg": "15.8.0",     
     "svg-path-properties": "^1.0.0",
-    "react-native-modal-datetime-picker": "^18.0.0"
+    "react-native-modal-datetime-picker": "^18.0.0",
+    "@lucide/lab": "^0.1.2",
+    "lucide-react-native": "^0.475.0",
+    "@react-native-picker/picker": "^2.4.8",
+    "zustand": "^4.5.2"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

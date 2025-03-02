@@ -1,22 +1,35 @@
-import { useState, useEffect } from 'react';
-import { 
+// app/(tabs)/index.tsx
+import { useState, useEffect, useCallback } from 'react';
+import {
   StyleSheet,
   View,
   Text,
   TouchableOpacity,
   ScrollView,
-  Image,
+  RefreshControl,
+  ActivityIndicator,
   Platform,
-  TextInput,
-  Modal,
-  ActivityIndicator 
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import SharedLayout from '../../components/SharedLayout';
 import { supabase } from '../../lib/supabase';
 import { useUser } from '../../components/UserContext';
+import AddActivityModal from '../../components/AddActivityModal';
+import ActivitySummary from '../../components/ActivitySummary';
+import { getActiveChallengesForUser, updateChallengesWithActivity } from '../../lib/challengeUtils';
 
-interface Activity {
+interface Challenge {
+  id: string;
+  title: string;
+  description?: string;
+  challenge_type: string;
+  start_date: string;
+  end_date?: string | null;
+  participant_count?: number;
+}
+
+interface ActivityType {
   id: string;
   user_id: string;
   activity_type: string;
@@ -26,773 +39,456 @@ interface Activity {
   notes: string | null;
   created_at: string;
   source: 'manual' | 'device';
-  device_type: string | null;
 }
 
-interface DeviceInfo {
-  type: 'apple' | 'google' | 'fitbit';
-  name: string;
-  icon: string;
-  platform: 'ios' | 'android' | 'all';
+// Simple fetchers
+async function fetchTodayActivitiesSummary(userId: string) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const { data, error } = await supabase
+    .from('activities')
+    .select('duration, distance, calories, activity_type')
+    .eq('user_id', userId)
+    .gte('created_at', today.toISOString())
+    .lt('created_at', tomorrow.toISOString());
+
+  if (error) {
+    console.error('Error fetching summary:', error);
+    throw new Error(error.message);
+  }
+
+  let steps = 0, duration = 0, distance = 0, calories = 0;
+  (data || []).forEach((act: any) => {
+    duration += act.duration || 0;
+    distance += act.distance || 0;
+    calories += act.calories || 0;
+    if ((act.activity_type || '').toLowerCase() === 'steps') {
+      steps += act.duration || 0;
+    }
+  });
+  return { steps, distance, duration, calories };
 }
 
-const DEVICES: DeviceInfo[] = [
-  {
-    type: 'apple',
-    name: 'Apple Health',
-    icon: 'https://cdn-icons-png.flaticon.com/128/831/831515.png',
-    platform: 'ios',
-  },
-  {
-    type: 'google',
-    name: 'Google Fit',
-    icon: 'https://cdn-icons-png.flaticon.com/128/2702/2702154.png',
-    platform: 'android',
-  },
-  {
-    type: 'fitbit',
-    name: 'Fitbit',
-    icon: 'https://cdn-icons-png.flaticon.com/128/2702/2702134.png',
-    platform: 'all',
-  },
-];
+async function fetchTodayActivitiesList(userId: string) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
 
-const ACTIVITY_TYPES = [
-  { id: 'walking', name: 'Walking', icon: '🚶‍♂️' },
-  { id: 'running', name: 'Running', icon: '🏃‍♂️' },
-  { id: 'cycling', name: 'Cycling', icon: '🚴‍♂️' },
-  { id: 'swimming', name: 'Swimming', icon: '🏊‍♂️' },
-  { id: 'hiking', name: 'Hiking', icon: '🏃‍♂️' },
-  { id: 'yoga', name: 'Yoga', icon: '🧘‍♂️' },
-];
+  const { data, error } = await supabase
+    .from('activities')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('created_at', today.toISOString())
+    .lt('created_at', tomorrow.toISOString())
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('Error fetching activities:', error);
+    throw new Error(error.message);
+  }
+  return data ?? [];
+}
 
-export default function Home() {
-  const { settings, isOnline, hasLoadedInitialSettings } = useUser();
-  const [activities, setActivities] = useState<Activity[]>([]);
+export default function HomeScreen() {
+  const router = useRouter();
+  const { settings, isOnline } = useUser();
+
+  const [activeChallenges, setActiveChallenges] = useState<Challenge[]>([]);
+  const [activities, setActivities] = useState<ActivityType[]>([]);
+  const [activitySummary, setActivitySummary] = useState({ steps: 0, distance: 0, duration: 0, calories: 0 });
+
+  const [showAllChallenges, setShowAllChallenges] = useState(false);
+  const [showAllActivities, setShowAllActivities] = useState(false);
+
+  const [showAddActivityModal, setShowAddActivityModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Activity logging
-  const [showAddActivity, setShowAddActivity] = useState(false);
-  const [selectedActivity, setSelectedActivity] = useState<string | null>(null);
-  const [duration, setDuration] = useState('');
-  const [distance, setDistance] = useState('');
-  const [calories, setCalories] = useState('');
-  const [notes, setNotes] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const todayString = new Date().toLocaleDateString('en-US', {
+    month: 'long', day: 'numeric', year: 'numeric',
+  });
 
-  // Device connection
-  const [showDeviceModal, setShowDeviceModal] = useState(false);
-  const [selectedDevice, setSelectedDevice] = useState<DeviceInfo | null>(null);
-  const [connecting, setConnecting] = useState(false);
-
-  useEffect(() => {
-    if (hasLoadedInitialSettings) {
-      loadActivities();
-    }
-  }, [hasLoadedInitialSettings]);
-
-  const loadActivities = async () => {
+  const loadHomeData = useCallback(async () => {
     try {
       setError(null);
-      const { data: { session } } = await supabase.auth.getSession();
+      setLoading(true);
 
-      if (!session) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
         setLoading(false);
         return;
       }
 
-      const { data, error: fetchError } = await supabase
-        .from('activities')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .order('created_at', { ascending: false })
-        .limit(50);
+      // fetch active challenges
+      const userChallenges = await getActiveChallengesForUser(user.id);
+      setActiveChallenges(Array.isArray(userChallenges) ? userChallenges : []);
 
-      if (fetchError) throw fetchError;
-      setActivities(data as Activity[]);
-    } catch (e: any) {
-      if (e.message !== 'Not authenticated') {
-        setError(e.message);
-      }
+      // fetch daily summary
+      const summary = await fetchTodayActivitiesSummary(user.id);
+      setActivitySummary(summary);
+
+      // fetch today's activity list
+      const todayActivities = await fetchTodayActivitiesList(user.id);
+      setActivities(Array.isArray(todayActivities) ? todayActivities : []);
+    } catch (err: any) {
+      console.error('Error loading home data:', err);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => { loadHomeData(); }, [loadHomeData]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadHomeData();
+    setRefreshing(false);
   };
 
-  const handleAddActivity = async () => {
-    if (!selectedActivity || !duration) {
-      setError('Activity type and duration are required');
-      return;
-    }
-
+  /**
+   * Called by the AddActivityModal after user saves an activity
+   */
+  const handleActivitySubmit = async (activityData: {
+    activityType: string;
+    duration: number;
+    distance: number;
+    calories: number;
+    notes: string;
+  }) => {
     try {
-      setSubmitting(true);
       setError(null);
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      // Insert into `activities`
       const { data, error: insertError } = await supabase
         .from('activities')
         .insert({
           user_id: user.id,
-          activity_type: selectedActivity,
-          duration: parseInt(duration),
-          distance: distance ? parseFloat(distance) : null,
-          calories: calories ? parseInt(calories) : null,
-          notes: notes || null,
+          activity_type: activityData.activityType,
+          duration: activityData.duration,
+          distance: activityData.distance,
+          calories: activityData.calories,
+          notes: activityData.notes,
           source: 'manual',
         })
         .select()
         .single();
-
       if (insertError) throw insertError;
 
-      setActivities((prev) => [data as Activity, ...prev]);
-      setShowAddActivity(false);
-      resetForm();
+      // Then update challenges
+      await updateChallengesWithActivity(data.id, user.id);
+
+      // Reload
+      await loadHomeData();
+      return { success: true };
     } catch (e: any) {
-      console.error('Error adding activity:', e);
       setError(e.message);
-    } finally {
-      setSubmitting(false);
+      return { success: false, error: e.message };
     }
   };
 
-  const resetForm = () => {
-    setSelectedActivity(null);
-    setDuration('');
-    setDistance('');
-    setCalories('');
-    setNotes('');
-    setError(null);
-  };
-
-  const handleConnectDevice = async (device: DeviceInfo) => {
-    if (!isOnline) {
-      setError('You need to be online to connect a device');
-      return;
-    }
-
-    try {
-      setSelectedDevice(device);
-      setConnecting(true);
-      setError(null);
-
-      // Simulate device connection
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Real app would do OAuth or SDK init here
-      setShowDeviceModal(false);
-    } catch (e: any) {
-      console.error('Error connecting device:', e);
-      setError(e.message);
-    } finally {
-      setConnecting(false);
-      setSelectedDevice(null);
-    }
-  };
-
-  const formatDuration = (minutes: number) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
-  };
-
-  const formatDistance = (km: number) => {
-    return settings.useKilometers
-      ? `${km.toFixed(2)} km`
-      : `${(km * 0.621371).toFixed(2)} mi`;
-  };
-
-  if (!hasLoadedInitialSettings || loading) {
+  if (loading) {
     return (
       <SharedLayout style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#FF4B4B" />
-          <Text style={styles.loadingText}>Loading your activities...</Text>
+          <Text style={styles.loadingText}>Loading your dashboard...</Text>
         </View>
       </SharedLayout>
     );
   }
 
+  const displayedActivities = showAllActivities ? activities : activities.slice(0, 3);
+  const displayedChallenges = showAllChallenges ? activeChallenges : activeChallenges.slice(0, 3);
+
   return (
     <SharedLayout style={styles.container}>
-      {/* Header */}
+      {/* ------- HEADER ------- */}
       <View style={styles.header}>
-        <TouchableOpacity>
-          <Ionicons name="menu" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Image
-          source={{ uri: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Strava_Logo.svg/2560px-Strava_Logo.svg.png' }}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-        <TouchableOpacity>
-          <Ionicons name="sync" size={24} color="#fff" />
-        </TouchableOpacity>
+        <View style={styles.logoContainer}>
+          <Text style={styles.logo}>Stridekick</Text>
+          <View style={styles.syncStatus}>
+            <Text style={styles.syncText}>Last synced: {isOnline ? 'Just now' : 'Offline'}</Text>
+            <TouchableOpacity onPress={onRefresh} disabled={refreshing}>
+              <Ionicons name={refreshing ? 'sync-circle' : 'sync'} size={20} color={isOnline ? '#fff' : '#ccc'} />
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
 
-      {/* Content */}
-      <View style={styles.content}>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>YOUR ACTIVITY</Text>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => setShowAddActivity(true)}
-          >
-            <Text style={styles.addButtonText}>+ Add activity</Text>
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity
-          style={styles.deviceCard}
-          onPress={() => setShowDeviceModal(true)}
-        >
-          <View style={styles.deviceHeader}>
-            <Ionicons name="warning" size={20} color="#FF4B4B" />
-            <Text style={styles.deviceText}>No device connected</Text>
-            <TouchableOpacity>
-              <Ionicons name="close" size={20} color="#666" />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.deviceContent}>
-            <Text style={styles.deviceTitle}>CONNECT YOUR DEVICE</Text>
-            <Text style={styles.deviceDescription}>
-              Connect your fitness tracker to automatically sync your activities.
-            </Text>
-            <TouchableOpacity
-              style={styles.connectButton}
-              onPress={() => setShowDeviceModal(true)}
-            >
-              <Text style={styles.connectButtonText}>Connect device</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-
+      {/* ------- MAIN CONTENT ------- */}
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         {error && (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
 
-        <ScrollView
-          style={styles.activitiesList}
-          contentContainerStyle={{ paddingBottom: 20 }}
-        >
+        {/* YOUR ACTIVITY */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View>
+              <Text style={styles.sectionTitle}>YOUR ACTIVITY</Text>
+              <Text style={styles.sectionDate}>Today, {todayString}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => setShowAddActivityModal(true)}
+            >
+              <Text style={styles.addButtonText}>+ Add activity</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ActivitySummary
+            steps={activitySummary.steps}
+            distance={activitySummary.distance}
+            duration={activitySummary.duration}
+            calories={activitySummary.calories}
+            useKilometers={settings.useKilometers}
+          />
+
+          <Text style={styles.recentActivitiesTitle}>Today’s Logged Activities</Text>
           {activities.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>No activities yet</Text>
-              <Text style={styles.emptyText}>
+              <Text style={styles.emptyStateTitle}>No activities yet</Text>
+              <Text style={styles.emptyStateText}>
                 Start tracking your fitness journey by adding your first activity!
               </Text>
             </View>
           ) : (
-            activities.map((activity) => (
-              <View key={activity.id} style={styles.activityItem}>
-                <View style={styles.activityIcon}>
-                  <Text style={styles.activityEmoji}>
-                    {ACTIVITY_TYPES.find((t) => t.id === activity.activity_type)?.icon}
-                  </Text>
-                </View>
-                <View style={styles.activityInfo}>
-                  <Text style={styles.activityType}>
-                    {ACTIVITY_TYPES.find((t) => t.id === activity.activity_type)?.name}
-                  </Text>
-                  <Text style={styles.activityMeta}>
-                    {formatDuration(activity.duration)}
-                    {activity.distance && ` • ${formatDistance(activity.distance)}`}
-                    {activity.calories && ` • ${activity.calories} cal`}
-                  </Text>
-                  {activity.notes && (
-                    <Text style={styles.activityNotes}>{activity.notes}</Text>
-                  )}
-                </View>
-                <Text style={styles.activityTime}>
-                  {new Date(activity.created_at).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </Text>
-              </View>
-            ))
-          )}
-        </ScrollView>
-      </View>
+            <View style={styles.loggedActivitiesContainer}>
+              {displayedActivities.map((activity) => {
+                let displayDist = '';
+                if (activity.distance != null) {
+                  if (settings.useKilometers) {
+                    displayDist = `${activity.distance.toFixed(2)} km`;
+                  } else {
+                    const miles = activity.distance * 0.621371;
+                    displayDist = `${miles.toFixed(2)} mi`;
+                  }
+                }
+                return (
+                  <View key={activity.id} style={styles.activityItem}>
+                    <Ionicons name="walk" size={24} color="#333" style={{ marginRight: 8 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.activityTypeText}>{activity.activity_type}</Text>
+                      <Text style={styles.activityMetaText}>
+                        Duration: {activity.duration} min
+                        {displayDist ? ` • Distance: ${displayDist}` : ''}
+                        {activity.calories ? ` • ${activity.calories} cal` : ''}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
 
-      {/* Add Activity Modal */}
-      <Modal
-        visible={showAddActivity}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowAddActivity(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Activity</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setShowAddActivity(false);
-                  resetForm();
-                }}
-              >
-                <Ionicons name="close" size={24} color="#333" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.modalScroll}>
-              <Text style={styles.inputLabel}>Activity Type</Text>
-              <View style={styles.activityTypes}>
-                {ACTIVITY_TYPES.map((type) => (
-                  <TouchableOpacity
-                    key={type.id}
-                    style={[
-                      styles.activityTypeButton,
-                      selectedActivity === type.id && styles.activityTypeSelected,
-                    ]}
-                    onPress={() => setSelectedActivity(type.id)}
-                  >
-                    <Text style={styles.activityTypeEmoji}>{type.icon}</Text>
-                    <Text
-                      style={[
-                        styles.activityTypeName,
-                        selectedActivity === type.id && styles.activityTypeNameSelected,
-                      ]}
-                    >
-                      {type.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={styles.inputLabel}>Duration (minutes)</Text>
-              <TextInput
-                style={styles.input}
-                value={duration}
-                onChangeText={setDuration}
-                keyboardType="numeric"
-                placeholder="Enter duration"
-              />
-
-              <Text style={styles.inputLabel}>Distance (km)</Text>
-              <TextInput
-                style={styles.input}
-                value={distance}
-                onChangeText={setDistance}
-                keyboardType="numeric"
-                placeholder="Optional"
-              />
-
-              <Text style={styles.inputLabel}>Calories</Text>
-              <TextInput
-                style={styles.input}
-                value={calories}
-                onChangeText={setCalories}
-                keyboardType="numeric"
-                placeholder="Optional"
-              />
-
-              <Text style={styles.inputLabel}>Notes</Text>
-              <TextInput
-                style={[styles.input, styles.notesInput]}
-                value={notes}
-                onChangeText={setNotes}
-                placeholder="Optional"
-                multiline
-              />
-
-              {error && (
-                <View style={styles.modalError}>
-                  <Text style={styles.modalErrorText}>{error}</Text>
-                </View>
-              )}
-            </ScrollView>
-
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={[
-                  styles.saveButton,
-                  (!selectedActivity || !duration || submitting) && styles.saveButtonDisabled,
-                ]}
-                onPress={handleAddActivity}
-                disabled={!selectedActivity || !duration || submitting}
-              >
-                <Text style={styles.saveButtonText}>
-                  {submitting ? 'Saving...' : 'Save Activity'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Device Connection Modal */}
-      <Modal
-        visible={showDeviceModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowDeviceModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Connect Device</Text>
-              <TouchableOpacity onPress={() => setShowDeviceModal(false)}>
-                <Ionicons name="close" size={24} color="#333" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.modalScroll}>
-              {DEVICES.filter((device) =>
-                device.platform === 'all' || device.platform === Platform.OS
-              ).map((device) => (
+              {activities.length > 3 && (
                 <TouchableOpacity
-                  key={device.type}
-                  style={[
-                    styles.deviceOption,
-                    connecting && selectedDevice?.type === device.type && styles.deviceOptionConnecting,
-                  ]}
-                  onPress={() => handleConnectDevice(device)}
-                  disabled={connecting}
+                  style={styles.viewAllButton}
+                  onPress={() => setShowAllActivities(!showAllActivities)}
                 >
-                  <Image source={{ uri: device.icon }} style={styles.deviceIcon} />
-                  <View style={styles.deviceInfo}>
-                    <Text style={styles.deviceName}>{device.name}</Text>
-                    <Text style={styles.deviceStatus}>
-                      {connecting && selectedDevice?.type === device.type
-                        ? 'Connecting...'
-                        : 'Tap to connect'}
+                  <Text style={styles.viewAllButtonText}>
+                    {showAllActivities ? 'Show Less' : `See More (${activities.length} total)`}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+        </View>
+
+        {/* CHALLENGES */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>CHALLENGES</Text>
+            <TouchableOpacity
+              style={styles.joinButton}
+              onPress={() => router.push('/joinchallenges/joincreate')}
+            >
+              <Text style={styles.joinButtonText}>+ Join / Create</Text>
+            </TouchableOpacity>
+          </View>
+
+          {activeChallenges.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateTitle}>No active challenges</Text>
+              <Text style={styles.emptyStateText}>
+                Join a challenge or create your own to get started!
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.challengesContainer}>
+              {displayedChallenges.map((challenge) => (
+                <TouchableOpacity
+                  key={challenge.id}
+                  style={styles.challengeCard}
+                  onPress={() =>
+                    router.push(`/joinchallenges/challengedetails?challenge_id=${challenge.id}`)
+                  }
+                >
+                  <View style={styles.challengeContent}>
+                    <View style={styles.challengeHeader}>
+                      <Text style={styles.challengeTitle}>{challenge.title}</Text>
+                      <View style={styles.challengeTypeBadge}>
+                        <Text style={styles.challengeTypeText}>
+                          {challenge.challenge_type.toUpperCase()}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Text style={styles.challengeDates}>
+                      {new Date(challenge.start_date).toLocaleDateString()} -{' '}
+                      {challenge.end_date
+                        ? new Date(challenge.end_date).toLocaleDateString()
+                        : 'Open-ended'}
+                    </Text>
+                    <Text style={styles.participantCountText}>
+                      {challenge.participant_count || 0} participant(s)
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={24} color="#666" />
                 </TouchableOpacity>
               ))}
 
-              {error && (
-                <View style={styles.modalError}>
-                  <Text style={styles.modalErrorText}>{error}</Text>
-                </View>
+              {activeChallenges.length > 3 && (
+                <TouchableOpacity
+                  style={styles.viewAllButton}
+                  onPress={() => setShowAllChallenges(!showAllChallenges)}
+                >
+                  <Text style={styles.viewAllButtonText}>
+                    {showAllChallenges ? 'Show Less' : `View All (${activeChallenges.length} total)`}
+                  </Text>
+                </TouchableOpacity>
               )}
-            </ScrollView>
-          </View>
+            </View>
+          )}
         </View>
-      </Modal>
+      </ScrollView>
+
+      {/* ADD ACTIVITY MODAL */}
+      <AddActivityModal
+        visible={showAddActivityModal}
+        onClose={() => setShowAddActivityModal(false)}
+        onSaveComplete={loadHomeData} // re-fetch after saving
+      />
     </SharedLayout>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FF4B4B',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#fff',
+    flex: 1, backgroundColor: '#FF4B4B',
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: '#FF4B4B',
+    paddingHorizontal: 16, paddingTop: Platform.OS === 'ios' ? 12 : 16, paddingBottom: 16,
+  },
+  logoContainer: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
   logo: {
-    width: 120,
-    height: 30,
-    tintColor: '#fff',
+    fontSize: 28, fontWeight: 'bold', color: '#fff',
+  },
+  syncStatus: {
+    flexDirection: 'row', alignItems: 'center',
+  },
+  syncText: {
+    color: '#fff', fontSize: 14, marginRight: 8,
+  },
+  loadingContainer: {
+    flex: 1, justifyContent: 'center', alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12, fontSize: 16, color: '#fff',
   },
   content: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    flex: 1, backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20,
   },
-  section: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginHorizontal: 16,
-    marginTop: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  addButton: {
-    backgroundColor: '#FF4B4B',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  addButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  deviceCard: {
-    backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginVertical: 8,
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#eee',
-  },
-  deviceHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  deviceText: {
-    flex: 1,
-    marginLeft: 10,
-    color: '#FF4B4B',
-    fontWeight: '600',
-  },
-  deviceContent: {
-    padding: 16,
-    alignItems: 'center',
-  },
-  deviceTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  deviceDescription: {
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  connectButton: {
-    backgroundColor: '#4A90E2',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 25,
-  },
-  connectButtonText: {
-    color: '#fff',
-    fontWeight: '600',
+  scrollContent: {
+    paddingTop: 20, paddingBottom: 40,
   },
   errorContainer: {
-    marginHorizontal: 16,
-    marginTop: 8,
-    padding: 12,
-    backgroundColor: '#FEE2E2',
-    borderRadius: 8,
+    margin: 16, padding: 16, backgroundColor: '#FEE2E2', borderRadius: 8,
   },
   errorText: {
-    color: '#DC2626',
-    textAlign: 'center',
+    color: '#DC2626', textAlign: 'center',
   },
-  activitiesList: {
-    flex: 1,
-    marginTop: 8,
-    marginHorizontal: 16,
+  section: {
+    marginBottom: 24, paddingHorizontal: 16,
   },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 20,
+  sectionHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12,
   },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
+  sectionTitle: {
+    fontSize: 18, fontWeight: '700', color: '#333',
   },
-  emptyText: {
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 20,
-    paddingHorizontal: 24,
+  sectionDate: {
+    fontSize: 13, fontWeight: '400', color: '#666', marginTop: 2,
+  },
+  addButton: {
+    backgroundColor: '#FF4B4B', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+  },
+  addButtonText: {
+    color: '#fff', fontWeight: '600', fontSize: 14,
+  },
+  recentActivitiesTitle: {
+    fontSize: 16, fontWeight: '600', color: '#333', marginTop: 20, marginBottom: 8,
+  },
+  loggedActivitiesContainer: {
+    marginTop: 4,
   },
   activityItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#eee',
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FAFAFA',
+    padding: 12, borderRadius: 8, marginBottom: 8,
   },
-  activityIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f5f5f5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
+  activityTypeText: { fontSize: 15, fontWeight: '600', color: '#333' },
+  activityMetaText: { fontSize: 13, color: '#666' },
+  viewAllButton: { marginTop: 8, alignSelf: 'flex-start' },
+  viewAllButtonText: { color: '#4A90E2', fontWeight: '600', fontSize: 14 },
+  emptyState: {
+    backgroundColor: '#f8f9fa', padding: 24, borderRadius: 12, alignItems: 'center',
   },
-  activityEmoji: {
-    fontSize: 20,
+  emptyStateTitle: {
+    fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 8,
   },
-  activityInfo: {
-    flex: 1,
+  emptyStateText: {
+    fontSize: 14, color: '#666', textAlign: 'center', lineHeight: 20,
   },
-  activityType: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
+  joinButton: {
+    backgroundColor: '#4A90E2', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
   },
-  activityMeta: {
-    fontSize: 14,
-    color: '#666',
+  joinButtonText: {
+    color: '#fff', fontWeight: '600', fontSize: 14,
   },
-  activityNotes: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 4,
-    fontStyle: 'italic',
+  challengesContainer: {
+    gap: 12,
   },
-  activityTime: {
-    fontSize: 12,
-    color: '#999',
-    marginLeft: 8,
+  challengeCard: {
+    backgroundColor: '#f8f9fa', borderRadius: 12, overflow: 'hidden',
+    borderWidth: 1, borderColor: '#eee',
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '90%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  modalScroll: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  inputLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+  challengeContent: { padding: 16 },
+  challengeHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     marginBottom: 8,
   },
-  activityTypes: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 20,
+  challengeTitle: {
+    fontSize: 16, fontWeight: '600', color: '#333', flex: 1, marginRight: 8,
   },
-  activityTypeButton: {
-    width: '30%',
-    aspectRatio: 1,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
+  challengeTypeBadge: {
+    backgroundColor: '#4A90E2', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4,
   },
-  activityTypeSelected: {
-    backgroundColor: '#FF4B4B',
+  challengeTypeText: {
+    color: '#fff', fontSize: 12, fontWeight: '600',
   },
-  activityTypeEmoji: {
-    fontSize: 24,
-    marginBottom: 4,
+  challengeDates: {
+    fontSize: 14, color: '#666', marginBottom: 8,
   },
-  activityTypeName: {
-    fontSize: 12,
-    color: '#333',
-    textAlign: 'center',
-  },
-  activityTypeNameSelected: {
-    color: '#fff',
-  },
-  input: {
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    marginBottom: 20,
-  },
-  notesInput: {
-    height: 80,
-    textAlignVertical: 'top',
-  },
-  modalError: {
-    backgroundColor: '#FEE2E2',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 12,
-  },
-  modalErrorText: {
-    color: '#DC2626',
-    textAlign: 'center',
-  },
-  modalFooter: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-  },
-  saveButton: {
-    backgroundColor: '#FF4B4B',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  saveButtonDisabled: {
-    opacity: 0.5,
-  },
-  saveButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  deviceOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  deviceOptionConnecting: {
-    opacity: 0.5,
-  },
-  deviceIcon: {
-    width: 40,
-    height: 40,
-    marginRight: 16,
-  },
-  deviceInfo: {
-    flex: 1,
-  },
-  deviceName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
-  },
-  deviceStatus: {
-    fontSize: 14,
-    color: '#666',
+  participantCountText: {
+    fontSize: 13, color: '#666',
   },
 });
