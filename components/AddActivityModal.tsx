@@ -13,11 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { useUser } from './UserContext';
-import {
-  getChallengeActivityTypes,
-  saveUserActivity,
-  updateChallengesWithActivity,
-} from '../lib/challengeUtils';
+import { getChallengeActivityTypes, saveUserActivity, updateChallengesWithActivity } from '../lib/challengeUtils';
 
 const GLOBAL_ACTIVITIES = [
   'Workout',
@@ -27,13 +23,13 @@ const GLOBAL_ACTIVITIES = [
   'No Sugars',
   'High Intensity',
   'Yoga',
-  'Count', // generic numeric metric
+  'Count', // "Count" means you measure a numeric count in .duration
 ];
 
 interface AddActivityModalProps {
   visible: boolean;
   onClose: () => void;
-  onSaveComplete?: () => void; // callback to refresh Home screen if needed
+  onSaveComplete?: () => void;
 }
 
 export default function AddActivityModal({
@@ -47,7 +43,6 @@ export default function AddActivityModal({
   const [isCustom, setIsCustom] = useState(false);
   const [customActivity, setCustomActivity] = useState('');
 
-  // Metric fields for the final activity
   const [duration, setDuration] = useState('');
   const [distance, setDistance] = useState('');
   const [calories, setCalories] = useState('');
@@ -56,7 +51,7 @@ export default function AddActivityModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // On modal open, load challenge-based activities
+  // On modal open => load challenge-based activities
   useEffect(() => {
     if (visible && user?.id) {
       loadChallengeActivities(user.id);
@@ -72,7 +67,7 @@ export default function AddActivityModal({
       const acts = await getChallengeActivityTypes(userId);
       setChallengeActivities(acts);
     } catch (err: any) {
-      console.error('Error loading challenge-based activities:', err);
+      console.error('Error loading challenge activities:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -101,10 +96,9 @@ export default function AddActivityModal({
     setIsCustom(activity === 'Custom Activity');
   };
 
-  // Filter out challenge-based from the global list to avoid duplicates
-  const filteredGlobal = GLOBAL_ACTIVITIES.filter(ga => !challengeActivities.includes(ga));
+  // filter out challenge-based from global
+  const finalGlobal = GLOBAL_ACTIVITIES.filter((ga) => !challengeActivities.includes(ga));
 
-  // If user uses miles instead of km
   const distanceLabel = settings.useKilometers ? 'Distance (km)' : 'Distance (mi)';
 
   const handleSave = async () => {
@@ -121,7 +115,7 @@ export default function AddActivityModal({
       return;
     }
     if (!duration.trim()) {
-      setError('Please enter a duration or count');
+      setError('Please enter a duration');
       return;
     }
 
@@ -129,10 +123,10 @@ export default function AddActivityModal({
     setError(null);
 
     try {
-      // convert distance to kilometers if the user uses miles
+      // Convert distance to km if user uses miles
       let distVal = parseFloat(distance) || 0;
       if (!settings.useKilometers) {
-        distVal = distVal / 0.621371; // miles -> km
+        distVal = distVal / 0.621371; // from miles => km
       }
 
       const finalActivity = isCustom ? customActivity.trim() : selectedActivity;
@@ -144,18 +138,17 @@ export default function AddActivityModal({
         notes: notes.trim(),
       };
 
-      // 1) Save the activity in DB
+      // insert activity
       const result = await saveUserActivity(payload, user.id);
       if (!result.success || !result.data) {
         throw new Error(result.error || 'Failed to save activity');
       }
-
       const newActivityId = result.data.id;
 
-      // 2) Award points for all relevant challenges
+      // update challenges
       await updateChallengesWithActivity(newActivityId, user.id);
 
-      // 3) Refresh Home if provided
+      // notify parent
       if (onSaveComplete) {
         onSaveComplete();
       }
@@ -183,19 +176,14 @@ export default function AddActivityModal({
             </TouchableOpacity>
           </View>
 
-          {/* Body */}
-          <ScrollView
-            style={styles.body}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 24 }}
-          >
+          <ScrollView style={styles.body} keyboardShouldPersistTaps="handled">
             {error && (
               <View style={styles.errorContainer}>
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
 
-            {/* Challenge-based activities */}
+            {/* Challenge-based Activities */}
             <Text style={styles.sectionLabel}>Activities from Your Challenges</Text>
             {challengeActivities.length === 0 ? (
               <Text style={styles.noActivitiesText}>No active challenge activities</Text>
@@ -223,10 +211,10 @@ export default function AddActivityModal({
               </View>
             )}
 
-            {/* Global activities (filtered) */}
+            {/* Filtered Global Activities */}
             <Text style={styles.sectionLabel}>General Activities</Text>
             <View style={styles.activityList}>
-              {filteredGlobal.map((ga) => (
+              {finalGlobal.map((ga) => (
                 <TouchableOpacity
                   key={ga}
                   style={[
@@ -245,10 +233,12 @@ export default function AddActivityModal({
                   </Text>
                 </TouchableOpacity>
               ))}
-
-              {/* + Custom Activity */}
+              {/* “Custom Activity” option */}
               <TouchableOpacity
-                style={[styles.activityButton, isCustom && styles.activityButtonSelected]}
+                style={[
+                  styles.activityButton,
+                  isCustom && styles.activityButtonSelected,
+                ]}
                 onPress={() => handleSelectActivity('Custom Activity')}
               >
                 <Text
@@ -271,20 +261,20 @@ export default function AddActivityModal({
                   placeholder="e.g. Basketball"
                   placeholderTextColor="#999"
                   value={customActivity}
-                  onChangeText={setCustomActivity}
+                  onChangeText={(text) => setCustomActivity(text)}
                 />
               </View>
             )}
 
-            {/* Duration or "Count" */}
+            {/* Duration */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Duration (minutes) or Count</Text>
+              <Text style={styles.label}>Duration (minutes)</Text>
               <TextInput
                 style={styles.input}
                 value={duration}
                 onChangeText={setDuration}
                 keyboardType="numeric"
-                placeholder="Enter numeric value"
+                placeholder="Enter duration"
                 placeholderTextColor="#999"
               />
             </View>
@@ -349,6 +339,7 @@ export default function AddActivityModal({
   );
 }
 
+// Styles
 const styles = StyleSheet.create({
   overlay: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end',
@@ -367,31 +358,16 @@ const styles = StyleSheet.create({
   sectionLabel: { fontSize: 14, fontWeight: '600', color: '#333', marginTop: 12, marginBottom: 8 },
   noActivitiesText: { fontSize: 14, color: '#666', marginBottom: 12 },
   activityList: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  activityButton: {
-    backgroundColor: '#f0f0f0', borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 8, marginBottom: 12,
-  },
+  activityButton: { backgroundColor: '#f0f0f0', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 12 },
   activityButtonSelected: { backgroundColor: '#4A90E2' },
   activityButtonText: { fontSize: 14, color: '#333' },
   activityButtonTextSelected: { color: '#fff' },
   inputGroup: { marginTop: 12 },
   label: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 4 },
-  input: {
-    backgroundColor: '#f5f5f5', borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 8,
-    fontSize: 14, color: '#333',
-  },
+  input: { backgroundColor: '#f5f5f5', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: '#333' },
   notesInput: { height: 80, textAlignVertical: 'top' },
-  footer: {
-    flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#eee',
-    paddingHorizontal: 16, paddingVertical: 12,
-  },
-  saveButton: {
-    flex: 1, backgroundColor: '#4A90E2',
-    paddingVertical: 14, borderRadius: 8, alignItems: 'center',
-  },
+  footer: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#eee', paddingHorizontal: 16, paddingVertical: 12 },
+  saveButton: { flex: 1, backgroundColor: '#4A90E2', paddingVertical: 14, borderRadius: 8, alignItems: 'center' },
   saveButtonDisabled: { opacity: 0.5 },
-  saveButtonText: {
-    color: '#fff', fontWeight: '600', fontSize: 16,
-  },
+  saveButtonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
 });

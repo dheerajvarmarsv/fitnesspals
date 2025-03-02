@@ -2,8 +2,8 @@
 import { supabase } from './supabase';
 
 /**
- * Returns all active challenges for which userId is an active participant.
- * Gathers a participant_count aggregator via `challenge_participants(count)`.
+ * Gets all challenges where the user is an "active" participant.
+ * Each row includes a nested `challenges` object. We also gather participant_count via aggregator.
  */
 export async function getActiveChallengesForUser(userId: string) {
   const { data, error } = await supabase
@@ -28,7 +28,9 @@ export async function getActiveChallengesForUser(userId: string) {
     console.error('Error fetching active challenges:', error);
     throw new Error(error.message);
   }
-  // shape => [ { challenge_id, status, challenges: { ..., challenge_participants: [ { count } ] } }, ... ]
+
+  // shape => [ { challenge_id, status, challenges: { id, ..., challenge_participants: [ { count } ] } }, ... ]
+  // gather participant_count from that aggregator
   return (data || []).map((row: any) => {
     const c = row.challenges;
     const arr = c.challenge_participants || [];
@@ -41,34 +43,33 @@ export async function getActiveChallengesForUser(userId: string) {
 }
 
 /**
- * Returns all unique `activity_type` from challenge_activities for all active challenges the user is in.
+ * Returns all *unique* activity names from the user's active challenges.
  */
 export async function getChallengeActivityTypes(userId: string): Promise<string[]> {
-  // 1) fetch all active challenges for user
+  // 1) fetch all active challenges
   const activeChallenges = await getActiveChallengesForUser(userId);
   if (!activeChallenges.length) return [];
 
-  // 2) gather the challenge IDs
+  // 2) gather the IDs
   const challengeIds = activeChallenges.map(ch => ch.id);
 
-  // 3) fetch distinct activity_type from `challenge_activities`
-  const { data: cActs, error: cActsErr } = await supabase
+  // 3) from `challenge_activities`, fetch unique activity_type
+  const { data: cActs, error: actsErr } = await supabase
     .from('challenge_activities')
     .select('activity_type')
     .in('challenge_id', challengeIds);
-
-  if (cActsErr) {
-    console.error('Error fetching challenge_activities:', cActsErr);
-    throw new Error(cActsErr.message);
+  if (actsErr) {
+    console.error('Error fetching challenge_activities:', actsErr);
+    throw new Error(actsErr.message);
   }
   if (!cActs?.length) return [];
 
-  const uniqueSet = new Set(cActs.map((row: any) => row.activity_type));
-  return Array.from(uniqueSet);
+  const unique = new Set(cActs.map((row: any) => row.activity_type));
+  return Array.from(unique);
 }
 
 /**
- * Inserts a new record in `activities`.
+ * Saves a new user activity in the `activities` table.
  */
 export async function saveUserActivity(
   activityData: {
@@ -82,16 +83,18 @@ export async function saveUserActivity(
 ) {
   const { data, error } = await supabase
     .from('activities')
-    .insert([{
-      user_id: userId,
-      activity_type: activityData.activityType,
-      duration: activityData.duration,
-      distance: activityData.distance,
-      calories: activityData.calories,
-      notes: activityData.notes,
-      created_at: new Date(),
-      source: 'manual',
-    }])
+    .insert([
+      {
+        user_id: userId,
+        activity_type: activityData.activityType,
+        duration: activityData.duration,
+        distance: activityData.distance,
+        calories: activityData.calories,
+        notes: activityData.notes,
+        created_at: new Date(),
+        source: 'manual',
+      },
+    ])
     .select()
     .single();
 
@@ -103,10 +106,9 @@ export async function saveUserActivity(
 }
 
 /**
- * After saving a new activity, recalculate points for any active challenge that includes this activity type.
- * - checks `challenge_activities` for a matching activity_type
- * - compares thresholds to the new activity’s duration/distance
- * - awards points in `challenge_participants.total_points` if threshold is met
+ * After user logs a new activity, we award points in all relevant active challenges.
+ * We compare the new activity's `activity_type`, `duration`, and `distance`
+ * to each row in `challenge_activities`. If threshold is met, we update `challenge_participants.total_points`.
  */
 export async function updateChallengesWithActivity(activityId: string, userId: string) {
   try {
@@ -116,15 +118,14 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
       .select('*')
       .eq('id', activityId)
       .single();
-
     if (actErr || !act) {
-      console.error('Error fetching newly inserted activity:', actErr);
+      console.error('Error fetching new activity data:', actErr);
       return;
     }
 
     const { activity_type, duration, distance } = act;
 
-    // get the user’s active challenges
+    // fetch all active challenges for this user
     const activeChallenges = await getActiveChallengesForUser(userId);
     if (!activeChallenges.length) return;
 
@@ -145,33 +146,31 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
       }
       if (!cActs?.length) continue;
 
-      // e.g. if threshold=30, metric='min', points=3
       for (const cAct of cActs) {
-        const thresholdVal = cAct.threshold; // numeric
-        const unit = cAct.metric;            // 'min','hours','km','steps','count','calories'?
+        const thresholdVal = cAct.threshold;      // numeric
+        const unit = cAct.metric;                 // e.g. "hours", "km", "steps", etc.
         const points = cAct.points || 0;
+
         if (thresholdVal == null || !unit) continue;
 
         let meets = false;
         if (unit === 'hours') {
-          // compare duration to thresholdVal * 60
           if (duration >= thresholdVal * 60) meets = true;
         } else if (unit === 'min') {
           if (duration >= thresholdVal) meets = true;
         } else if (unit === 'km') {
           if (distance >= thresholdVal) meets = true;
         } else if (unit === 'steps') {
+          // if the user logs "Steps" as an activity, we treat `duration` as step count
           if (activity_type.toLowerCase() === 'steps' && duration >= thresholdVal) meets = true;
         } else if (unit === 'count') {
-          // "Count" means user logs a numeric in .duration
+          // if your "Count" means the user logs `duration` as a count
           if (activity_type.toLowerCase() === 'count' && duration >= thresholdVal) meets = true;
-        } else if (unit === 'calories') {
-          // if you store .calories, you can compare act.calories >= thresholdVal
-          // not implemented in your example, but you can do it if you want
         }
+        // etc. for "calories" if you want
 
         if (meets && points > 0) {
-          // update participant’s total_points
+          // update total_points for the user in this challenge
           const { data: partRow, error: partErr } = await supabase
             .from('challenge_participants')
             .select('id, total_points')
@@ -182,7 +181,8 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
             console.error('Error fetching participant row:', partErr);
             continue;
           }
-          const currentPoints = partRow.total_points || 0;
+
+          const currentPoints = partRow.total_points ?? 0;
           const newPoints = currentPoints + points;
 
           const { error: updateErr } = await supabase
@@ -194,7 +194,7 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
             console.error('Error updating participant points:', updateErr);
           } else {
             console.log(
-              `Awarded ${points} point(s) to user ${userId} in challenge ${challengeId} for activity "${activity_type}".`
+              `Awarded ${points} point(s) to user ${userId} for challenge ${challengeId} activity ${activity_type}.`
             );
           }
         }

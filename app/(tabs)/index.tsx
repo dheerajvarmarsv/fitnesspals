@@ -1,4 +1,5 @@
 // app/(tabs)/index.tsx
+
 import { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
@@ -41,10 +42,11 @@ interface ActivityType {
   source: 'manual' | 'device';
 }
 
-// Simple fetchers
 async function fetchTodayActivitiesSummary(userId: string) {
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
 
   const { data, error } = await supabase
     .from('activities')
@@ -63,16 +65,18 @@ async function fetchTodayActivitiesSummary(userId: string) {
     duration += act.duration || 0;
     distance += act.distance || 0;
     calories += act.calories || 0;
-    if ((act.activity_type || '').toLowerCase() === 'steps') {
-      steps += act.duration || 0;
+    if (act.activity_type.toLowerCase() === 'steps') {
+      steps += act.duration || 0; // treat .duration as step count if it's "Steps"
     }
   });
   return { steps, distance, duration, calories };
 }
 
 async function fetchTodayActivitiesList(userId: string) {
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
 
   const { data, error } = await supabase
     .from('activities')
@@ -81,11 +85,12 @@ async function fetchTodayActivitiesList(userId: string) {
     .gte('created_at', today.toISOString())
     .lt('created_at', tomorrow.toISOString())
     .order('created_at', { ascending: false });
+
   if (error) {
     console.error('Error fetching activities:', error);
     throw new Error(error.message);
   }
-  return data ?? [];
+  return data || [];
 }
 
 export default function HomeScreen() {
@@ -104,9 +109,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const todayString = new Date().toLocaleDateString('en-US', {
-    month: 'long', day: 'numeric', year: 'numeric',
-  });
+  const todayString = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
   const loadHomeData = useCallback(async () => {
     try {
@@ -119,15 +122,15 @@ export default function HomeScreen() {
         return;
       }
 
-      // fetch active challenges
+      // 1) active challenges
       const userChallenges = await getActiveChallengesForUser(user.id);
       setActiveChallenges(Array.isArray(userChallenges) ? userChallenges : []);
 
-      // fetch daily summary
+      // 2) summary
       const summary = await fetchTodayActivitiesSummary(user.id);
       setActivitySummary(summary);
 
-      // fetch today's activity list
+      // 3) today's activities
       const todayActivities = await fetchTodayActivitiesList(user.id);
       setActivities(Array.isArray(todayActivities) ? todayActivities : []);
     } catch (err: any) {
@@ -138,7 +141,9 @@ export default function HomeScreen() {
     }
   }, []);
 
-  useEffect(() => { loadHomeData(); }, [loadHomeData]);
+  useEffect(() => {
+    loadHomeData();
+  }, [loadHomeData]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -146,23 +151,14 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
-  /**
-   * Called by the AddActivityModal after user saves an activity
-   */
-  const handleActivitySubmit = async (activityData: {
-    activityType: string;
-    duration: number;
-    distance: number;
-    calories: number;
-    notes: string;
-  }) => {
+  const handleActivitySubmit = async (activityData: any) => {
     try {
       setError(null);
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // Insert into `activities`
+      // Insert new activity
       const { data, error: insertError } = await supabase
         .from('activities')
         .insert({
@@ -176,13 +172,15 @@ export default function HomeScreen() {
         })
         .select()
         .single();
+
       if (insertError) throw insertError;
 
-      // Then update challenges
+      // Award points in all relevant challenges
       await updateChallengesWithActivity(data.id, user.id);
 
-      // Reload
+      // reload
       await loadHomeData();
+
       return { success: true };
     } catch (e: any) {
       setError(e.message);
@@ -206,7 +204,7 @@ export default function HomeScreen() {
 
   return (
     <SharedLayout style={styles.container}>
-      {/* ------- HEADER ------- */}
+      {/* ----- HEADER ----- */}
       <View style={styles.header}>
         <View style={styles.logoContainer}>
           <Text style={styles.logo}>Stridekick</Text>
@@ -219,12 +217,13 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* ------- MAIN CONTENT ------- */}
+      {/* ----- MAIN CONTENT ----- */}
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        {/* error message */}
         {error && (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
@@ -238,10 +237,7 @@ export default function HomeScreen() {
               <Text style={styles.sectionTitle}>YOUR ACTIVITY</Text>
               <Text style={styles.sectionDate}>Today, {todayString}</Text>
             </View>
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={() => setShowAddActivityModal(true)}
-            >
+            <TouchableOpacity style={styles.addButton} onPress={() => setShowAddActivityModal(true)}>
               <Text style={styles.addButtonText}>+ Add activity</Text>
             </TouchableOpacity>
           </View>
@@ -258,9 +254,7 @@ export default function HomeScreen() {
           {activities.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateTitle}>No activities yet</Text>
-              <Text style={styles.emptyStateText}>
-                Start tracking your fitness journey by adding your first activity!
-              </Text>
+              <Text style={styles.emptyStateText}>Start tracking your fitness journey by adding your first activity!</Text>
             </View>
           ) : (
             <View style={styles.loggedActivitiesContainer}>
@@ -290,10 +284,7 @@ export default function HomeScreen() {
               })}
 
               {activities.length > 3 && (
-                <TouchableOpacity
-                  style={styles.viewAllButton}
-                  onPress={() => setShowAllActivities(!showAllActivities)}
-                >
+                <TouchableOpacity style={styles.viewAllButton} onPress={() => setShowAllActivities(!showAllActivities)}>
                   <Text style={styles.viewAllButtonText}>
                     {showAllActivities ? 'Show Less' : `See More (${activities.length} total)`}
                   </Text>
@@ -307,10 +298,7 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>CHALLENGES</Text>
-            <TouchableOpacity
-              style={styles.joinButton}
-              onPress={() => router.push('/joinchallenges/joincreate')}
-            >
+            <TouchableOpacity style={styles.joinButton} onPress={() => router.push('/joinchallenges/joincreate')}>
               <Text style={styles.joinButtonText}>+ Join / Create</Text>
             </TouchableOpacity>
           </View>
@@ -318,9 +306,7 @@ export default function HomeScreen() {
           {activeChallenges.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateTitle}>No active challenges</Text>
-              <Text style={styles.emptyStateText}>
-                Join a challenge or create your own to get started!
-              </Text>
+              <Text style={styles.emptyStateText}>Join a challenge or create your own to get started!</Text>
             </View>
           ) : (
             <View style={styles.challengesContainer}>
@@ -328,9 +314,7 @@ export default function HomeScreen() {
                 <TouchableOpacity
                   key={challenge.id}
                   style={styles.challengeCard}
-                  onPress={() =>
-                    router.push(`/joinchallenges/challengedetails?challenge_id=${challenge.id}`)
-                  }
+                  onPress={() => router.push(`/joinchallenges/challengedetails?challenge_id=${challenge.id}`)}
                 >
                   <View style={styles.challengeContent}>
                     <View style={styles.challengeHeader}>
@@ -341,12 +325,9 @@ export default function HomeScreen() {
                         </Text>
                       </View>
                     </View>
-
                     <Text style={styles.challengeDates}>
                       {new Date(challenge.start_date).toLocaleDateString()} -{' '}
-                      {challenge.end_date
-                        ? new Date(challenge.end_date).toLocaleDateString()
-                        : 'Open-ended'}
+                      {challenge.end_date ? new Date(challenge.end_date).toLocaleDateString() : 'Open-ended'}
                     </Text>
                     <Text style={styles.participantCountText}>
                       {challenge.participant_count || 0} participant(s)
@@ -356,10 +337,7 @@ export default function HomeScreen() {
               ))}
 
               {activeChallenges.length > 3 && (
-                <TouchableOpacity
-                  style={styles.viewAllButton}
-                  onPress={() => setShowAllChallenges(!showAllChallenges)}
-                >
+                <TouchableOpacity style={styles.viewAllButton} onPress={() => setShowAllChallenges(!showAllChallenges)}>
                   <Text style={styles.viewAllButtonText}>
                     {showAllChallenges ? 'Show Less' : `View All (${activeChallenges.length} total)`}
                   </Text>
@@ -370,125 +348,54 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
 
-      {/* ADD ACTIVITY MODAL */}
+      {/* Add Activity Modal */}
       <AddActivityModal
         visible={showAddActivityModal}
         onClose={() => setShowAddActivityModal(false)}
-        onSaveComplete={loadHomeData} // re-fetch after saving
+        onSaveComplete={loadHomeData}
       />
     </SharedLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1, backgroundColor: '#FF4B4B',
-  },
-  header: {
-    paddingHorizontal: 16, paddingTop: Platform.OS === 'ios' ? 12 : 16, paddingBottom: 16,
-  },
-  logoContainer: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-  },
-  logo: {
-    fontSize: 28, fontWeight: 'bold', color: '#fff',
-  },
-  syncStatus: {
-    flexDirection: 'row', alignItems: 'center',
-  },
-  syncText: {
-    color: '#fff', fontSize: 14, marginRight: 8,
-  },
-  loadingContainer: {
-    flex: 1, justifyContent: 'center', alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 12, fontSize: 16, color: '#fff',
-  },
-  content: {
-    flex: 1, backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20,
-  },
-  scrollContent: {
-    paddingTop: 20, paddingBottom: 40,
-  },
-  errorContainer: {
-    margin: 16, padding: 16, backgroundColor: '#FEE2E2', borderRadius: 8,
-  },
-  errorText: {
-    color: '#DC2626', textAlign: 'center',
-  },
-  section: {
-    marginBottom: 24, paddingHorizontal: 16,
-  },
-  sectionHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 18, fontWeight: '700', color: '#333',
-  },
-  sectionDate: {
-    fontSize: 13, fontWeight: '400', color: '#666', marginTop: 2,
-  },
-  addButton: {
-    backgroundColor: '#FF4B4B', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-  },
-  addButtonText: {
-    color: '#fff', fontWeight: '600', fontSize: 14,
-  },
-  recentActivitiesTitle: {
-    fontSize: 16, fontWeight: '600', color: '#333', marginTop: 20, marginBottom: 8,
-  },
-  loggedActivitiesContainer: {
-    marginTop: 4,
-  },
-  activityItem: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FAFAFA',
-    padding: 12, borderRadius: 8, marginBottom: 8,
-  },
+  container: { flex: 1, backgroundColor: '#FF4B4B' },
+  header: { paddingHorizontal: 16, paddingTop: Platform.OS === 'ios' ? 12 : 16, paddingBottom: 16 },
+  logoContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  logo: { fontSize: 28, fontWeight: 'bold', color: '#fff' },
+  syncStatus: { flexDirection: 'row', alignItems: 'center' },
+  syncText: { color: '#fff', fontSize: 14, marginRight: 8 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText: { marginTop: 12, fontSize: 16, color: '#fff' },
+  content: { flex: 1, backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20 },
+  scrollContent: { paddingTop: 20, paddingBottom: 40 },
+  errorContainer: { margin: 16, padding: 16, backgroundColor: '#FEE2E2', borderRadius: 8 },
+  errorText: { color: '#DC2626', textAlign: 'center' },
+  section: { marginBottom: 24, paddingHorizontal: 16 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#333' },
+  sectionDate: { fontSize: 13, fontWeight: '400', color: '#666', marginTop: 2 },
+  addButton: { backgroundColor: '#FF4B4B', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
+  addButtonText: { color: '#fff', fontWeight: '600', fontSize: 14 },
+  recentActivitiesTitle: { fontSize: 16, fontWeight: '600', color: '#333', marginTop: 20, marginBottom: 8 },
+  loggedActivitiesContainer: { marginTop: 4 },
+  activityItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FAFAFA', padding: 12, borderRadius: 8, marginBottom: 8 },
   activityTypeText: { fontSize: 15, fontWeight: '600', color: '#333' },
   activityMetaText: { fontSize: 13, color: '#666' },
   viewAllButton: { marginTop: 8, alignSelf: 'flex-start' },
   viewAllButtonText: { color: '#4A90E2', fontWeight: '600', fontSize: 14 },
-  emptyState: {
-    backgroundColor: '#f8f9fa', padding: 24, borderRadius: 12, alignItems: 'center',
-  },
-  emptyStateTitle: {
-    fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 8,
-  },
-  emptyStateText: {
-    fontSize: 14, color: '#666', textAlign: 'center', lineHeight: 20,
-  },
-  joinButton: {
-    backgroundColor: '#4A90E2', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-  },
-  joinButtonText: {
-    color: '#fff', fontWeight: '600', fontSize: 14,
-  },
-  challengesContainer: {
-    gap: 12,
-  },
-  challengeCard: {
-    backgroundColor: '#f8f9fa', borderRadius: 12, overflow: 'hidden',
-    borderWidth: 1, borderColor: '#eee',
-  },
+  emptyState: { backgroundColor: '#f8f9fa', padding: 24, borderRadius: 12, alignItems: 'center' },
+  emptyStateTitle: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 8 },
+  emptyStateText: { fontSize: 14, color: '#666', textAlign: 'center', lineHeight: 20 },
+  joinButton: { backgroundColor: '#4A90E2', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
+  joinButtonText: { color: '#fff', fontWeight: '600', fontSize: 14 },
+  challengesContainer: { gap: 12 },
+  challengeCard: { backgroundColor: '#f8f9fa', borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#eee' },
   challengeContent: { padding: 16 },
-  challengeHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginBottom: 8,
-  },
-  challengeTitle: {
-    fontSize: 16, fontWeight: '600', color: '#333', flex: 1, marginRight: 8,
-  },
-  challengeTypeBadge: {
-    backgroundColor: '#4A90E2', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4,
-  },
-  challengeTypeText: {
-    color: '#fff', fontSize: 12, fontWeight: '600',
-  },
-  challengeDates: {
-    fontSize: 14, color: '#666', marginBottom: 8,
-  },
-  participantCountText: {
-    fontSize: 13, color: '#666',
-  },
+  challengeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  challengeTitle: { fontSize: 16, fontWeight: '600', color: '#333', flex: 1, marginRight: 8 },
+  challengeTypeBadge: { backgroundColor: '#4A90E2', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
+  challengeTypeText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  challengeDates: { fontSize: 14, color: '#666', marginBottom: 8 },
+  participantCountText: { fontSize: 13, color: '#666' },
 });
