@@ -24,6 +24,9 @@ export default function ActivitySummary({
     ? `${distance.toFixed(2)} km`
     : `${(distance * 0.621371).toFixed(2)} mi`;
 
+  // Convert minutes to hours with 1 decimal place for display
+  const durationInHours = (duration / 60).toFixed(1);
+
   return (
     <View style={styles.container}>
       {/* Steps */}
@@ -43,8 +46,8 @@ export default function ActivitySummary({
       {/* Duration */}
       <View style={styles.statBox}>
         <Ionicons name="time" size={20} color="#FF4B4B" style={styles.icon} />
-        <Text style={styles.value}>{duration}</Text>
-        <Text style={styles.label}>min</Text>
+        <Text style={styles.value}>{durationInHours}</Text>
+        <Text style={styles.label}>hours</Text>
       </View>
 
       {/* Calories */}

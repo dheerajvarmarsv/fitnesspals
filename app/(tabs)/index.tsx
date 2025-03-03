@@ -40,6 +40,7 @@ interface ActivityType {
   notes: string | null;
   created_at: string;
   source: 'manual' | 'device';
+  metric: string; // Add this property to match your DB schema
 }
 
 async function fetchTodayActivitiesSummary(userId: string) {
@@ -92,7 +93,22 @@ async function fetchTodayActivitiesList(userId: string) {
   }
   return data || [];
 }
-
+function getActivityIcon(activityType: string): string {
+  switch(activityType.toLowerCase()) {
+    case 'walking': return 'walk';
+    case 'running': return 'walk';
+    case 'steps': return 'walk';
+    case 'cycling': return 'bicycle';
+    case 'swimming': return 'water';
+    case 'sleep': return 'bed';
+    case 'screen time': return 'phone-portrait';
+    case 'workout': return 'barbell';
+    case 'yoga': return 'body';
+    case 'high intensity': return 'flame';
+    case 'no sugars': return 'nutrition';
+    default: return 'fitness';
+  }
+}
 export default function HomeScreen() {
   const router = useRouter();
   const { settings, isOnline } = useUser();
@@ -268,6 +284,14 @@ export default function HomeScreen() {
                     displayDist = `${miles.toFixed(2)} mi`;
                   }
                 }
+                  // Convert duration from minutes to hours for display if it's a time-based activity
+                  const displayDuration = activity.metric === 'time' 
+                  ? `${(activity.duration / 60).toFixed(1)} hours`
+                  : activity.metric === 'steps' || activity.activity_type.toLowerCase() === 'steps'
+                    ? `${activity.duration} steps`
+                    : `${activity.duration} min`;
+                      // Get the appropriate icon
+  const iconName = getActivityIcon(activity.activity_type);
                 return (
                   <View key={activity.id} style={styles.activityItem}>
                     <Ionicons name="walk" size={24} color="#333" style={{ marginRight: 8 }} />

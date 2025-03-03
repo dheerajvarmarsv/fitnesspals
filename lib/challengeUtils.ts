@@ -137,70 +137,129 @@ export async function saveUserActivity(
 /**
  * Recalculate points in all relevant challenges for the newly inserted activity.
  */
+// lib/challengeUtils.ts - update the updateChallengesWithActivity function
+
 export async function updateChallengesWithActivity(activityId: string, userId: string) {
-  const { data: act, error: actErr } = await supabase
-    .from('activities')
-    .select('*')
-    .eq('id', activityId)
-    .single();
-  if (actErr || !act) {
-    console.error('Error fetching new activity row:', actErr);
-    return;
-  }
-  const { activity_type, duration, distance, calories, metric } = act;
-  const activeChallenges = await getActiveChallengesForUser(userId);
-  if (!activeChallenges.length) return;
-  for (const challenge of activeChallenges) {
-    const challengeId = challenge.id;
-    if (!challengeId) continue;
-    const { data: cActs, error: cErr } = await supabase
-      .from('challenge_activities')
-      .select('*')
-      .eq('challenge_id', challengeId)
-      .eq('activity_type', activity_type);
-    if (cErr) {
-      console.error('Error fetching challenge_activities:', cErr);
-      continue;
-    }
-    if (!cActs?.length) continue;
-    for (const cAct of cActs) {
-      const threshold = cAct.target_value || cAct.threshold || 1;
-      const activityMetric = cAct.metric;
-      const points = cAct.points || 1;
-      let meets = false;
-      if (activityMetric === 'time' && metric === 'time') {
-        if (duration >= threshold) meets = true;
-      } else if ((activityMetric === 'distance_km' || activityMetric === 'distance_miles') && metric?.includes('distance')) {
-        if (distance >= threshold) meets = true;
-      } else if (activityMetric === 'steps' && metric === 'steps') {
-        if (duration >= threshold) meets = true;
-      } else if (activityMetric === 'calories' && metric === 'calories') {
-        if (calories >= threshold) meets = true;
-      } else if (activityMetric === 'count' && metric === 'count') {
-        if (duration >= threshold) meets = true;
-      }
-      if (meets) {
-        const { data: pData, error: pErr } = await supabase
-          .from('challenge_participants')
-          .select('id,total_points')
-          .eq('user_id', userId)
-          .eq('challenge_id', challengeId)
-          .single();
-        if (pErr || !pData) {
-          console.error('Error fetching participant row:', pErr);
-          continue;
+    try {
+      // Get the activity details
+      const { data: activity, error: activityError } = await supabase
+        .from('activities')
+        .select('*')
+        .eq('id', activityId)
+        .single();
+  
+      if (activityError) throw activityError;
+      if (!activity) throw new Error('Activity not found');
+  
+      // Get user settings to know their distance preference
+      const { data: userData, error: userError } = await supabase
+        .from('profile_settings')
+        .select('use_kilometers')
+        .eq('id', userId)
+        .single();
+      
+      const useKilometers = userError ? true : (userData?.use_kilometers ?? true);
+  
+      // Get user's active challenges
+      const { data: participations, error: challengesError } = await supabase
+        .from('challenge_participants')
+        .select(`
+          id,
+          challenge_id,
+          total_points,
+          current_streak,
+          longest_streak,
+          challenges(
+            id,
+            challenge_type,
+            challenge_activities(
+              activity_type,
+              metric,
+              threshold,
+              points,
+              timeframe
+            )
+          )
+        `)
+        .eq('user_id', userId)
+        .eq('status', 'active');
+  
+      if (challengesError) throw challengesError;
+      if (!participations || participations.length === 0) return;
+  
+      // For each challenge, check if the activity contributes points
+      for (const participation of participations) {
+        const challenge = participation.challenges;
+        if (!challenge) continue;
+  
+        // Find matching activities in the challenge
+        const matchingActivities = challenge.challenge_activities.filter(
+          (act: any) => act.activity_type === activity.activity_type
+        );
+  
+        if (matchingActivities.length === 0) continue;
+  
+        // Calculate points earned
+        let pointsEarned = 0;
+        for (const matchingActivity of matchingActivities) {
+          let activityValue = 0;
+          let thresholdValue = 0;
+          
+          // Parse the threshold string (e.g., "5 km", "30 min") to get the numeric value
+          const thresholdMatch = matchingActivity.threshold.match(/^(\d+(\.\d+)?)/);
+          if (thresholdMatch) {
+            thresholdValue = parseFloat(thresholdMatch[1]);
+          }
+  
+          // Determine the value based on metric and convert units if needed
+          switch (matchingActivity.metric) {
+            case 'distance_km':
+            case 'distance_miles': {
+              activityValue = activity.distance || 0;
+              // If the challenge uses miles but we store km, convert
+              if (matchingActivity.metric === 'distance_miles' && activityValue > 0) {
+                thresholdValue = thresholdValue / 0.621371; // Convert miles to km for comparison
+              }
+              break;
+            }
+            case 'time': {
+              // Activity duration is stored in minutes, but challenges might be in hours
+              activityValue = activity.duration || 0;
+              if (matchingActivity.threshold.includes('hour')) {
+                thresholdValue = thresholdValue * 60; // Convert hours to minutes for comparison
+              }
+              break;
+            }
+            case 'calories':
+              activityValue = activity.calories || 0;
+              break;
+            case 'steps':
+            case 'count':
+              activityValue = activity.duration || 0; // We store count in the duration field
+              break;
+          }
+  
+          // Award points if threshold is met
+          if (activityValue >= thresholdValue) {
+            pointsEarned += matchingActivity.points;
+          }
         }
-        const newPoints = (pData.total_points || 0) + points;
-        const { error: updErr } = await supabase
-          .from('challenge_participants')
-          .update({ total_points: newPoints, last_activity_date: new Date().toISOString() })
-          .eq('id', pData.id);
-        if (updErr) {
-          console.error('Error updating total_points:', updErr);
-        } else {
-          console.log(`Awarded ${points} points to user ${userId} in challenge ${challengeId} for activity ${activity_type}`);
+  
+        // If points were earned, update the participant record
+        if (pointsEarned > 0) {
+          await supabase
+            .from('challenge_participants')
+            .update({
+              total_points: participation.total_points + pointsEarned,
+              last_activity_date: new Date().toISOString()
+            })
+            .eq('id', participation.id);
         }
       }
+  
+      return true;
+    } catch (err) {
+      console.error('Error updating challenges with activity:', err);
+      return false;
     }
   }
-}
