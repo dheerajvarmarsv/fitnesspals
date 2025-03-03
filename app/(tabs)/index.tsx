@@ -274,38 +274,47 @@ export default function HomeScreen() {
             </View>
           ) : (
             <View style={styles.loggedActivitiesContainer}>
-              {displayedActivities.map((activity) => {
-                let displayDist = '';
-                if (activity.distance != null) {
-                  if (settings.useKilometers) {
-                    displayDist = `${activity.distance.toFixed(2)} km`;
-                  } else {
-                    const miles = activity.distance * 0.621371;
-                    displayDist = `${miles.toFixed(2)} mi`;
-                  }
-                }
-                  // Convert duration from minutes to hours for display if it's a time-based activity
-                  const displayDuration = activity.metric === 'time' 
-                  ? `${(activity.duration / 60).toFixed(1)} hours`
-                  : activity.metric === 'steps' || activity.activity_type.toLowerCase() === 'steps'
-                    ? `${activity.duration} steps`
-                    : `${activity.duration} min`;
-                      // Get the appropriate icon
+{displayedActivities.map((activity) => {
+  let displayDist = '';
+  if (activity.distance != null) {
+    if (settings.useKilometers) {
+      displayDist = `${activity.distance.toFixed(2)} km`;
+    } else {
+      const miles = activity.distance * 0.621371;
+      displayDist = `${miles.toFixed(2)} mi`;
+    }
+  }
+  
+  // Format duration based on the activity's metric
+  let displayDuration;
+  if (activity.metric === 'time') {
+    // Convert minutes to hours with 1 decimal place
+    displayDuration = `${(activity.duration / 60).toFixed(1)} hours`;
+  } else if (activity.metric === 'steps' || activity.activity_type.toLowerCase() === 'steps') {
+    // For step-based activities
+    displayDuration = `${activity.duration} steps`;
+  } else {
+    // Default case
+    displayDuration = `${activity.duration} min`;
+  }
+  
+  // Get appropriate icon
   const iconName = getActivityIcon(activity.activity_type);
-                return (
-                  <View key={activity.id} style={styles.activityItem}>
-                    <Ionicons name="walk" size={24} color="#333" style={{ marginRight: 8 }} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.activityTypeText}>{activity.activity_type}</Text>
-                      <Text style={styles.activityMetaText}>
-                        Duration: {activity.duration} min
-                        {displayDist ? ` • Distance: ${displayDist}` : ''}
-                        {activity.calories ? ` • ${activity.calories} cal` : ''}
-                      </Text>
-                    </View>
-                  </View>
-                );
-              })}
+  
+  return (
+    <View key={activity.id} style={styles.activityItem}>
+      <Ionicons name={iconName} size={24} color="#333" style={{ marginRight: 8 }} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.activityTypeText}>{activity.activity_type}</Text>
+        <Text style={styles.activityMetaText}>
+          Duration: {displayDuration}
+          {displayDist ? ` • Distance: ${displayDist}` : ''}
+          {activity.calories ? ` • ${activity.calories} cal` : ''}
+        </Text>
+      </View>
+    </View>
+  );
+})}
 
               {activities.length > 3 && (
                 <TouchableOpacity style={styles.viewAllButton} onPress={() => setShowAllActivities(!showAllActivities)}>
