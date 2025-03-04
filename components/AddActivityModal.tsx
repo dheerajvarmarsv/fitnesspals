@@ -1,5 +1,3 @@
-// components/AddActivityModal.tsx
-
 import React, { useState, useEffect } from 'react';
 import {
   Modal,
@@ -13,8 +11,10 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../lib/supabase';
 import { useUser } from './UserContext';
 import {
@@ -23,6 +23,7 @@ import {
   updateChallengesWithActivity,
 } from '../lib/challengeUtils';
 
+// Default activities available in the app
 const GLOBAL_ACTIVITIES = [
   'Workout',
   'Steps',
@@ -34,117 +35,49 @@ const GLOBAL_ACTIVITIES = [
   'Count',
 ];
 
+// Possible metrics for activities
 type MetricType = 'steps' | 'distance_km' | 'distance_miles' | 'time' | 'calories' | 'count';
 
-const DEFAULT_METRICS: { [key: string]: MetricType } = {
-  Workout: 'time',
-  Steps: 'steps',
-  Sleep: 'time',
-  'Screen Time': 'time',
-  'No Sugars': 'count',
-  Yoga: 'time',
-  'High Intensity': 'calories',
-  Count: 'count',
+// Visual elements - colors for different activities with enhanced colors
+const ACTIVITY_COLORS = {
+  Workout:        { light: '#E1F5FE', primary: '#2196F3', gradient: ['#2196F3', '#0D47A1'], text: '#0D47A1' },
+  Steps:          { light: '#E8F5E9', primary: '#4CAF50', gradient: ['#4CAF50', '#1B5E20'], text: '#1B5E20' },
+  Sleep:          { light: '#E0F7FA', primary: '#00BCD4', gradient: ['#00BCD4', '#006064'], text: '#006064' },
+  'Screen Time':  { light: '#FFF3E0', primary: '#FF9800', gradient: ['#FF9800', '#E65100'], text: '#E65100' },
+  'No Sugars':    { light: '#FCE4EC', primary: '#F06292', gradient: ['#F06292', '#880E4F'], text: '#880E4F' },
+  'High Intensity':{ light: '#FFEBEE', primary: '#F44336', gradient: ['#F44336', '#B71C1C'], text: '#B71C1C' },
+  Yoga:           { light: '#F3E5F5', primary: '#9C27B0', gradient: ['#9C27B0', '#4A148C'], text: '#4A148C' },
+  Count:          { light: '#ECEFF1', primary: '#607D8B', gradient: ['#607D8B', '#263238'], text: '#263238' },
+  Custom:         { light: '#E8EAF6', primary: '#3F51B5', gradient: ['#3F51B5', '#1A237E'], text: '#1A237E' },
 };
 
-const ACTIVITY_COLORS: { [key: string]: { light: string; primary: string; text: string } } = {
-  Workout:        { light: '#E3F2FD', primary: '#2196F3', text: '#0D47A1' },
-  Steps:          { light: '#E8F5E9', primary: '#4CAF50', text: '#1B5E20' },
-  Sleep:          { light: '#E0F7FA', primary: '#00BCD4', text: '#006064' },
-  'Screen Time':  { light: '#FFF3E0', primary: '#FF9800', text: '#E65100' },
-  'No Sugars':    { light: '#FCE4EC', primary: '#F06292', text: '#880E4F' },
-  'High Intensity':{light: '#FFEBEE', primary: '#F44336', text: '#B71C1C' },
-  Yoga:           { light: '#F3E5F5', primary: '#9C27B0', text: '#4A148C' },
-  Count:          { light: '#EEEEEE', primary: '#9E9E9E', text: '#212121' },
-  Custom:         { light: '#E1F5FE', primary: '#03A9F4', text: '#01579B' },
-};
-
-const ACTIVITY_ICONS: { [key: string]: string } = {
+// Icons for different activities
+const ACTIVITY_ICONS = {
   Workout: 'dumbbell',
   Steps: 'shoe-prints',
   Sleep: 'bed',
   'Screen Time': 'mobile',
   'No Sugars': 'cookie-bite',
-  Yoga: 'pray',
   'High Intensity': 'fire',
+  Yoga: 'pray',
   Count: 'hashtag',
   Custom: 'plus-circle',
 };
 
-// Update the METRIC_DESCRIPTIONS to be dynamic based on settings
-const getMetricDescriptions = (useKilometers: boolean) => ({
-    time: { 
-      label: 'Time (hours)', 
-      hint: 'e.g., 0.5 = 30 min',
-      convert: (value: number) => convertHoursToMinutes(value) // Convert to minutes for storage
-    },
-    distance_km: { 
-      label: useKilometers ? 'Distance (km)' : 'Distance (miles)',
-      hint: useKilometers ? 'Distance in kilometers' : 'Distance in miles',
-      convert: (value: number) => useKilometers ? value : convertMilesToKm(value) // Always store as km
-    },
-    distance_miles: { 
-      label: 'Distance (miles)', 
-      hint: 'Distance in miles',
-      convert: (value: number) => convertMilesToKm(value) // Convert to km for storage
-    },
-    steps: { 
-      label: 'Steps',
-      hint: 'Count of steps',
-      convert: (value: number) => value 
-    },
-    calories: { 
-      label: 'Calories',
-      hint: 'Count of calories burned',
-      convert: (value: number) => value 
-    },
-    count: { 
-      label: 'Quantity',
-      hint: 'Generic numeric measure',
-      convert: (value: number) => value 
-    },
-  });
+// Custom activity storage in AsyncStorage
+import AsyncStorage from '@react-native-async-storage/async-storage';
+const CUSTOM_ACTIVITIES_STORAGE_KEY = 'stridekick_custom_activities';
 
-const convertMinutesToHours = (minutes: number): number => {
-    return minutes / 60;
-  };
-  
-  const convertHoursToMinutes = (hours: number): number => {
-    return hours * 60;
-  };
-  
-  const convertKmToMiles = (km: number): number => {
-    return km * 0.621371;
-  };
-  
-  const convertMilesToKm = (miles: number): number => {
-    return miles / 0.621371;
-  };
-  
-// Convert user setting to distance metric
-function distanceKey(useKilometers: boolean): MetricType {
-  return useKilometers ? 'distance_km' : 'distance_miles';
-}
-
-// Unit label
-function getUnitLabel(metric: MetricType): string {
-  switch (metric) {
-    case 'steps':         return 'steps';
-    case 'distance_km':   return 'kilometers';
-    case 'distance_miles':return 'miles';
-    case 'time':          return 'hours';
-    case 'calories':      return 'calories';
-    case 'count':         return 'count';
-    default:              return '';
-  }
-}
-
+// Activity data structure
 interface ActivityData {
+  id: string;
   activityType: string;
   metrics: { [key in MetricType]?: string };
-  customSelectedMetrics?: MetricType[];
+  isExpanded: boolean;
+  isCustom: boolean;
 }
 
+// Modal props
 interface AddActivityModalProps {
   visible: boolean;
   onClose: () => void;
@@ -158,533 +91,849 @@ export default function AddActivityModal({
 }: AddActivityModalProps) {
   const { settings } = useUser();
   const [userId, setUserId] = useState<string | null>(null);
-
-  const [challengeActivities, setChallengeActivities] = useState<string[]>([]);
-  const [challengeMetrics, setChallengeMetrics] = useState<{ [key: string]: MetricType[] }>({});
-
-  const [selectedActivities, setSelectedActivities] = useState<{ [key: string]: ActivityData }>({});
-
-  // For custom activity
-  const [customActivity, setCustomActivity] = useState('');
-  const [isCustomExpanded, setIsCustomExpanded] = useState(false);
-  const [customSelectedMetrics, setCustomSelectedMetrics] = useState<MetricType[]>([]);
-
+  
+  // Activities from challenges and general activities
+  const [challengeActivities, setChallengeActivities] = useState<ActivityData[]>([]);
+  const [generalActivities, setGeneralActivities] = useState<ActivityData[]>([]);
+  const [customActivities, setCustomActivities] = useState<ActivityData[]>([]);
+  
+  // Challenge metrics map to track what metrics are used by challenges
+  const [challengeMetricsMap, setChallengeMetricsMap] = useState<{[actName: string]: Set<MetricType>}>({});
+  
+  // Custom activity form state
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [customName, setCustomName] = useState('');
+  const [selectedCustomMetrics, setSelectedCustomMetrics] = useState<MetricType[]>([]);
+  
   // UI states
   const [loading, setLoading] = useState(false);
   const [fetchingActivities, setFetchingActivities] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
+  const [formErrors, setFormErrors] = useState<{[key: string]: string}>({});
 
+  // Get user ID on mount
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data?.user) setUserId(data.user.id);
     });
   }, []);
 
+  // Load custom activities from storage
+  const loadCustomActivitiesFromStorage = async () => {
+    try {
+      const storedActivities = await AsyncStorage.getItem(CUSTOM_ACTIVITIES_STORAGE_KEY);
+      if (storedActivities) {
+        const parsedActivities = JSON.parse(storedActivities) as ActivityData[];
+        // Ensure all loaded custom activities start closed, not expanded
+        const closedActivities = parsedActivities.map(act => ({
+          ...act,
+          isExpanded: false // Start closed
+        }));
+        setCustomActivities(closedActivities);
+      }
+    } catch (err) {
+      console.error('Error loading custom activities:', err);
+    }
+  };
+
+  // Save custom activities to storage
+  const saveCustomActivitiesToStorage = async (activities: ActivityData[]) => {
+    try {
+      await AsyncStorage.setItem(CUSTOM_ACTIVITIES_STORAGE_KEY, JSON.stringify(activities));
+    } catch (err) {
+      console.error('Error saving custom activities:', err);
+    }
+  };
+
+  // Load data when modal is opened
   useEffect(() => {
     if (visible && userId) {
-      loadChallengeActivities(userId);
+      loadActivities(userId);
+      loadCustomActivitiesFromStorage();
     } else {
       resetForm();
     }
   }, [visible, userId]);
 
-  async function loadChallengeActivities(uid: string) {
+  // Reset form state
+  const resetForm = () => {
+    setChallengeActivities([]);
+    setGeneralActivities([]);
+    setChallengeMetricsMap({});
+    setShowCustomForm(false);
+    setCustomName('');
+    setSelectedCustomMetrics([]);
+    setError(null);
+    setFormErrors({});
+  };
+
+  // Load challenge activities and prepare general activities
+  const loadActivities = async (uid: string) => {
     try {
-      setError(null);
       setFetchingActivities(true);
+      setError(null);
 
-      const { data: challengeData, error: challengeError } = await supabase
-        .from('challenge_participants')
-        .select(`
-          challenge_id,
-          challenges (
-            id,
-            title,
-            challenge_activities (
-              activity_type,
-              metric
-            )
-          )
-        `)
-        .eq('user_id', uid)
-        .eq('status', 'active');
-
-      if (challengeError) throw challengeError;
-
-      const activities: string[] = [];
-      const metricsMap: { [key: string]: MetricType[] } = {};
-
-      (challengeData || []).forEach(participant => {
-        const challenge = participant.challenges;
-        if (challenge && challenge.challenge_activities) {
-          challenge.challenge_activities.forEach((act: any) => {
-            const actType = act.activity_type;
-            const metric = act.metric as MetricType;
-            if (!activities.includes(actType)) activities.push(actType);
-            if (!metricsMap[actType]) metricsMap[actType] = [];
-            if (!metricsMap[actType].includes(metric)) metricsMap[actType].push(metric);
-          });
+      // Get activities from challenges
+      const challengeActivityTypes = await getChallengeActivityTypes(uid);
+      
+      // Build a map of activity name to metrics used in challenges
+      const metricsMap: {[actName: string]: Set<MetricType>} = {};
+      
+      // Process challenge activities
+      challengeActivityTypes.forEach(entry => {
+        const actName = entry.activityType;
+        if (!metricsMap[actName]) {
+          metricsMap[actName] = new Set<MetricType>();
         }
+        
+        entry.metrics.forEach(metricObj => {
+          const metric = metricObj.metric as MetricType;
+          metricsMap[actName].add(metric);
+        });
       });
-
-      setChallengeActivities(activities);
-      setChallengeMetrics(metricsMap);
+      
+      setChallengeMetricsMap(metricsMap);
+      
+      // Create challenge activities array
+      const challengeActs: ActivityData[] = Object.keys(metricsMap).map((actName, index) => {
+        const metrics: {[key in MetricType]?: string} = {};
+        
+        // Add empty string for each metric
+        Array.from(metricsMap[actName]).forEach(metric => {
+          // Filter out duplicate distance metrics based on user preference
+          if (metric === 'distance_km' || metric === 'distance_miles') {
+            // Only add the user's preferred distance metric
+            const preferredMetric = settings.useKilometers ? 'distance_km' : 'distance_miles';
+            if (!metrics[preferredMetric]) {
+              metrics[preferredMetric] = '';
+            }
+          } else {
+            if (!metrics[metric]) {
+                metrics[metric] = '';
+              }
+          }
+        });
+        
+        return {
+          id: `challenge-${actName}-${index}`,
+          activityType: actName,
+          metrics,
+          isExpanded: false,
+          isCustom: false
+        };
+      });
+      
+      setChallengeActivities(challengeActs);
+      
+      // Prepare general activities (excluding metrics already in challenges)
+      const allMetrics: MetricType[] = ['time', 'steps', 'calories', 'count'];
+      // Add only the preferred distance metric
+      const preferredDistanceMetric = settings.useKilometers ? 'distance_km' : 'distance_miles';
+      allMetrics.push(preferredDistanceMetric);
+      
+      
+      const generalActs: ActivityData[] = GLOBAL_ACTIVITIES
+      .filter(actName => {
+        // Retrieve metrics used by challenges for this activity
+        const usedMetrics = metricsMap[actName] || new Set<MetricType>();
+        // Check if any distance metric is used in challenges
+        const challengeHasDistance = usedMetrics.has('distance_km') || usedMetrics.has('distance_miles');
+        
+        // Filter out the distance metric if challenges already cover it
+        const remainingMetrics = allMetrics.filter(m => {
+          if (challengeHasDistance && (m === 'distance_km' || m === 'distance_miles')) {
+            return false;
+          }
+          return !usedMetrics.has(m);
+        });
+        
+        return remainingMetrics.length > 0;
+      })
+      .map((actName, index) => {
+        const usedMetrics = metricsMap[actName] || new Set<MetricType>();
+        const challengeHasDistance = usedMetrics.has('distance_km') || usedMetrics.has('distance_miles');
+        const metrics: { [key in MetricType]?: string } = {};
+        
+        // For each metric in allMetrics, if the challenge already uses it, skip.
+        // Also, if the challenge uses any distance metric, skip both distance options.
+        allMetrics.forEach(metric => {
+          if (challengeHasDistance && (metric === 'distance_km' || metric === 'distance_miles')) {
+            return; // skip adding any distance metric
+          }
+          if (!usedMetrics.has(metric)) {
+            metrics[metric] = '';
+          }
+        });
+        
+        return {
+          id: `general-${actName}-${index}`,
+          activityType: actName,
+          metrics,
+          isExpanded: false,
+          isCustom: false
+        };
+      });
+      
+    setGeneralActivities(generalActs);
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Failed to load activities');
+      console.error('Error loading activities:', err);
     } finally {
       setFetchingActivities(false);
     }
-  }
+  };
 
-  function resetForm() {
-    setSelectedActivities({});
-    setCustomActivity('');
-    setIsCustomExpanded(false);
-    setCustomSelectedMetrics([]);
-    setError(null);
-    setFormErrors({});
-    setLoading(false);
-  }
-
-  function handleClose() {
-    resetForm();
-    onClose();
-  }
-
-  function toggleActivity(activityName: string, isCustom: boolean = false) {
-    if (isCustom) {
-      setIsCustomExpanded(!isCustomExpanded);
-      return;
-    }
-    if (selectedActivities[activityName]) {
-      const newSel = { ...selectedActivities };
-      delete newSel[activityName];
-      setSelectedActivities(newSel);
-      return;
-    }
-    let defaultMetric: MetricType = 'time';
-    if (challengeMetrics[activityName] && challengeMetrics[activityName].length > 0) {
-      defaultMetric = challengeMetrics[activityName][0];
-    } else if (DEFAULT_METRICS[activityName]) {
-      defaultMetric = DEFAULT_METRICS[activityName];
-    }
-    if (defaultMetric === 'distance_km' || defaultMetric === 'distance_miles') {
-      defaultMetric = settings.useKilometers ? 'distance_km' : 'distance_miles';
-    }
-    setSelectedActivities({
-      ...selectedActivities,
-      [activityName]: {
-        activityType: activityName,
-        metrics: { [defaultMetric]: '' },
-      },
-    });
-  }
-
-  function toggleCustomMetric(metric: MetricType) {
-    if (customSelectedMetrics.includes(metric)) {
-      setCustomSelectedMetrics(prev => prev.filter(m => m !== metric));
+  // Toggle activity expansion
+  const toggleActivityExpansion = (id: string, isChallenge: boolean, isCustom: boolean = false) => {
+    if (isChallenge) {
+      setChallengeActivities(prev => prev.map(act => 
+        act.id === id ? {...act, isExpanded: !act.isExpanded} : act
+      ));
+    } else if (isCustom) {
+      setCustomActivities(prev => prev.map(act => 
+        act.id === id ? {...act, isExpanded: !act.isExpanded} : act
+      ));
     } else {
-      setCustomSelectedMetrics(prev => [...prev, metric]);
+      setGeneralActivities(prev => prev.map(act => 
+        act.id === id ? {...act, isExpanded: !act.isExpanded} : act
+      ));
     }
-  }
+  };
 
-  function addCustomActivity() {
-    const name = customActivity.trim();
-    if (!name) {
-      setFormErrors({ ...formErrors, custom: 'Please enter a name for the custom activity' });
-      return;
+  // Update metric value
+  const updateMetricValue = (id: string, isChallenge: boolean, isCustom: boolean = false, metric: MetricType, value: string) => {
+    const updateActivity = (activities: ActivityData[]) => 
+      activities.map(act => 
+        act.id === id 
+          ? {...act, metrics: {...act.metrics, [metric]: value}} 
+          : act
+      );
+    
+    if (isChallenge) {
+      setChallengeActivities(updateActivity(challengeActivities));
+    } else if (isCustom) {
+      const updated = updateActivity(customActivities);
+      setCustomActivities(updated);
+      saveCustomActivitiesToStorage(updated);
+    } else {
+      setGeneralActivities(updateActivity(generalActivities));
     }
-    if (selectedActivities[name]) {
-      setFormErrors({ ...formErrors, custom: 'This activity name already exists' });
-      return;
-    }
-    if (customSelectedMetrics.length === 0) {
-      setFormErrors({ ...formErrors, custom: 'Please select at least one metric' });
-      return;
-    }
-    const metricObj: { [key in MetricType]?: string } = {};
-    customSelectedMetrics.forEach(mt => {
-      if (mt === 'distance_km' || mt === 'distance_miles') {
-        metricObj[distanceKey(settings.useKilometers)] = '';
-      } else {
-        metricObj[mt] = '';
-      }
-    });
-    // Instead of rendering it inside the "custom activity" container,
-    // we treat this new custom activity exactly like a new "general" item:
-    setSelectedActivities({
-      ...selectedActivities,
-      [name]: {
-        activityType: name,
-        metrics: metricObj,
-        customSelectedMetrics: [...customSelectedMetrics],
-      },
-    });
-    setCustomActivity('');
-    setCustomSelectedMetrics([]);
-    setIsCustomExpanded(false);
-    setFormErrors({ ...formErrors, custom: '' });
-  }
-
-  function updateActivityMetric(activityName: string, metric: MetricType, value: string) {
-    if (!selectedActivities[activityName]) return;
-    const prevData = selectedActivities[activityName];
-    const updated = {
-      ...prevData,
-      metrics: { ...prevData.metrics, [metric]: value },
-    };
-    setSelectedActivities({ ...selectedActivities, [activityName]: updated });
-    if (formErrors[`${activityName}_${metric}`]) {
-      const newErrors = { ...formErrors };
-      delete newErrors[`${activityName}_${metric}`];
+    
+    // Clear error if exists
+    if (formErrors[`${id}-${metric}`]) {
+      const newErrors = {...formErrors};
+      delete newErrors[`${id}-${metric}`];
       setFormErrors(newErrors);
     }
-  }
+  };
 
-  function validateNumericInput(text: string): boolean {
-    return !isNaN(Number(text)) && text.trim() !== '';
-  }
-
-  function validateForm(): boolean {
-    const newErrors: { [key: string]: string } = {};
-    let valid = true;
-    if (Object.keys(selectedActivities).length === 0) {
-      newErrors['activities'] = 'Please select at least one activity';
-      valid = false;
+  // Toggle custom metric selection
+  const toggleCustomMetric = (metric: MetricType) => {
+    if (selectedCustomMetrics.includes(metric)) {
+      setSelectedCustomMetrics(prev => prev.filter(m => m !== metric));
+    } else {
+      setSelectedCustomMetrics(prev => [...prev, metric]);
     }
-    Object.entries(selectedActivities).forEach(([actName, data]) => {
-      let hasValue = false;
-      Object.entries(data.metrics).forEach(([mtKey, val]) => {
-        if (val && val.trim() !== '') {
-          hasValue = true;
-        } else if (val === '') {
-          delete data.metrics[mtKey as MetricType];
+  };
+
+  // Handle custom activity creation
+  const handleAddCustomActivity = async () => {
+    const name = customName.trim();
+    if (!name) {
+      setFormErrors(prev => ({...prev, custom: 'Please enter a name for the custom activity'}));
+      return;
+    }
+    
+    // Check if name already exists (case insensitive)
+    const allActivityNames = [
+      ...challengeActivities.map(a => a.activityType.toLowerCase()),
+      ...generalActivities.map(a => a.activityType.toLowerCase()),
+      ...customActivities.map(a => a.activityType.toLowerCase()),
+    ];
+    
+    if (allActivityNames.includes(name.toLowerCase())) {
+      setFormErrors(prev => ({...prev, custom: 'This activity name already exists'}));
+      return;
+    }
+    
+    if (selectedCustomMetrics.length === 0) {
+      setFormErrors(prev => ({...prev, custom: 'Please select at least one metric'}));
+      return;
+    }
+    
+    // Create metrics object
+    const metrics: {[key in MetricType]?: string} = {};
+    selectedCustomMetrics.forEach(metric => {
+      // Filter out duplicate distance metrics
+      if (metric === 'distance_km' || metric === 'distance_miles') {
+        const preferredMetric = settings.useKilometers ? 'distance_km' : 'distance_miles';
+        if (!metrics[preferredMetric]) {
+          metrics[preferredMetric] = '';
         }
-      });
-      if (!hasValue) {
-        newErrors[`${actName}_general`] = 'Enter at least one value';
-        valid = false;
+      } else {
+        metrics[metric] = '';
       }
     });
-    setFormErrors(newErrors);
-    return valid;
-  }
+    
+    // Add new custom activity
+    const newActivity: ActivityData = {
+      id: `custom-${name}-${Date.now()}`,
+      activityType: name,
+      metrics,
+      isExpanded: false, // Start closed, not expanded
+      isCustom: true
+    };
+    
+    const updatedCustomActivities = [...customActivities, newActivity];
+    setCustomActivities(updatedCustomActivities);
+    
+    // Persist custom activities to storage
+    await saveCustomActivitiesToStorage(updatedCustomActivities);
+    
+    // Reset custom form
+    setCustomName('');
+    setSelectedCustomMetrics([]);
+    setShowCustomForm(false);
+    setFormErrors(prev => {
+      const newErrors = {...prev};
+      delete newErrors.custom;
+      return newErrors;
+    });
+  };
 
-  async function handleSave() {
+  // Delete custom activity
+  const handleDeleteCustomActivity = async (id: string) => {
+    const activity = customActivities.find(a => a.id === id);
+    if (!activity) return;
+    
+    Alert.alert(
+      'Delete Custom Activity',
+      `Are you sure you want to delete "${activity.activityType}"?`,
+      [
+        {text: 'Cancel', style: 'cancel'},
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const updated = customActivities.filter(a => a.id !== id);
+            setCustomActivities(updated);
+            await saveCustomActivitiesToStorage(updated);
+          }
+        }
+      ],
+      {cancelable: true}
+    );
+  };
+
+  // Validate form before saving
+  const validateForm = () => {
+    const newErrors: {[key: string]: string} = {};
+    let hasValues = false;
+    
+    // Check challenge activities
+    challengeActivities.forEach(act => {
+      Object.entries(act.metrics).forEach(([metric, value]) => {
+        if (value && value.trim() !== '') {
+          if (isNaN(Number(value))) {
+            newErrors[`${act.id}-${metric}`] = 'Must be a number';
+          } else {
+            hasValues = true;
+          }
+        }
+      });
+    });
+    
+    // Check general activities
+    generalActivities.forEach(act => {
+      Object.entries(act.metrics).forEach(([metric, value]) => {
+        if (value && value.trim() !== '') {
+          if (isNaN(Number(value))) {
+            newErrors[`${act.id}-${metric}`] = 'Must be a number';
+          } else {
+            hasValues = true;
+          }
+        }
+      });
+    });
+    
+    // Check custom activities
+    customActivities.forEach(act => {
+      Object.entries(act.metrics).forEach(([metric, value]) => {
+        if (value && value.trim() !== '') {
+          if (isNaN(Number(value))) {
+            newErrors[`${act.id}-${metric}`] = 'Must be a number';
+          } else {
+            hasValues = true;
+          }
+        }
+      });
+    });
+    
+    if (!hasValues) {
+      newErrors.general = 'Please enter at least one value';
+    }
+    
+    setFormErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Handle saving all activities
+  const handleSave = async () => {
     if (!userId) {
       setError('User not logged in');
       return;
     }
+    
     if (!validateForm()) return;
+    
     setLoading(true);
     setError(null);
-  
+    
     try {
-      const metricDescriptions = getMetricDescriptions(settings.useKilometers);
+      // Process all activities with values
+      const activitiesToSave = [
+        ...challengeActivities.filter(act => Object.values(act.metrics).some(v => v && v.trim() !== '')),
+        ...generalActivities.filter(act => Object.values(act.metrics).some(v => v && v.trim() !== '')),
+        ...customActivities.filter(act => Object.values(act.metrics).some(v => v && v.trim() !== ''))
+      ];
       
-      for (const [actName, data] of Object.entries(selectedActivities)) {
-        for (const [metricType, val] of Object.entries(data.metrics)) {
-          if (!val || val.trim() === '') continue;
+      // Supabase operations
+      for (const activity of activitiesToSave) {
+        for (const [metricKey, value] of Object.entries(activity.metrics)) {
+          if (!value || value.trim() === '') continue;
           
-          const numericVal = parseFloat(val);
-          let distanceVal: number | null = null;
-          let durationVal: number | null = null;
-          let caloriesVal: number | null = null;
+          const metric = metricKey as MetricType;
+          const numericValue = Number(value);
           
-          // Use the conversion functions from our metric descriptions
-          switch (metricType as MetricType) {
-            case 'distance_miles':
-            case 'distance_km':
-              // Always convert to km for storage regardless of display preference
-              distanceVal = metricDescriptions[metricType].convert(numericVal);
-              break;
+          // Convert values based on metric type
+          let duration = null;
+          let distance = null;
+          let calories = null;
+          
+          switch (metric) {
             case 'time':
               // Convert hours to minutes for storage
-              durationVal = metricDescriptions.time.convert(numericVal);
+              duration = numericValue * 60;
               break;
-            case 'calories':
-              caloriesVal = numericVal;
+            case 'distance_km':
+              distance = numericValue;
+              break;
+            case 'distance_miles':
+              // Convert miles to km for storage
+              distance = numericValue * 1.60934;
               break;
             case 'steps':
             case 'count':
-              durationVal = numericVal; // Store in duration field
+              duration = numericValue; // Store in duration field
+              break;
+            case 'calories':
+              calories = numericValue;
               break;
           }
-  
-          const { data: newActivity, error: insertErr } = await supabase
+          
+          // Insert activity into database
+          const { data: newActivity, error: insertError } = await supabase
             .from('activities')
             .insert({
               user_id: userId,
-              activity_type: actName,
-              duration: durationVal,
-              distance: distanceVal && distanceVal > 0 ? distanceVal : null,
-              calories: caloriesVal && caloriesVal > 0 ? caloriesVal : null,
-              metric: metricType,
+              activity_type: activity.activityType,
+              duration,
+              distance,
+              calories,
+              metric,
               source: 'manual',
               created_at: new Date(),
-              notes: '',
+              notes: activity.isCustom ? `Custom activity: ${activity.activityType}` : '',
             })
             .select()
             .single();
-  
-          if (insertErr) throw insertErr;
+          
+          if (insertError) throw insertError;
+          
+          // Update challenges with this activity
           if (newActivity) {
             await updateChallengesWithActivity(newActivity.id, userId);
           }
         }
       }
-      Alert.alert('Success', 'Activities added successfully', [
-        { text: 'OK', onPress: handleClose },
+      
+      // Success
+      Alert.alert('Success', 'Activities saved successfully!', [
+        { text: 'OK', onPress: () => {
+          onClose();
+          if (onSaveComplete) onSaveComplete();
+        }}
       ]);
-      if (onSaveComplete) onSaveComplete();
     } catch (err: any) {
       setError(err.message || 'Failed to save activities');
+      console.error('Error saving activities:', err);
+    } finally {
       setLoading(false);
     }
-  }
+  };
 
-// Update the function that renders metric inputs to show correct units
-function renderMetricInputs(activityName: string, data: ActivityData) {
-    const colorSet = ACTIVITY_COLORS[activityName] || ACTIVITY_COLORS.Custom;
-    let metricsToShow: MetricType[] = [];
-    const metricDescriptions = getMetricDescriptions(settings.useKilometers);
-  
-    // Rest of the function remains the same...
+  // Get label for metric
+  const getMetricLabel = (metric: MetricType, useKilometers: boolean): string => {
+    switch(metric) {
+      case 'time': return 'Time (hours)';
+      case 'distance_km': return useKilometers ? 'Distance (km)' : 'Distance (miles)';
+      case 'distance_miles': return 'Distance (miles)';
+      case 'steps': return 'Steps';
+      case 'calories': return 'Calories';
+      case 'count': return 'Quantity';
+      default: return metric;
+    }
+  };
+
+  // Calculate total activities with values for button label
+  const getActivitiesWithValues = () => {
+    const getActivitiesCount = (activities: ActivityData[]) => 
+      activities.filter(act => 
+        Object.values(act.metrics).some(v => v && v.trim() !== '')
+      ).length;
+    
+    return getActivitiesCount(challengeActivities) + 
+           getActivitiesCount(generalActivities) + 
+           getActivitiesCount(customActivities);
+  };
+
+  // Render activity item with gradient
+  const renderActivity = (activity: ActivityData, isChallenge: boolean, isCustom: boolean = false) => {
+    const colorSet = ACTIVITY_COLORS[activity.activityType] || ACTIVITY_COLORS.Custom;
     
     return (
-      <View style={styles.metricsContainer}>
-        {metricsToShow.map(mt => {
-          if ((mt === 'distance_km' || mt === 'distance_miles') && 
-              mt !== (settings.useKilometers ? 'distance_km' : 'distance_miles')) {
-            return null;
-          }
-          const val = data.metrics[mt] || '';
-          const desc = metricDescriptions[mt];
-          return (
-            <View key={mt} style={styles.metricInputContainer}>
-              <TextInput
-                style={[
-                  styles.metricInput,
-                  formErrors[`${activityName}_${mt}`] && styles.inputError,
-                ]}
-                value={val}
-                onChangeText={(text) => {
-                  if (text === '' || validateNumericInput(text)) {
-                    updateActivityMetric(activityName, mt, text);
-                  }
-                }}
-                keyboardType="numeric"
-                placeholder="0"
-                placeholderTextColor="#999"
-              />
-              <Text style={styles.metricLabel}>{desc.label}</Text>
-            </View>
-          );
-        })}
-      </View>
-    );
-  }
-
-  function renderActivityChip(activityName: string) {
-    const selected = !!selectedActivities[activityName];
-    const colorSet = ACTIVITY_COLORS[activityName] || ACTIVITY_COLORS.Custom;
-    const actIcon = ACTIVITY_ICONS[activityName] || 'plus-circle';
-
-    return (
-      <View key={activityName} style={styles.activityChipContainer}>
+      <View key={activity.id} style={styles.activityContainer}>
         <TouchableOpacity
-          style={[styles.activityChip, selected && { backgroundColor: colorSet.primary }]}
-          onPress={() => toggleActivity(activityName)}
+          onPress={() => toggleActivityExpansion(activity.id, isChallenge, isCustom)}
+          activeOpacity={0.7}
         >
-          <FontAwesome5
-            name={actIcon}
-            size={16}
-            color={selected ? '#fff' : colorSet.primary}
-            style={styles.activityIcon}
-          />
-          <Text style={[styles.activityChipText, selected && { color: '#fff' }]}>
-            {activityName}
-          </Text>
-          {selected && (
-            <Ionicons name="checkmark-circle" size={16} color="#fff" style={{ marginLeft: 4 }} />
-          )}
+          <LinearGradient
+            colors={activity.isExpanded ? colorSet.gradient : ['#f5f5f5', '#e0e0e0']}
+            start={{x: 0, y: 0}}
+            end={{x: 1, y: 0}}
+            style={[
+              styles.activityChip,
+              activity.isExpanded && styles.activityChipExpanded
+            ]}
+          >
+            <FontAwesome5
+              name={ACTIVITY_ICONS[activity.activityType] || ACTIVITY_ICONS.Custom}
+              size={16}
+              color={activity.isExpanded ? '#fff' : colorSet.primary}
+              style={styles.activityIcon}
+            />
+            
+            <Text style={[
+              styles.activityName,
+              activity.isExpanded && styles.activityNameExpanded
+            ]}>
+              {activity.activityType}
+            </Text>
+            
+            {activity.isExpanded && (
+              <Ionicons name="checkmark-circle" size={18} color="#fff" style={styles.checkIcon} />
+            )}
+          </LinearGradient>
         </TouchableOpacity>
-
-        {selected && selectedActivities[activityName] && (
-          <View style={[styles.activityForm, { backgroundColor: colorSet.light }]}>
-            {renderMetricInputs(activityName, selectedActivities[activityName])}
-            {formErrors[`${activityName}_general`] && (
-              <Text style={styles.fieldErrorText}>
-                {formErrors[`${activityName}_general`]}
-              </Text>
+        
+        {activity.isExpanded && (
+          <View style={[
+            styles.expandedContent,
+            { backgroundColor: colorSet.light, borderColor: colorSet.primary }
+          ]}>
+            {/* Render metric inputs */}
+            <View style={styles.metricsGrid}>
+              {Object.entries(activity.metrics).map(([metricKey, value]) => {
+                const metric = metricKey as MetricType;
+                    // Skip duplicate distance metrics - show only the user's preferred one
+    if ((metric === 'distance_km' && !settings.useKilometers) || 
+    (metric === 'distance_miles' && settings.useKilometers)) {
+  return null;
+}
+                const label = getMetricLabel(metric, settings.useKilometers);
+                
+                return (
+                  <View key={`${activity.id}-${metric}`} style={styles.metricInputContainer}>
+                    <Text style={[styles.metricLabel, {color: colorSet.text}]}>{label}</Text>
+                    <TextInput
+                      style={[
+                        styles.metricInput,
+                        {borderColor: colorSet.primary},
+                        formErrors[`${activity.id}-${metric}`] && styles.inputError
+                      ]}
+                      value={value}
+                      onChangeText={(text) => {
+                        // Allow only numeric input
+                        if (text === '' || !isNaN(Number(text))) {
+                          updateMetricValue(activity.id, isChallenge, isCustom, metric, text);
+                        }
+                      }}
+                      placeholder="0"
+                      placeholderTextColor="#999"
+                      keyboardType="numeric"
+                    />
+                    
+                    {formErrors[`${activity.id}-${metric}`] && (
+                      <Text style={styles.errorText}>
+                        {formErrors[`${activity.id}-${metric}`]}
+                      </Text>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+            
+            {/* Delete button for custom activities */}
+            {(activity.isCustom || isCustom) && (
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDeleteCustomActivity(activity.id)}
+              >
+                <Ionicons name="trash-outline" size={16} color="#E53935" />
+                <Text style={styles.deleteButtonText}>Delete Activity</Text>
+              </TouchableOpacity>
             )}
           </View>
         )}
       </View>
     );
-  }
-
-  function renderCustomActivityPanel() {
-    const colorSet = ACTIVITY_COLORS.Custom;
-    if (!isCustomExpanded) return null;
-
-    return (
-      <View style={[styles.activityForm, { backgroundColor: colorSet.light }]}>
-        <View style={styles.formRow}>
-          <Text style={[styles.formLabel, { color: colorSet.text }]}>Activity Name</Text>
-          <TextInput
-            style={[styles.formInput, formErrors['custom'] && styles.inputError]}
-            value={customActivity}
-            onChangeText={setCustomActivity}
-            placeholder="Enter custom activity name"
-            placeholderTextColor="#999"
-          />
-          {formErrors['custom'] && (
-            <Text style={styles.fieldErrorText}>{formErrors['custom']}</Text>
-          )}
-        </View>
-
-        <Text style={[styles.formLabel, { color: colorSet.text }]}>Select Metrics</Text>
-        <View style={styles.metricCheckboxes}>
-          {(['time', 'distance_km', 'steps', 'calories', 'count'] as MetricType[]).map(metric => {
-            const isChecked = customSelectedMetrics.includes(metric);
-            const label = getMetricDescriptions(settings.useKilometers)[metric].label;
-            return (
-              <TouchableOpacity
-                key={metric}
-                style={[styles.metricCheckbox, isChecked && styles.metricCheckboxSelected]}
-                onPress={() => toggleCustomMetric(metric)}
-              >
-                <Text style={[styles.metricCheckboxText, isChecked && styles.metricCheckboxTextSelected]}>
-                  {label}
-                </Text>
-                {isChecked && <Ionicons name="checkmark" size={16} color="#fff" />}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        <TouchableOpacity
-          style={[
-            styles.addCustomButton,
-            customSelectedMetrics.length === 0 && styles.addCustomButtonDisabled,
-          ]}
-          onPress={addCustomActivity}
-          disabled={customSelectedMetrics.length === 0}
-        >
-          <Text style={styles.addCustomButtonText}>Add Custom Activity</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  const displayedGlobalActivities = GLOBAL_ACTIVITIES.filter(g => !challengeActivities.includes(g));
+  };
 
   return (
     <Modal
       visible={visible}
       transparent
       animationType="slide"
-      onRequestClose={handleClose}
+      onRequestClose={onClose}
     >
       <KeyboardAvoidingView
         style={styles.overlay}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.modalContainer}>
-          {/* Header */}
-          <View style={styles.header}>
+        <View style={styles.container}>
+          {/* Header with gradient */}
+          <LinearGradient
+            colors={['#4A90E2', '#5C38ED']}
+            start={{x: 0, y: 0}}
+            end={{x: 1, y: 0}}
+            style={styles.header}
+          >
             <Text style={styles.headerTitle}>Add Activity</Text>
-            <TouchableOpacity onPress={handleClose}>
-              <Ionicons name="close" size={24} color="#333" />
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <Ionicons name="close" size={24} color="#fff" />
             </TouchableOpacity>
-          </View>
-
-          {/* Body */}
-          <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 20 }}>
+          </LinearGradient>
+          
+          {/* Main Content */}
+          <ScrollView 
+            style={styles.content}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Error message */}
             {error && (
               <View style={styles.errorContainer}>
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
-            {formErrors['activities'] && (
-              <View style={styles.formErrorContainer}>
-                <Text style={styles.formErrorText}>{formErrors['activities']}</Text>
+            
+            {formErrors.general && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{formErrors.general}</Text>
               </View>
             )}
-
-            {/* Challenge-based */}
-            <Text style={styles.sectionLabel}>Activities from Your Challenges</Text>
-            {fetchingActivities ? (
-              <ActivityIndicator size="small" color="#4A90E2" style={styles.loadingIndicator} />
-            ) : challengeActivities.length === 0 ? (
-              <Text style={styles.noActivitiesText}>No active challenge activities</Text>
-            ) : (
-              <View style={styles.activityGrid}>
-                {challengeActivities.map(act => renderActivityChip(act))}
-              </View>
-            )}
-
-            {/* General */}
-            <Text style={styles.sectionLabel}>General Activities</Text>
-            <View style={styles.activityGrid}>
-              {displayedGlobalActivities.map(act => renderActivityChip(act))}
-
-              {/* + Custom Activity Button */}
-              <View style={styles.activityChipContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.activityChip,
-                    isCustomExpanded && { backgroundColor: ACTIVITY_COLORS.Custom.primary },
-                  ]}
-                  onPress={() => setIsCustomExpanded(!isCustomExpanded)}
-                >
-                  <FontAwesome5
-                    name={ACTIVITY_ICONS.Custom}
-                    size={16}
-                    color={isCustomExpanded ? '#fff' : ACTIVITY_COLORS.Custom.primary}
-                    style={styles.activityIcon}
-                  />
-                  <Text style={[styles.activityChipText, isCustomExpanded && { color: '#fff' }]}>
-                    + Custom Activity
-                  </Text>
-                </TouchableOpacity>
-
-                {renderCustomActivityPanel()}
-              </View>
-
-              {/* Render newly added custom activities as separate chips */}
-              {Object.keys(selectedActivities)
-                .filter(a => !GLOBAL_ACTIVITIES.includes(a) && !challengeActivities.includes(a))
-                .map(a => renderActivityChip(a))}
+            
+            {/* Challenge Activities Section */}
+            <View style={styles.sectionHeader}>
+              <Ionicons name="trophy" size={20} color="#4A90E2" />
+              <Text style={styles.sectionTitle}>Your Challenge Activities</Text>
             </View>
-
-            {Object.keys(selectedActivities).length === 0 && (
-              <Text style={[styles.noActivitiesText, { marginTop: 8 }]}>
-                Select at least one activity to log
-              </Text>
+            
+            {fetchingActivities ? (
+              <ActivityIndicator size="small" color="#4A90E2" style={styles.loader} />
+            ) : challengeActivities.length === 0 ? (
+              <Text style={styles.emptyText}>No activities from challenges</Text>
+            ) : (
+              <View style={styles.activitiesGrid}>
+                {challengeActivities.map(activity => renderActivity(activity, true))}
+              </View>
             )}
+            
+            {/* Custom Activities Section */}
+            {customActivities.length > 0 && (
+              <>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="star" size={20} color="#FF9800" />
+                  <Text style={styles.sectionTitle}>Your Custom Activities</Text>
+                </View>
+                
+                <View style={styles.activitiesGrid}>
+                  {customActivities.map(activity => renderActivity(activity, false, true))}
+                </View>
+              </>
+            )}
+            
+            {/* General Activities Section */}
+            <View style={styles.sectionHeader}>
+              <Ionicons name="fitness" size={20} color="#4CAF50" />
+              <Text style={styles.sectionTitle}>General Activities</Text>
+            </View>
+            
+            <View style={styles.activitiesGrid}>
+              {generalActivities.map(activity => renderActivity(activity, false))}
+              
+              {/* Custom Activity Button */}
+              {!showCustomForm ? (
+                <TouchableOpacity
+                  style={styles.customActivityButtonContainer}
+                  onPress={() => setShowCustomForm(true)}
+                  activeOpacity={0.7}
+                >
+                  <LinearGradient
+                    colors={['#3F51B5', '#1A237E']}
+                    start={{x: 0, y: 0}}
+                    end={{x: 1, y: 0}}
+                    style={styles.customActivityButton}
+                  >
+                    <Ionicons name="add-circle" size={20} color="#fff" style={styles.customActivityIcon} />
+                    <Text style={styles.customActivityButtonText}>+ Custom Activity</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.customForm}>
+                  <Text style={styles.customFormTitle}>Add Custom Activity</Text>
+                  
+                  <TextInput
+                    style={[styles.customNameInput, formErrors.custom && styles.inputError]}
+                    placeholder="Activity Name"
+                    placeholderTextColor="#999"
+                    value={customName}
+                    onChangeText={setCustomName}
+                  />
+                  
+                  {formErrors.custom && (
+                    <Text style={styles.errorText}>{formErrors.custom}</Text>
+                  )}
+                  
+                  <Text style={styles.customFormLabel}>Select Metrics</Text>
+                  
+                  <View style={styles.metricsSelection}>
+                    {['time', 'steps', 'calories', 'count'].map((metricKey) => {
+                      const metric = metricKey as MetricType;
+                      const isSelected = selectedCustomMetrics.includes(metric);
+                      // Get appropriate label
+                      const label = getMetricLabel(metric, settings.useKilometers);
+                      
+                      return (
+                        <TouchableOpacity
+                          key={metric}
+                          style={[
+                            styles.metricToggle,
+                            isSelected && styles.metricToggleSelected
+                          ]}
+                          onPress={() => toggleCustomMetric(metric)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[
+                            styles.metricToggleText,
+                            isSelected && styles.metricToggleTextSelected
+                          ]}>
+                            {label}
+                          </Text>
+                          
+                          {isSelected && (
+                            <Ionicons name="checkmark" size={14} color="#fff" />
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                    
+                    {/* Add distance option based on user preference */}
+                    {(() => {
+                      const metric = settings.useKilometers ? 'distance_km' : 'distance_miles';
+                      const isSelected = selectedCustomMetrics.includes(metric);
+                      const label = getMetricLabel(metric, settings.useKilometers);
+                      
+                      return (
+                        <TouchableOpacity
+                          key={metric}
+                          style={[
+                            styles.metricToggle,
+                            isSelected && styles.metricToggleSelected
+                          ]}
+                          onPress={() => toggleCustomMetric(metric)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[
+                            styles.metricToggleText,
+                            isSelected && styles.metricToggleTextSelected
+                          ]}>
+                            {label}
+                          </Text>
+                          
+                          {isSelected && (
+                            <Ionicons name="checkmark" size={14} color="#fff" />
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })()}
+                  </View>
+                  
+                  <View style={styles.customFormButtons}>
+                    <TouchableOpacity
+                      style={styles.cancelButton}
+                      onPress={() => {
+                        setShowCustomForm(false);
+                        setCustomName('');
+                        setSelectedCustomMetrics([]);
+                        setFormErrors({...formErrors, custom: undefined});
+                      }}
+                    >
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                      style={[
+                        styles.addButton,
+                        (!customName.trim() || selectedCustomMetrics.length === 0) && 
+                          styles.addButtonDisabled
+                      ]}
+                      onPress={handleAddCustomActivity}
+                      disabled={!customName.trim() || selectedCustomMetrics.length === 0}
+                    >
+                      <Text style={styles.addButtonText}>Add</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
           </ScrollView>
-
-          {/* Footer */}
+          
+          {/* Footer with Save Button */}
           <View style={styles.footer}>
-            <TouchableOpacity
+            <LinearGradient
+              colors={['#4A90E2', '#5C38ED']}
+              start={{x: 0, y: 0}}
+              end={{x: 1, y: 0}}
               style={[
                 styles.saveButton,
-                (loading || Object.keys(selectedActivities).length === 0) && styles.saveButtonDisabled,
+                (loading || getActivitiesWithValues() === 0) && styles.saveButtonDisabled
               ]}
-              onPress={handleSave}
-              disabled={loading || Object.keys(selectedActivities).length === 0}
             >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.saveButtonText}>
-                  Save {Object.keys(selectedActivities).length} Activities
-                </Text>
-              )}
-            </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSave}
+                disabled={loading || getActivitiesWithValues() === 0}
+                style={styles.saveButtonTouchable}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.saveButtonText}>
+                    Save {getActivitiesWithValues() > 0 ? getActivitiesWithValues() : 'All'} Activities
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </LinearGradient>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -692,213 +941,325 @@ function renderMetricInputs(activityName: string, data: ActivityData) {
   );
 }
 
-// ---------- Styles ----------
+const { width } = Dimensions.get('window');
+
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
-  modalContainer: {
+  container: {
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '90%',
-    flex: 1,
+    height: '90%',
+    paddingBottom: Platform.OS === 'ios' ? 34 : 0,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: 'rgba(255,255,255,0.2)',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
-    color: '#333',
+    color: '#fff',
   },
-  body: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  errorContainer: {
-    backgroundColor: '#FEE2E2',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  errorText: {
-    color: '#DC2626',
-    textAlign: 'center',
-  },
-  formErrorContainer: {
-    backgroundColor: '#FFEAEA',
+  closeButton: {
     padding: 8,
-    borderRadius: 6,
-    marginBottom: 10,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  formErrorText: {
-    color: '#DC2626',
-    fontSize: 14,
-    textAlign: 'center',
+  content: {
+    flex: 1,
   },
-  sectionLabel: {
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
-    marginTop: 16,
-    marginBottom: 12,
+    marginLeft: 8,
   },
-  loadingIndicator: {
-    marginVertical: 12,
-  },
-  noActivitiesText: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 16,
-    fontStyle: 'italic',
-  },
-  activityGrid: {
+  activitiesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    justifyContent: 'space-between',
   },
-  activityChipContainer: {
+  activityContainer: {
     width: '48%',
     marginBottom: 12,
   },
   activityChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f0f0f0',
     borderRadius: 12,
+    paddingVertical: 12,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  activityChipExpanded: {
+    elevation: 3,
+    shadowOpacity: 0.2,
   },
   activityIcon: {
     marginRight: 8,
   },
-  activityChipText: {
+  activityName: {
     fontSize: 14,
     fontWeight: '500',
     color: '#333',
     flex: 1,
   },
+  activityNameExpanded: {
+    color: '#fff',
+    fontWeight: '600',
+  },
   checkIcon: {
     marginLeft: 4,
   },
-  activityForm: {
+  expandedContent: {
+    borderRadius: 12,
     padding: 12,
-    borderRadius: 8,
     marginTop: 8,
+    borderWidth: 1,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
-  metricsContainer: {
+  metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginTop: 10,
   },
   metricInputContainer: {
-    width: '30%',
+    width: '48%', // Ensure consistent width for alignment
     marginBottom: 12,
-    alignItems: 'center',
+  },
+  metricLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginBottom: 4,
   },
   metricInput: {
     backgroundColor: '#fff',
     borderRadius: 8,
-    paddingHorizontal: 10,
+    borderWidth: 1,
+    paddingHorizontal: 8,
     paddingVertical: 8,
     fontSize: 16,
-    color: '#333',
     textAlign: 'center',
+  },
+  customActivityButtonContainer: {
+    width: '48%',
+    borderRadius: 12,
+    overflow: 'hidden',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  customActivityButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customActivityIcon: {
+    marginRight: 6,
+  },
+  customActivityButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  customForm: {
     width: '100%',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
-  metricLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
+  customFormTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
     textAlign: 'center',
   },
-  metricCheckboxes: {
+  customNameInput: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  customFormLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    marginTop: 8,
+    marginBottom: 6,
+  },
+  metricsSelection: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
-    marginTop: 6,
+    marginBottom: 16,
   },
-  metricCheckbox: {
+  metricToggle: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f0f0f0',
-    borderRadius: 6,
+    borderRadius: 8,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 8,
+    marginRight: 8,
+    marginBottom: 8,
   },
-  metricCheckboxSelected: {
+  metricToggleSelected: {
     backgroundColor: '#4A90E2',
   },
-  metricCheckboxText: {
-    fontSize: 14,
+  metricToggleText: {
+    fontSize: 13,
     color: '#333',
     marginRight: 4,
   },
-  metricCheckboxTextSelected: {
+  metricToggleTextSelected: {
     color: '#fff',
   },
-  addCustomButton: {
-    backgroundColor: '#4A90E2',
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: 'center',
+  customFormButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     marginTop: 8,
   },
-  addCustomButtonDisabled: {
+  cancelButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#f0f0f0',
+    flex: 1,
+    marginRight: 8,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    color: '#333',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  addButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#4A90E2',
+    flex: 1,
+    alignItems: 'center',
+  },
+  addButtonDisabled: {
     opacity: 0.5,
   },
-  addCustomButtonText: {
+  addButtonText: {
     color: '#fff',
-    fontWeight: '600',
     fontSize: 14,
+    fontWeight: '500',
   },
-  formRow: {
-    marginBottom: 10,
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#FFEBEE',
+    borderRadius: 8,
+    marginTop: 8,
   },
-  formLabel: {
+  deleteButtonText: {
+    color: '#E53935',
     fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 4,
+    fontWeight: '500',
+    marginLeft: 6,
   },
-  inputError: {
-    borderWidth: 1,
-    borderColor: '#DC2626',
+  errorContainer: {
+    backgroundColor: '#FEE2E2',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  fieldErrorText: {
+  errorText: {
     color: '#DC2626',
     fontSize: 12,
-    marginTop: 2,
+    marginLeft: 4,
+  },
+  emptyText: {
+    color: '#666',
+    fontStyle: 'italic',
+    fontSize: 14,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  inputError: {
+    borderColor: '#DC2626',
   },
   footer: {
-    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     borderTopWidth: 1,
     borderTopColor: '#eee',
-    padding: 16,
   },
   saveButton: {
-    flex: 1,
-    backgroundColor: '#4A90E2',
     borderRadius: 12,
+    overflow: 'hidden',
+  },
+  saveButtonTouchable: {
+    width: '100%',
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
   },
   saveButtonDisabled: {
-    opacity: 0.5,
+    opacity: 0.6,
   },
   saveButtonText: {
     color: '#fff',
-    fontWeight: '600',
     fontSize: 16,
+    fontWeight: '700',
+  },
+  loader: {
+    marginVertical: 20,
   },
 });

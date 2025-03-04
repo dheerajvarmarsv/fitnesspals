@@ -85,7 +85,6 @@ export async function createChallengeInSupabase({
       target_value: act.targetValue, // numeric value
       points: act.points,
       timeframe: act.timeframe,
-      threshold: act.targetValue,   // pass numeric value directly
     }));
 
     const { error: activitiesError } = await supabase

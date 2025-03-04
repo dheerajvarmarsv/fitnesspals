@@ -26,12 +26,27 @@ export interface ChallengeDetails {
 
 export interface ActivityRule {
   activityType: string;
-  threshold: string;
+  targetValue: number;
   points: number;
   isSelected: boolean;
   isCustom?: boolean;
 }
-
+function formatThreshold(value: number, metric: string): string {
+    switch (metric) {
+      case 'steps':
+        return `${value} steps`;
+      case 'distance_km':
+        return `${value} km`;
+      case 'distance_miles':
+        return `${value} miles`;
+      case 'time':
+        return `${value} hours`;
+      case 'calories':
+        return `${value} calories`;
+      default:
+        return `${value}`;
+    }
+  }
 export interface ModeInfo {
   id: 'race' | 'survival' | 'streak' | 'custom';
   title: string;
@@ -262,8 +277,8 @@ export default function Step4Review({
                         <View style={styles.activityTextContainer}>
                           <Text style={styles.activityName}>{act.activityType}</Text>
                           <Text style={styles.activityMeta}>
-                            Target: {act.threshold} • {act.points} points
-                          </Text>
+  Target: {formatThreshold(act.targetValue, act.metric)} • {act.points} points
+</Text>
                         </View>
                       </View>
                     );

@@ -95,7 +95,7 @@ interface Participant {
 interface Activity {
   activity_type: string;
   points: number;
-  threshold: string;
+  target_value: number;
 }
 
 // What the RaceTrack expects
@@ -173,7 +173,7 @@ function ChallengeDetailsContent() {
           ([activity_type, points]) => ({
             activity_type,
             points,
-            threshold: 'Custom Target',
+            target_value: 0, 
           })
         );
         setActivities(arr);
@@ -231,7 +231,7 @@ function ChallengeDetailsContent() {
           activityMap.set(item.activity_type, {
             activity_type: item.activity_type,
             points: item.points,
-            threshold: item.threshold || 'Custom Target',
+            target_value: typeof item.target_value === 'number' ? item.target_value : 0,
           });
         });
         setActivities(Array.from(activityMap.values()));
@@ -403,7 +403,10 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
       year: 'numeric',
     });
   }
-
+  function formatTargetValue(value: number): string {
+    // If the numeric value is zero, display "Custom Target"
+    return value > 0 ? value.toString() : 'Custom Target';
+  }
   function getChallengeGradient() {
     if (!challenge) return CHALLENGE_TYPE_GRADIENTS.custom;
     return (
@@ -561,9 +564,9 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
                   </View>
                   <View style={styles.activityInfo}>
                     <Text style={styles.activityName}>{activity.activity_type}</Text>
-                    <Text style={styles.activitySubText}>
-                      {activity.threshold} • {timeframeLabel}
-                    </Text>
+                     <Text style={styles.activitySubText}>
+  {formatTargetValue(activity.target_value)} • {timeframeLabel}
+   </Text>
                   </View>
                   <View style={styles.activityPoints}>
                     <Text style={styles.pointsValue}>{activity.points}</Text>

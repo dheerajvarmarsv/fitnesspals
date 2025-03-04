@@ -44,8 +44,6 @@ export interface ChallengeDetails {
 export type MetricType = 'steps' | 'distance_km' | 'distance_miles' | 'time' | 'calories';
 
 export interface ActivityRule {
-  // threshold is a formatted string (for backward compatibility)
-  threshold: string;
   activityType: string;
   metric: MetricType;
   targetValue: number;
@@ -96,16 +94,15 @@ const CHALLENGE_MODES: ModeInfo[] = [
 
 // DEFAULT_ACTIVITIES includes only the seven allowed activities
 const DEFAULT_ACTIVITIES: ActivityRule[] = [
-  { activityType: 'Workout', threshold: '0 hours', points: 1, metric: 'time', targetValue: 0, isSelected: false },
-  { activityType: 'Steps', threshold: '0 steps', points: 1, metric: 'steps', targetValue: 0, isSelected: false },
-  { activityType: 'Sleep', threshold: '0 hours', points: 1, metric: 'time', targetValue: 0, isSelected: false },
-  { activityType: 'Screen Time', threshold: '0 hours', points: 1, metric: 'time', targetValue: 0, isSelected: false },
-  { activityType: 'No Sugars', threshold: '0 steps', points: 1, metric: 'steps', targetValue: 0, isSelected: false },
-  { activityType: 'Yoga', threshold: '0 hours', points: 1, metric: 'time', targetValue: 0, isSelected: false },
-  { activityType: 'High Intensity', threshold: '0 calories', points: 1, metric: 'calories', targetValue: 0, isSelected: false },
+  { activityType: 'Workout',  points: 1, metric: 'time', targetValue: 0, isSelected: false },
+  { activityType: 'Steps',  points: 1, metric: 'steps', targetValue: 0, isSelected: false },
+  { activityType: 'Sleep', points: 1, metric: 'time', targetValue: 0, isSelected: false },
+  { activityType: 'Screen Time', points: 1, metric: 'time', targetValue: 0, isSelected: false },
+  { activityType: 'No Sugars',  points: 1, metric: 'steps', targetValue: 0, isSelected: false },
+  { activityType: 'Yoga', points: 1, metric: 'time', targetValue: 0, isSelected: false },
+  { activityType: 'High Intensity', points: 1, metric: 'calories', targetValue: 0, isSelected: false },
 ];
 
-// Helper to format the threshold string based on metric and value
 function formatThreshold(value: number, metric: string): string {
   switch (metric) {
     case 'steps':
@@ -208,7 +205,6 @@ export default function CreateChallenge() {
     return true;
   };
 
-  // Maps selected activities to include the new fields and formatted threshold
   const createChallengeInDB = async () => {
     if (!userId) throw new Error('You must be logged in first');
     if (!selectedMode) throw new Error('Challenge mode must be selected');
@@ -227,8 +223,7 @@ export default function CreateChallenge() {
         metric: act.metric,
         points: act.points,
         timeframe: details.globalTimeframe,
-        // Format threshold for backward compatibility
-        threshold: formatThreshold(act.targetValue, act.metric),
+        target_value: act.targetValue, 
       })),
       isPrivate: details.isPrivate,
     });
@@ -369,7 +364,6 @@ export default function CreateChallenge() {
                     activityType: customActivity.name.trim(),
                     metric: customActivity.metric,
                     targetValue: targetValue,
-                    threshold: formatThreshold(targetValue, customActivity.metric),
                     points: points,
                     isSelected: true,
                     isCustom: true,
