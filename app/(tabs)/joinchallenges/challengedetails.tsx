@@ -275,38 +275,60 @@ function ChallengeDetailsContent() {
 // app/(tabs)/joinchallenges/challengedetails.tsx
 // Import at the top:
 useEffect(() => {
-  if (!challenge_id || !currentUserId) return;
-
-  console.log('Setting up real-time subscription for challenge:', challenge_id);
+    if (!challenge_id || !currentUserId) return;
   
-  const subscription = subscribeToRaceUpdates(challenge_id as string, (payload) => {
-    console.log('Real-time race update received:', payload.new);
+    console.log('Setting up real-time subscription for challenge:', challenge_id);
     
-    // Get the updated participant data
-    const updatedParticipant = payload.new;
-    
-    // Update local state with the new position information
-    setParticipants((prev) =>
-      prev.map((p) =>
-        p.id === updatedParticipant.id
-          ? {
-              ...p,
-              total_points: updatedParticipant.total_points ?? p.total_points,
-              map_position: 
-                typeof updatedParticipant.map_position === 'number' ? 
-                updatedParticipant.map_position : 
-                p.map_position,
-            }
-          : p
+    // Subscribe to challenge_participants table changes for this challenge
+    const channel = supabase
+      .channel(`challenge_points_${challenge_id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'challenge_participants',
+          filter: `challenge_id=eq.${challenge_id}`,
+        },
+        (payload) => {
+          console.log('Real-time challenge update received:', payload.new);
+          
+          // Get the updated participant data
+          const updatedParticipant = payload.new;
+          
+          // Update local state with the new position and points information
+          setParticipants((prev) => {
+            const updatedParticipants = prev.map((p) =>
+              p.id === updatedParticipant.id
+                ? {
+                    ...p,
+                    total_points: updatedParticipant.total_points ?? p.total_points,
+                    map_position: 
+                      typeof updatedParticipant.map_position === 'number' ? 
+                      updatedParticipant.map_position : 
+                      p.map_position,
+                    current_streak: updatedParticipant.current_streak ?? p.current_streak,
+                    longest_streak: updatedParticipant.longest_streak ?? p.longest_streak,
+                  }
+                : p
+            );
+            
+            // Sort the participants by total points in descending order for the leaderboard
+            return updatedParticipants.sort((a, b) => 
+              (b.total_points || 0) - (a.total_points || 0)
+            );
+          });
+        }
       )
-    );
-  });
-
-  return () => {
-    console.log('Cleaning up subscription for challenge:', challenge_id);
-    supabase.removeChannel(subscription);
-  };
-}, [challenge_id, currentUserId]);
+      .subscribe((status) => {
+        console.log(`Challenge points subscription status: ${status}`);
+      });
+  
+    return () => {
+      console.log('Cleaning up subscription for challenge:', challenge_id);
+      supabase.removeChannel(channel);
+    };
+  }, [challenge_id, currentUserId]);
   // 7) Handle user movement: only update row for this challenge
 // Then update the function:
 const handleMoveParticipant = async (participantUserId: string, step: number, challengeId: string) => {

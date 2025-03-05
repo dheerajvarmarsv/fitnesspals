@@ -103,10 +103,7 @@ export async function getChallengeActivityTypes(userId: string): Promise<Array<{
 
 /**
  * Insert a new row into `activities` for a single metric measurement.
- * If the provided activity_type is not among the allowed ones, we use "Custom"
- * and store the original name in the notes field.
- *
- * Now supports separate columns for steps and count.
+ * If the provided activity_type is not among the allowed ones, we add a note but DO NOT override the name.
  */
 export async function saveUserActivity(
   activityData: {
@@ -131,10 +128,9 @@ export async function saveUserActivity(
   let activityType = activityData.activityType;
   let notes = '';
 
-  // If activityType is not one of the allowed types, treat it as Custom.
+  // If activityType is not one of the allowed types, add a note but keep the typed name
   if (!GLOBAL_TYPES.includes(activityType)) {
     notes = `CustomName: ${activityType}`;
-    activityType = 'Custom';
   }
 
   // Prepare the data object for insertion.
@@ -150,8 +146,8 @@ export async function saveUserActivity(
   // Based on the metric, populate the appropriate column.
   switch (activityData.metric) {
     case 'time':
-      // Convert hours to minutes
-      insertData.duration = activityData.duration * 60;
+      // Duration is stored as minutes (if you want hours, multiply by 60)
+      insertData.duration = activityData.duration;
       break;
     case 'distance_km':
       insertData.distance = activityData.distance;
@@ -164,7 +160,7 @@ export async function saveUserActivity(
       insertData.calories = activityData.calories;
       break;
     case 'steps':
-      // Use the new steps column. Assume the entered value is provided in activityData.duration.
+      // Use the new steps column. Assume the entered value is in activityData.duration.
       insertData.steps = activityData.duration;
       break;
     case 'count':
@@ -190,8 +186,8 @@ export async function saveUserActivity(
 }
 
 /**
- * Recalculate points in all relevant challenges for the newly inserted activity.
- * This version uses the proper columns for each metric.
+ * Recalculate points in all relevant challenges for activities, considering aggregation
+ * by timeframe (daily/weekly) and preventing duplicate point awards.
  */
 export async function updateChallengesWithActivity(activityId: string, userId: string) {
   try {
@@ -205,14 +201,23 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
     if (activityError) throw activityError;
     if (!activity) throw new Error('Activity not found');
 
-    // Get user settings for distance preference.
-    const { data: userData, error: userError } = await supabase
-      .from('profile_settings')
-      .select('use_kilometers')
-      .eq('id', userId)
-      .single();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayISOString = today.toISOString();
+    const todayDate = todayISOString.split('T')[0]; // YYYY-MM-DD
 
-    const useKilometers = userError ? true : userData?.use_kilometers ?? true;
+    // Calculate the start of the current week (Monday)
+    const startOfWeek = new Date(today);
+    const dayOfWeek = today.getDay() || 7; // Sunday(0)->7
+    startOfWeek.setDate(today.getDate() - dayOfWeek + 1);
+    const startOfWeekISOString = startOfWeek.toISOString();
+
+    console.log('Processing activity:', {
+      id: activityId,
+      type: activity.activity_type,
+      metric: activity.metric,
+      created: activity.created_at,
+    });
 
     // Get user's active challenge participation records.
     const { data: participations, error: challengesError } = await supabase
@@ -223,6 +228,8 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
         total_points,
         current_streak,
         longest_streak,
+        last_awarded_day,
+        last_awarded_week,
         challenges(
           id,
           challenge_type,
@@ -241,70 +248,161 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
     if (challengesError) throw challengesError;
     if (!participations || participations.length === 0) return;
 
-    // For each challenge participation, check if the activity qualifies for points.
+    // For each challenge participation, check if activities meet thresholds
     for (const participation of participations) {
       const challenge = participation.challenges;
       if (!challenge) continue;
 
-      // Find matching challenge activities (by activity_type and metric).
+      // Find matching challenge activities
       const matchingActivities = challenge.challenge_activities.filter(
-        (act: any) => act.activity_type === activity.activity_type && act.metric === activity.metric
+        (act: any) =>
+          act.activity_type === activity.activity_type &&
+          act.metric === activity.metric
       );
       if (matchingActivities.length === 0) continue;
 
-      let pointsEarned = 0;
+      // Process each matching challenge activity
       for (const matchingActivity of matchingActivities) {
-        let activityValue = 0;
-        let thresholdValue = matchingActivity.target_value; // numeric threshold
+        const timeframe = matchingActivity.timeframe || 'day';
 
-        // Determine the activity's value based on the metric.
-        switch (matchingActivity.metric) {
-          case 'distance_km':
-          case 'distance_miles': {
-            activityValue = activity.distance || 0;
-            if (matchingActivity.metric === 'distance_miles' && activityValue > 0 && thresholdValue > 0) {
-              // Convert target from miles to km for comparison
-              thresholdValue = thresholdValue / 0.621371;
-            }
-            break;
-          }
-          case 'time': {
-            // Duration is stored in minutes; assume challenge target is in hours.
-            activityValue = activity.duration || 0;
-            thresholdValue = thresholdValue * 60;
-            break;
-          }
-          case 'calories': {
-            activityValue = activity.calories || 0;
-            break;
-          }
-          case 'steps': {
-            activityValue = activity.steps || 0;
-            break;
-          }
-          case 'count': {
-            activityValue = activity.count || 0;
-            break;
-          }
-          default: {
-            activityValue = activity.duration || 0;
-            break;
+        // Prevent awarding points again for the same day
+        if (
+          timeframe === 'day' &&
+          participation.last_awarded_day &&
+          new Date(participation.last_awarded_day).toDateString() ===
+            today.toDateString()
+        ) {
+          console.log('Points already awarded for today for this activity');
+          continue;
+        }
+
+        // Prevent awarding points again for the same week
+        if (
+          timeframe === 'week' &&
+          participation.last_awarded_week &&
+          new Date(participation.last_awarded_week) >= startOfWeek
+        ) {
+          console.log('Points already awarded for this week for this activity');
+          continue;
+        }
+
+        // Aggregate all activities of this type/metric for the current timeframe
+        const timeframeStart =
+          timeframe === 'day' ? todayISOString : startOfWeekISOString;
+
+        const { data: timeframeActivities, error: activitiesError } =
+          await supabase
+            .from('activities')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('activity_type', activity.activity_type)
+            .eq('metric', activity.metric)
+            .gte('created_at', timeframeStart)
+            .order('created_at', { ascending: false });
+
+        if (activitiesError) {
+          console.error('Error fetching timeframe activities:', activitiesError);
+          continue;
+        }
+
+        // Sum all values for the timeframe
+        let aggregatedValue = 0;
+        for (const act of timeframeActivities || []) {
+          switch (act.metric) {
+            case 'distance_km':
+            case 'distance_miles':
+              aggregatedValue += act.distance || 0;
+              break;
+            case 'time':
+              aggregatedValue += act.duration || 0;
+              break;
+            case 'calories':
+              aggregatedValue += act.calories || 0;
+              break;
+            case 'steps':
+              aggregatedValue += act.steps || 0;
+              break;
+            case 'count':
+              aggregatedValue += act.count || 0;
+              break;
+            default:
+              aggregatedValue += act.duration || 0;
+              break;
           }
         }
 
-        if (activityValue >= thresholdValue) {
-          pointsEarned += matchingActivity.points;
+        // Convert threshold for time or distance if needed
+        let thresholdValue = matchingActivity.target_value;
+        if (matchingActivity.metric === 'time') {
+          thresholdValue = thresholdValue * 60; // if target_value was in hours
+        } else if (matchingActivity.metric === 'distance_miles') {
+          thresholdValue = thresholdValue / 0.621371; // convert miles to km
         }
-      }
 
-      if (pointsEarned > 0) {
-        await supabase
-          .from('challenge_participants')
-          .update({
-            total_points: participation.total_points + pointsEarned,
+        console.log('Threshold check:', {
+          activityType: matchingActivity.activity_type,
+          aggregatedValue,
+          thresholdValue,
+          timeframe,
+          points: matchingActivity.points,
+        });
+
+        // If user meets/exceeds threshold, award points
+        if (aggregatedValue >= thresholdValue) {
+          const pointsEarned = matchingActivity.points;
+
+          console.log('Before update:', {
+            participationId: participation.id,
+            currentPoints: participation.total_points,
+            pointsToAdd: pointsEarned,
+            expectedNewTotal: (participation.total_points || 0) + pointsEarned,
+          });
+
+          // Update the participant record
+          const updateData: any = {
+            total_points: (participation.total_points || 0) + pointsEarned,
             last_activity_date: new Date().toISOString(),
-          })
-          .eq('id', participation.id);
+          };
+
+          if (timeframe === 'day') {
+            updateData.last_awarded_day = todayDate; // store date only
+          } else if (timeframe === 'week') {
+            updateData.last_awarded_week = todayDate; // store date only
+          }
+
+          const { data: updatedParticipant, error: updateError } = await supabase
+            .from('challenge_participants')
+            .update(updateData)
+            .eq('id', participation.id)
+            .select('id, total_points, last_activity_date, last_awarded_day, last_awarded_week');
+
+          if (updateError) {
+            console.error('Error updating challenge participant:', updateError);
+            continue;
+          }
+
+          console.log('Points awarded:', {
+            challengeId: challenge.id,
+            participantId: participation.id,
+            pointsEarned,
+            newTotal: (participation.total_points || 0) + pointsEarned,
+            timeframe,
+            updatedRecord: updatedParticipant,
+          });
+
+          // Optionally verify the update
+          const { data: verifyParticipant, error: verifyError } = await supabase
+            .from('challenge_participants')
+            .select('id, total_points')
+            .eq('id', participation.id)
+            .single();
+
+          if (verifyError) {
+            console.error('Error verifying update:', verifyError);
+          }
+        } else {
+          console.log('Threshold not met, no points awarded');
+        }
       }
     }
 
@@ -315,7 +413,10 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
   }
 }
 
-// Helper: Get ISO week number (Monday as first day)
+/**
+ * Helper: Get ISO week number (Monday as first day).
+ * (Not used in awarding logic but left here in case needed.)
+ */
 function getWeekNumber(date: Date): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const dayNum = d.getUTCDay() || 7;
