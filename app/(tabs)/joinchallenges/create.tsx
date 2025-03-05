@@ -196,7 +196,8 @@ export default function CreateChallenge() {
       return (
         details.name.trim().length > 0 &&
         details.startDate !== null &&
-        (details.isOpenEnded || details.endDate !== null)
+        (details.isOpenEnded ||
+          (details.endDate !== null && details.endDate >= details.startDate))
       );
     }
     if (currentStep === 3) {

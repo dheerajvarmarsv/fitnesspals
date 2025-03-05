@@ -153,9 +153,15 @@ function JoinCreateContent() {
 <Animated.View style={[styles.header, { transform: [{ translateY }] }]}>
   {/* Left side: custom back button + title */}
   <View style={styles.leftHeader}>
-    <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-      <Ionicons name="chevron-back" size={24} color="#007AFF" />
-    </TouchableOpacity>
+  <TouchableOpacity 
+  style={styles.backButton} 
+  onPress={() => {
+    // Always navigate to challenges section when back is pressed
+    router.replace('/(tabs)/joinchallenges/challengesettings');
+  }}
+>
+  <Ionicons name="chevron-back" size={24} color="#007AFF" />
+</TouchableOpacity>
 
     <Text style={styles.title}>Join / Create</Text>
   </View>
@@ -181,10 +187,12 @@ function JoinCreateContent() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
         scrollEventThrottle={16}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true }
-        )}
+        onScroll={(event) => {
+          Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: false }
+          )(event);
+        }}
       >
         {/* Featured */}
         {featuredChallenges.length > 0 && (

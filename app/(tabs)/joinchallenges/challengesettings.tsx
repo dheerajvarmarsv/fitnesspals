@@ -48,7 +48,7 @@ export default function YourChallengesScreen() {
   });
   const [refreshing, setRefreshing] = useState(false);
 
-  // New state for edit mode
+  // State for edit mode
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedChallenges, setSelectedChallenges] = useState<string[]>([]);
 
@@ -63,11 +63,13 @@ export default function YourChallengesScreen() {
   const filterOptions: FilterOption[] = ['all', 'race', 'survival', 'streak', 'custom'];
 
   useEffect(() => {
+    // Default to 'yourChallenges' and load data
+    setActiveMainTab('yourChallenges');
     fetchYourChallenges();
     fetchInvitedChallenges();
   }, []);
 
-  // Helper: Union two arrays by id
+  // Helper: Union arrays by id
   const unionById = (arrA: any[], arrB: any[]) => {
     const map = new Map<string, any>();
     [...arrA, ...arrB].forEach((ch) => {
@@ -282,7 +284,10 @@ export default function YourChallengesScreen() {
         <View style={styles.mainTabHeader}>
           <TouchableOpacity
             style={[styles.mainTabButton, activeMainTab === 'yourChallenges' && styles.activeMainTabButton]}
-            onPress={() => setActiveMainTab('yourChallenges')}
+            onPress={() => {
+              setActiveMainTab('yourChallenges');
+              fetchYourChallenges();
+            }}
           >
             <Text style={[styles.mainTabText, activeMainTab === 'yourChallenges' && styles.activeMainTabText]}>
               Your Challenges
@@ -291,7 +296,10 @@ export default function YourChallengesScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.mainTabButton, activeMainTab === 'invites' && styles.activeMainTabButton]}
-            onPress={() => setActiveMainTab('invites')}
+            onPress={() => {
+              setActiveMainTab('invites');
+              fetchInvitedChallenges();
+            }}
           >
             <Text style={[styles.mainTabText, activeMainTab === 'invites' && styles.activeMainTabText]}>
               Invites
