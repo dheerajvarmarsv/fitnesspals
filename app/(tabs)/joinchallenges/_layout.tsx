@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 
 export default function JoinChallengesLayout() {
   return (
-    <Stack>
+    <Stack initialRouteName="challengesettings">
       <Stack.Screen
         name="challengesettings"
         options={{

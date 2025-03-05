@@ -1,4 +1,5 @@
 // app/(tabs)/joinchallenges/steps/Step2ChallengeDetails.tsx
+
 import React from 'react';
 import {
   View,
@@ -7,6 +8,7 @@ import {
   TouchableOpacity,
   Pressable,
   Animated,
+  Alert, // <-- Import Alert for user feedback
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
@@ -50,6 +52,7 @@ export default function Step2ChallengeDetails({
         Set the basic information for your {selectedMode} challenge
       </Text>
 
+      {/* Challenge Name */}
       <View style={styles.inputGroup}>
         <Text style={styles.inputLabel}>Challenge Name</Text>
         <TextInput
@@ -63,6 +66,7 @@ export default function Step2ChallengeDetails({
         <Text style={styles.characterCount}>{details.name.length}/40</Text>
       </View>
 
+      {/* Description */}
       <View style={styles.inputGroup}>
         <Text style={styles.inputLabel}>
           Description <Text style={styles.optionalText}>(Optional)</Text>
@@ -81,8 +85,10 @@ export default function Step2ChallengeDetails({
         <Text style={styles.characterCount}>{details.description.length}/200</Text>
       </View>
 
+      {/* Challenge Duration */}
       <View style={styles.inputGroup}>
         <Text style={styles.inputLabel}>Challenge Duration</Text>
+        {/* Start Date */}
         <View style={styles.dateRow}>
           <Text style={styles.dateLabel}>Starts</Text>
           <TouchableOpacity
@@ -96,6 +102,7 @@ export default function Step2ChallengeDetails({
           </TouchableOpacity>
         </View>
 
+        {/* End Date (if not open-ended) */}
         {!details.isOpenEnded && (
           <View style={styles.dateRow}>
             <Text style={styles.dateLabel}>Ends</Text>
@@ -111,6 +118,7 @@ export default function Step2ChallengeDetails({
           </View>
         )}
 
+        {/* Open-ended Toggle */}
         <Pressable
           style={styles.toggleContainer}
           onPress={() => {
@@ -118,7 +126,7 @@ export default function Step2ChallengeDetails({
             setDetails({
               ...details,
               isOpenEnded: !details.isOpenEnded,
-              endDate: null,
+              endDate: null, // clear end date if toggling open-ended
             });
           }}
         >
@@ -141,6 +149,7 @@ export default function Step2ChallengeDetails({
         </Pressable>
       </View>
 
+      {/* Visibility */}
       <View style={styles.inputGroup}>
         <Text style={styles.inputLabel}>Challenge Visibility</Text>
         <Pressable
@@ -169,7 +178,7 @@ export default function Step2ChallengeDetails({
         </Pressable>
       </View>
 
-      {/* Date Pickers */}
+      {/* Start Date Picker */}
       <DateTimePickerModal
         isVisible={showStartPicker}
         mode="date"
@@ -177,12 +186,21 @@ export default function Step2ChallengeDetails({
         date={details.startDate || new Date()}
         onConfirm={(date) => {
           setShowStartPicker(false);
+          // If user picks a start date that is after the end date, reset end date or show an alert
+          if (details.endDate && date > details.endDate) {
+            Alert.alert(
+              'Invalid Start Date',
+              'Start date cannot be after the end date.'
+            );
+            // Optionally reset the end date here or do nothing
+          }
           setDetails({ ...details, startDate: date });
         }}
         onCancel={() => setShowStartPicker(false)}
         minimumDate={new Date()}
       />
 
+      {/* End Date Picker */}
       <DateTimePickerModal
         isVisible={showEndPicker}
         mode="date"
@@ -191,9 +209,16 @@ export default function Step2ChallengeDetails({
           details.endDate ||
           new Date(new Date().setDate(new Date().getDate() + 14))
         }
-        onConfirm={(date) => {
+        onConfirm={(pickedDate) => {
           setShowEndPicker(false);
-          setDetails({ ...details, endDate: date });
+          if (details.startDate && pickedDate < details.startDate) {
+            Alert.alert(
+              'Invalid End Date',
+              'End date cannot be before the start date.'
+            );
+            return;
+          }
+          setDetails({ ...details, endDate: pickedDate });
         }}
         onCancel={() => setShowEndPicker(false)}
         minimumDate={details.startDate || new Date()}
