@@ -118,24 +118,18 @@ function AnimatedParticipantAvatar({
     }
   }, [participant.currentStep, lastStep, stepValue]);
 
-  // If current user, auto-scroll & notify parent
+  // If current user, auto-scroll but DON'T notify parent of step changes
+  // We only want explicit position changes from UI controls, not automatic animations
   useAnimatedReaction(
     () => stepValue.value,
     (newStep, oldStep) => {
       if (participant.isCurrentUser) {
         const avatarX = newStep * SPACING + START_OFFSET;
         runOnJS(scrollToPosition)(avatarX);
-
-        // Only notify parent if new value is different from old (prevent loops)
-        if (onMoveParticipant && Math.floor(newStep) !== Math.floor(oldStep || 0)) {
-          console.log('Position change detected:', {
-            userId: participant.user_id,
-            step: Math.floor(newStep),
-            challengeId: challengeId
-          });
-          // Pass user_id not id (which is the database row ID)
-          runOnJS(onMoveParticipant)(participant.user_id, Math.floor(newStep), challengeId);
-        }
+        
+        // DISABLED: Don't automatically update position when animation occurs
+        // This prevents cascading updates and duplicate position changes
+        // Position updates should only come from explicit user actions or backend
       }
     }
   );
@@ -153,11 +147,17 @@ function AnimatedParticipantAvatar({
     const x = currentPt.x + (nextPt.x - currentPt.x) * progress;
     const y = currentPt.y + (nextPt.y - currentPt.y) * progress;
 
+    // Calculate a slight vertical offset for participants at the same position
+    // Current user will be on top, others will be lower
+    const yOffset = participant.isCurrentUser ? 0 : AVATAR_SIZE * 0.3;
+
     return {
       transform: [
         { translateX: x - AVATAR_SIZE / 2 },
-        { translateY: y - AVATAR_SIZE / 2 },
+        { translateY: y - AVATAR_SIZE / 2 + yOffset },
       ],
+      // Increase z-index for current user to ensure they're visible when overlapping
+      zIndex: participant.isCurrentUser ? 10 : 5,
     };
   });
 
@@ -170,15 +170,20 @@ function AnimatedParticipantAvatar({
   return (
     <Animated.View style={containerStyle}>
       {participant.isCurrentUser ? (
-        // Gold gradient border for current user
-        <LinearGradient colors={['#FFD700', '#FFA500']} style={styles.avatarGradient}>
+        // Vibrant gradient border for current user
+        <LinearGradient 
+          colors={['#4CAF50', '#2196F3', '#9C27B0']} 
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.avatarGradient}
+        >
           <Image
             source={{ uri: participant.avatar_url }}
             style={styles.avatarImage}
           />
         </LinearGradient>
       ) : (
-        // Simple frame for others
+        // Simple frame for others with reduced opacity
         <View style={styles.avatarFrame}>
           <Image
             source={{ uri: participant.avatar_url }}
@@ -247,8 +252,21 @@ export default function MultiAvatarRaceTrack({
     }
   }
 
-  // Optional accelerate button here
+  // Find current user & sort participants with the current user at the end
+  // so they're drawn last (on top) in the case of overlapping avatars
   const currentUser = participants.find((p) => p.isCurrentUser);
+  const sortedParticipants = [...participants].sort((a, b) => {
+    if (a.isCurrentUser) return 1; // current user comes last
+    if (b.isCurrentUser) return -1;
+    
+    // For same position, sort by ID to ensure consistent ordering
+    if (a.currentStep === b.currentStep) {
+      return a.id.localeCompare(b.id);
+    }
+    
+    return 0;
+  });
+  
   const [isAtEnd, setIsAtEnd] = useState(false);
 
   useEffect(() => {
@@ -259,27 +277,29 @@ export default function MultiAvatarRaceTrack({
     }
   }, [participants, currentUser]);
 
-// In RaceTrackComponent.tsx
-function moveToNextCheckpoint() {
+  function moveToNextCheckpoint() {
     if (!currentUser || isAtEnd) return;
     
-    const nextStep = Math.min(TOTAL_CHECKPOINTS - 1, currentUser.currentStep + 1);
-    console.log('Accelerate pressed:', {
-      nextStep,
-      userId: currentUser.user_id,
-      challengeId
-    });
+    // DISABLED: We're removing manual position changes
+    // The "press to move" feature is causing position conflicts with the challenge points system
+    console.log('Manual position changes have been disabled');
     
-    // Make sure we're passing the user_id, not the component ID
-    if (onMoveParticipant && currentUser.user_id) {
-      onMoveParticipant(currentUser.user_id, nextStep, challengeId);
-    } else {
-      console.error('Cannot move participant: missing user_id or callback', {
-        user_id: currentUser.user_id,
-        hasCallback: !!onMoveParticipant
-      });
-    }
+    // IMPORTANT: Position updates should only come from backend activity processing
+    // This ensures consistent point calculations and prevents duplicate updates
   }
+
+  // Calculate progress statistics for visual display
+  const totalParticipants = participants.length;
+  const participantsAtEnd = participants.filter(p => p.currentStep >= TOTAL_CHECKPOINTS - 1).length;
+  const completionPercentage = totalParticipants ? Math.round((participantsAtEnd / totalParticipants) * 100) : 0;
+  
+  // Get leaderboard positions
+  const leaderboard = [...participants]
+    .sort((a, b) => b.currentStep - a.currentStep)
+    .map((p, idx) => ({ ...p, position: idx + 1 }));
+  
+  // Current user's position
+  const userPosition = leaderboard.find(p => p.isCurrentUser)?.position || 0;
 
   return (
     <View style={[styles.container, { height: containerHeight }]}>
@@ -309,6 +329,13 @@ function moveToNextCheckpoint() {
                     <Stop offset="0" stopColor="#444" stopOpacity="1" />
                     <Stop offset="1" stopColor="#222" stopOpacity="1" />
                   </SvgLinearGradient>
+                  
+                  {/* Multi-color gradient for track progress */}
+                  <SvgLinearGradient id="progressGradient" x1="0" y1="0" x2="1" y2="0">
+                    <Stop offset="0.1" stopColor="#4CAF50" stopOpacity="0.7" />
+                    <Stop offset="0.5" stopColor="#2196F3" stopOpacity="0.7" />
+                    <Stop offset="0.9" stopColor="#9C27B0" stopOpacity="0.7" />
+                  </SvgLinearGradient>
                 </Defs>
 
                 {/* Background grass */}
@@ -320,6 +347,7 @@ function moveToNextCheckpoint() {
                   fill="#2e7d32"
                   opacity={0.3}
                 />
+                
                 {/* Outer track outline */}
                 <Path
                   d={svgPath}
@@ -329,6 +357,7 @@ function moveToNextCheckpoint() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
+                
                 {/* Road gradient fill */}
                 <Path
                   d={svgPath}
@@ -338,6 +367,7 @@ function moveToNextCheckpoint() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
+                
                 {/* Center dashed line */}
                 <Path
                   d={svgPath}
@@ -373,19 +403,20 @@ function moveToNextCheckpoint() {
                   </G>
                 )}
 
-                {/* Checkpoints */}
+                {/* Major Checkpoints - only show every 10th and START/FINISH */}
                 {trackPoints.map((pt, idx) => {
-                  // Only show every 10th checkpoint and START/FINISH
                   if (idx % 10 !== 0 && idx !== 0 && idx !== TOTAL_CHECKPOINTS - 1) return null;
                   
                   // Find if any user has reached this checkpoint
                   const isReached = participants.some(p => p.currentStep >= idx);
+                  // Find if current user has reached this checkpoint
+                  const isUserReached = currentUser && currentUser.currentStep >= idx;
                   
                   return (
                     <G key={idx} transform={`translate(${pt.x},${pt.y})`}>
                       <Circle
                         r={5}
-                        fill={isReached ? '#FFD700' : '#ccc'}
+                        fill={isUserReached ? '#4CAF50' : isReached ? '#FFD700' : '#ccc'}
                         stroke="#000"
                         strokeWidth={1}
                       />
@@ -393,22 +424,40 @@ function moveToNextCheckpoint() {
                         <SvgText
                           x="0"
                           y="-12"
-                          fill={isReached ? '#FFD700' : '#fff'}
+                          fill={isUserReached ? '#4CAF50' : isReached ? '#FFD700' : '#fff'}
                           fontSize="12"
                           fontWeight="bold"
                           textAnchor="middle"
                         >
-                          {idx + 1}
+                          {idx === 0 ? '' : idx}
                         </SvgText>
                       )}
+                    </G>
+                  );
+                })}
+                
+                {/* Minor Checkpoints - smaller markers for every 5th point */}
+                {trackPoints.map((pt, idx) => {
+                  if (idx % 5 !== 0 || idx % 10 === 0 || idx === 0 || idx === TOTAL_CHECKPOINTS - 1) return null;
+                  
+                  const isReached = participants.some(p => p.currentStep >= idx);
+                  
+                  return (
+                    <G key={`minor-${idx}`} transform={`translate(${pt.x},${pt.y})`}>
+                      <Circle
+                        r={3}
+                        fill={isReached ? '#FFD700' : '#aaa'}
+                        stroke="#000"
+                        strokeWidth={0.5}
+                      />
                     </G>
                   );
                 })}
               </Svg>
             ) : null}
 
-            {/* One AnimatedParticipantAvatar per participant */}
-            {participants.map((p) => (
+            {/* One AnimatedParticipantAvatar per participant, sorted so current user is drawn last */}
+            {sortedParticipants.map((p) => (
               <AnimatedParticipantAvatar
                 key={p.id}
                 participant={p}
@@ -422,26 +471,22 @@ function moveToNextCheckpoint() {
         </ScrollView>
       </View>
 
-      {/* Optional title */}
+      {/* Title and statistics */}
       {showTitle && (
         <View style={styles.titleContainer}>
           <Text style={styles.titleText}>Race Challenge</Text>
+          {currentUser && (
+            <Text style={styles.statsText}>
+              Position: {userPosition}/{totalParticipants} • 
+              Checkpoint: {currentUser.currentStep}/{TOTAL_CHECKPOINTS-1} • 
+              {completionPercentage}% Finished
+            </Text>
+          )}
         </View>
       )}
 
-      {/* Accelerate button for the current user */}
-      {currentUser && (
-        <View style={styles.buttonRow}>
-          <Pressable
-            style={[styles.button, isAtEnd && styles.disabledButton]}
-            onPress={moveToNextCheckpoint}
-            disabled={isAtEnd}
-          >
-            <Ionicons name="play" size={24} color="#fff" />
-            <Text style={styles.buttonText}>Accelerate</Text>
-          </Pressable>
-        </View>
-      )}
+      {/* We've removed the Accelerate button as it's not needed in production 
+          since positions are now automatically updated based on points earned */}
     </View>
   );
 }
@@ -464,7 +509,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  titleText: { color: '#fff', fontSize: 20, fontWeight: '700', letterSpacing: 1.1 },
+  titleText: { 
+    color: '#fff', 
+    fontSize: 20, 
+    fontWeight: '700', 
+    letterSpacing: 1.1 
+  },
+  statsText: {
+    color: '#ccc',
+    fontSize: 12,
+    marginTop: 4,
+    fontWeight: '500',
+    letterSpacing: 0.5
+  },
 
   buttonRow: {
     height: 70,
@@ -479,12 +536,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
   },
   disabledButton: { backgroundColor: '#88AA88', opacity: 0.7 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '600', marginLeft: 8 },
 
   // Avatars
-  avatar: { position: 'absolute', width: AVATAR_SIZE, height: AVATAR_SIZE },
+  avatar: { 
+    position: 'absolute', 
+    width: AVATAR_SIZE, 
+    height: AVATAR_SIZE,
+  },
   avatarGradient: {
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
@@ -492,6 +558,11 @@ const styles = StyleSheet.create({
     padding: 2,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.5,
+    shadowRadius: 2,
+    elevation: 4,
   },
   avatarFrame: {
     width: AVATAR_SIZE,
@@ -501,19 +572,28 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
     overflow: 'hidden',
   },
-  avatarImage: { width: '100%', height: '100%', borderRadius: AVATAR_SIZE / 2 },
+  avatarImage: { 
+    width: '100%', 
+    height: '100%', 
+    borderRadius: AVATAR_SIZE / 2 
+  },
   currentUserLabel: {
     position: 'absolute',
     top: -22,
     left: -10,
     right: -10,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: 'rgba(0,0,0,0.8)',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#FFD700',
+    borderColor: '#4CAF50',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 1,
+    elevation: 2,
   },
   nicknameContainer: {
     position: 'absolute',
@@ -526,6 +606,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
   },
-  currentUserNickname: { color: '#FFD700', fontSize: 12, fontWeight: 'bold' },
+  currentUserNickname: { 
+    color: '#fff', 
+    fontSize: 12, 
+    fontWeight: 'bold',
+    textShadowColor: 'rgba(0,0,0,0.7)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
   nickname: { color: '#fff', fontSize: 10, fontWeight: '500' },
 });

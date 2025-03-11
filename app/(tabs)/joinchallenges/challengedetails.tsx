@@ -1,6 +1,5 @@
 // app/(tabs)/joinchallenges/challengedetails.tsx
-import { subscribeToRaceUpdates } from '../../../lib/racetrack';
-import { updateRacePosition } from '../../../lib/racetrack';
+import { subscribeToRaceUpdates, updateRacePosition } from '../../../lib/racetrack';
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   StyleSheet,
@@ -15,13 +14,19 @@ import {
   StatusBar,
   SafeAreaView,
   Modal,
+  FlatList,
+  Alert,
 } from 'react-native';
+import CheckpointProgress from '../../../components/CheckpointProgress';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { supabase } from '../../../lib/supabase';
 import { useUser } from '../../../components/UserContext';
 import MultiAvatarRaceTrack from '../../../components/RaceTrackComponent';
+import { Arena } from '../../../components/Arena';
+import { ArenaHeader } from '../../../components/ArenaHeader';
+import { useArenaStore } from '../../../lib/arenaStore';
 
 const { width, height } = Dimensions.get('window');
 
@@ -69,6 +74,14 @@ interface Challenge {
     allowed_activities: string[];
     points_per_activity: Record<string, number>;
     timeframe?: 'day' | 'week';
+    totalCheckpoints?: number;
+    pointsPerCheckpoint?: number;
+  };
+  survival_settings?: {
+    initial_safe_zone_ratio: number;
+    daily_danger_growth: number;
+    workout_recovery: number;
+    elimination_days: number;
   };
   created_at: string;
   creator?: {
@@ -86,6 +99,11 @@ interface Participant {
   current_streak: number;
   longest_streak: number;
   map_position?: number;
+  lives?: number;
+  days_in_danger?: number;
+  distance_from_center?: number;
+  angle?: number;
+  is_eliminated?: boolean;
   profile: {
     nickname: string;
     avatar_url: string | null;
@@ -138,12 +156,19 @@ function ChallengeDetailsContent() {
   const [showAllActivities, setShowAllActivities] = useState(false);
   // Info modal
   const [showActivitiesInfo, setShowActivitiesInfo] = useState(false);
+  // Invite modal
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  // Friend selection
+  const [friends, setFriends] = useState<any[]>([]);
+  const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
+  const [inviteLoading, setInviteLoading] = useState(false);
 
   // 1) Fetch current user ID
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data?.user) {
         setCurrentUserId(data.user.id);
+        console.log('Current user ID set to:', data.user.id);
       }
     });
   }, []);
@@ -199,6 +224,11 @@ function ChallengeDetailsContent() {
           current_streak,
           longest_streak,
           map_position,
+          lives,
+          days_in_danger,
+          distance_from_center,
+          angle,
+          is_eliminated,
           profile:profiles (
             id,
             nickname,
@@ -215,10 +245,28 @@ function ChallengeDetailsContent() {
     }
   }, [challenge_id]);
 
-  // 4) Fetch challenge activities
+  // 4) Fetch challenge activities and challenge details (including rules)
   const fetchChallengeActivities = useCallback(async () => {
     if (!challenge_id) return;
     try {
+      // First check if the challenge has pointsPerCheckpoint in its rules
+      const { data: challengeData, error: challengeError } = await supabase
+        .from('challenges')
+        .select('rules')
+        .eq('id', challenge_id)
+        .single();
+        
+      if (challengeError) throw challengeError;
+      
+      // Log the challenge rules to debug
+      if (challengeData?.rules) {
+        console.log('Challenge rules:', {
+          pointsPerCheckpoint: challengeData.rules.pointsPerCheckpoint,
+          totalCheckpoints: challengeData.rules.totalCheckpoints
+        });
+      }
+      
+      // Now fetch the activities with all details
       const { data, error } = await supabase
         .from('challenge_activities')
         .select('*')
@@ -228,10 +276,13 @@ function ChallengeDetailsContent() {
       if (data && data.length > 0) {
         const activityMap = new Map();
         data.forEach((item) => {
+          console.log('Challenge activity details:', item);
           activityMap.set(item.activity_type, {
             activity_type: item.activity_type,
             points: item.points,
             target_value: typeof item.target_value === 'number' ? item.target_value : 0,
+            metric: item.metric || 'count', // Store the metric
+            timeframe: item.timeframe || 'day',
           });
         });
         setActivities(Array.from(activityMap.values()));
@@ -263,8 +314,102 @@ function ChallengeDetailsContent() {
   useEffect(() => {
     loadAllData();
   }, [loadAllData]);
+  
+  // Setup arena for survival challenges
+  useEffect(() => {
+    if (challenge?.challenge_type === 'survival' && currentUserId && challenge_id) {
+      console.log('Setting up arena for survival challenge:', challenge_id);
+      
+      // Initialize the arena with the challenge data
+      const setupArena = async () => {
+        try {
+          await useArenaStore.getState().setChallenge(challenge_id as string, currentUserId);
+          console.log('Arena setup complete');
+        } catch (err) {
+          console.error('Error setting up arena:', err);
+        }
+      };
+      
+      setupArena();
+      
+      // Subscribe to real-time updates for survival mode
+      const unsubscribe = useArenaStore.getState().subscribeToParticipantChanges(
+        challenge_id as string, 
+        currentUserId
+      );
+      
+      return () => {
+        // Clean up subscription
+        if (unsubscribe) unsubscribe();
+        console.log('Cleaning up arena subscription');
+      };
+    }
+  }, [challenge, currentUserId, challenge_id, activeTab]);
 
   // Pull-to-refresh
+  // Fetch friends list for invitations
+  const fetchFriends = useCallback(async () => {
+    if (!currentUserId) return;
+    
+    try {
+      // Query the friends table using the correct table name
+      const { data, error } = await supabase
+        .from('friends')
+        .select(`
+          friend:profiles!friends_friend_id_fkey (
+            id,
+            nickname,
+            avatar_url
+          )
+        `)
+        .eq('user_id', currentUserId);
+      
+      if (error) throw error;
+      
+      // Map to a simpler format
+      const friendsList = (data || []).map((item) => item.friend);
+      setFriends(friendsList);
+      
+      console.log('Friends fetched:', friendsList.length);
+      
+    } catch (err) {
+      console.error('Error fetching friends:', err);
+      
+      // Fallback: Try querying the friend_requests table if friends table fails
+      try {
+        const { data, error } = await supabase
+          .from('friend_requests')
+          .select(`
+            receiver:profiles!friend_requests_receiver_id_fkey (
+              id,
+              nickname,
+              avatar_url
+            )
+          `)
+          .eq('sender_id', currentUserId)
+          .eq('status', 'accepted');
+        
+        if (error) throw error;
+        
+        const friendsList = (data || []).map((item) => item.receiver);
+        setFriends(friendsList);
+        
+        console.log('Friends fetched from requests:', friendsList.length);
+      } catch (secondErr) {
+        console.error('Error fetching from friend_requests:', secondErr);
+        // Show error message in the UI
+        setFriends([]);
+      }
+    }
+  }, [currentUserId]);
+  
+  // Load friends when the invite modal is opened
+  useEffect(() => {
+    if (showInviteModal) {
+      fetchFriends();
+    }
+  }, [showInviteModal, fetchFriends]);
+  
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadAllData();
@@ -309,6 +454,12 @@ useEffect(() => {
                       p.map_position,
                     current_streak: updatedParticipant.current_streak ?? p.current_streak,
                     longest_streak: updatedParticipant.longest_streak ?? p.longest_streak,
+                    // Add survival-specific fields
+                    lives: updatedParticipant.lives ?? p.lives,
+                    days_in_danger: updatedParticipant.days_in_danger ?? p.days_in_danger,
+                    distance_from_center: updatedParticipant.distance_from_center ?? p.distance_from_center,
+                    angle: updatedParticipant.angle ?? p.angle,
+                    is_eliminated: updatedParticipant.is_eliminated ?? p.is_eliminated,
                   }
                 : p
             );
@@ -370,10 +521,13 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
         totalPoints: totalPoints
       });
   
+      // Important: Don't set map_position directly to step value
+      // The map_position should be calculated in the backend based on total_points
+      // Only update the total_points, the position will be calculated by the
+      // challenge point system based on pointsThreshold
       const { data, error } = await supabase
         .from('challenge_participants')
         .update({
-          map_position: step,
           total_points: totalPoints,
           last_activity_date: new Date().toISOString()
         })
@@ -383,10 +537,12 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
       if (error) throw error;
       console.log('Successfully updated participant row in DB!', data);
       
-      // Update local state
+      // Update local state - only change total_points
+      // Let the real-time subscription update the map_position
+      // when the backend calculates it based on the points threshold
       setParticipants(prev => prev.map(p => 
         p.id === participantInThisChallenge.id 
-          ? {...p, map_position: step, total_points: totalPoints} 
+          ? {...p, total_points: totalPoints} 
           : p
       ));
       
@@ -397,21 +553,40 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
 
   // 8) Convert participants to RaceTrack format
   const getRaceParticipants = (): RaceParticipant[] => {
-    if (!currentUserId) return [];
+    if (!participants.length) return [];
     
+    // Always ensure we have participants visible in the race view
     return participants.map((p) => {
-      // Prioritize map_position if available, otherwise calculate from points
-      const step = typeof p.map_position === 'number' && p.map_position >= 0
-          ? p.map_position
-          : Math.floor((p.total_points || 0) / 10);
+      // Get points threshold from challenge rules or default to 10
+      const pointsThreshold = challenge?.rules?.pointsPerCheckpoint || 10;
+      
+      // Calculate position from points, ensuring it's always accurate
+      // If map_position is present, use it; otherwise calculate from total_points
+      let step = 0;
+      if (typeof p.map_position === 'number' && p.map_position >= 0) {
+        step = p.map_position;
+      } else if (p.total_points) {
+        step = Math.floor(p.total_points / pointsThreshold);
+      }
+      
+      // Is this the current user?
+      const isCurrentUser = currentUserId ? p.user_id === currentUserId : false;
+      
+      console.log(`Participant ${p.profile?.nickname} position:`, {
+        total_points: p.total_points,
+        map_position: p.map_position,
+        calculated_step: step,
+        pointsThreshold,
+        isCurrentUser
+      });
   
       return {
-        id: p.id,                                      // This is the DB row ID
-        user_id: p.user_id,                           // Add this explicitly
-        avatar_url: p.profile?.avatar_url || 'https://via.placeholder.com/36',
+        id: p.id,
+        user_id: p.user_id,
+        avatar_url: p.profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
         nickname: p.profile?.nickname || 'Unknown',
         currentStep: step,
-        isCurrentUser: p.user_id === currentUserId,   // Compare with user_id
+        isCurrentUser: isCurrentUser,
       };
     });
   };
@@ -425,9 +600,61 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
       year: 'numeric',
     });
   }
-  function formatTargetValue(value: number): string {
-    // If the numeric value is zero, display "Custom Target"
-    return value > 0 ? value.toString() : 'Custom Target';
+  function formatActivityTarget(activity: any): string {
+    // Get the target value and metric
+    const targetValue = activity.target_value;
+    const metric = activity.metric || '';
+    const useKilometers = settings?.useKilometers !== undefined ? settings.useKilometers : true;
+
+    // Set a default value if target value is missing or zero
+    if (!targetValue || targetValue <= 0) {
+      // Use a default value based on the activity type instead of "Custom Target"
+      switch(metric.toLowerCase()) {
+        case 'time': return '1 hour';
+        case 'distance_km': return useKilometers ? '1 km' : '0.6 mi';
+        case 'distance_miles': return useKilometers ? '1.6 km' : '1 mi';
+        case 'calories': return '100 cal';
+        case 'steps': return '1000 steps';
+        case 'count': return '10 reps';
+        default: return '1';
+      }
+    }
+    
+    // Format based on metric type
+    switch(metric.toLowerCase()) {
+      case 'time':
+        // For time, the target_value is stored in hours in the database
+        if (targetValue === 1) {
+          return '1 hour';
+        } else {
+          return `${targetValue} hours`;
+        }
+      case 'distance_km':
+        if (useKilometers) {
+          return `${targetValue} km`;
+        } else {
+          // Convert km to miles (1 km = 0.621371 miles)
+          const miles = (targetValue * 0.621371).toFixed(1);
+          return `${miles} mi`;
+        }
+      case 'distance_miles':
+        if (useKilometers) {
+          // Convert miles to km (1 mile = 1.60934 km)
+          const km = (targetValue * 1.60934).toFixed(1);
+          return `${km} km`;
+        } else {
+          return `${targetValue} mi`;
+        }
+      case 'calories':
+        return `${targetValue} cal`;
+      case 'steps':
+        return `${targetValue} steps`;
+      case 'count':
+        return `${targetValue} reps`;
+      default:
+        // If there's a target value but unknown/custom metric
+        return `${targetValue} ${metric || ''}`;
+    }
   }
   function getChallengeGradient() {
     if (!challenge) return CHALLENGE_TYPE_GRADIENTS.custom;
@@ -489,7 +716,7 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
           {/* Top row: back + title */}
           <View style={styles.headerRow}>
             <TouchableOpacity
-              onPress={() => router.back()}
+              onPress={() => router.push('/joinchallenges/challengesettings')} 
               style={styles.backButtonContainer}
             >
               <Ionicons name="chevron-back" size={26} color="#fff" />
@@ -499,7 +726,12 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
               {challenge.title}
             </Text>
 
-            <View style={{ width: 26 }} />
+            <TouchableOpacity
+              onPress={() => setShowInviteModal(true)} 
+              style={styles.inviteButtonHeader}
+            >
+              <Ionicons name="person-add" size={24} color="#fff" />
+            </TouchableOpacity>
           </View>
 
           {/* Sub row: type, creator, private/public */}
@@ -586,9 +818,14 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
                   </View>
                   <View style={styles.activityInfo}>
                     <Text style={styles.activityName}>{activity.activity_type}</Text>
-                     <Text style={styles.activitySubText}>
-  {formatTargetValue(activity.target_value)} • {timeframeLabel}
-   </Text>
+                    <View style={styles.activityMetricContainer}>
+                      <Text style={styles.activitySubText}>
+                        <Text style={{fontWeight: '600'}}>Target:</Text> {formatActivityTarget(activity)}
+                      </Text>
+                      <Text style={[styles.activitySubText, {marginLeft: 4}]}>
+                        <Text style={{fontWeight: '600'}}>Frequency:</Text> {activity.timeframe ? (activity.timeframe === 'day' ? 'Daily' : 'Weekly') : timeframeLabel}
+                      </Text>
+                    </View>
                   </View>
                   <View style={styles.activityPoints}>
                     <Text style={styles.pointsValue}>{activity.points}</Text>
@@ -638,7 +875,7 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
                 activeTab === 'map' && styles.activeTabText,
               ]}
             >
-              Map
+              {challenge?.challenge_type === 'survival' ? 'Arena' : 'Map'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -724,15 +961,56 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
         {/* Map Tab */}
         {activeTab === 'map' && (
   <View style={styles.mapSection}>
-    {raceParticipants.length > 0 && currentUserId ? (
-      <MultiAvatarRaceTrack
-        participants={raceParticipants}
-        containerHeight={height * 0.5}
-        showTitle={true}
-        onMoveParticipant={handleMoveParticipant}
-        challengeId={challenge_id as string}
-        key={`racetrack-${challenge_id}`} // Force remount when challenge changes
-      />
+    {raceParticipants.length > 0 ? (
+      challenge.challenge_type === 'survival' ? (
+        <View style={styles.arenaContainer}>
+          <Arena />
+        </View>
+      ) : (
+        <>
+          <MultiAvatarRaceTrack
+            participants={raceParticipants}
+            containerHeight={height * 0.5}
+            showTitle={true}
+            challengeId={challenge_id as string}
+            onMoveParticipant={handleMoveParticipant}
+            key={`racetrack-${challenge_id}-${participants.length}`} // Force remount when challenge or participants change
+          />
+          
+          {/* Checkpoint Progress for current user */}
+          {currentUserId && (
+            <>
+              {(() => {
+                // Find current user's participant data
+                const currentUserParticipant = participants.find(p => p.user_id === currentUserId);
+                
+                if (!currentUserParticipant) return null;
+                
+                // Get points threshold from challenge rules
+                const pointsThreshold = challenge?.rules?.pointsPerCheckpoint || 10;
+                
+                // Calculate current progress values
+                const totalPoints = currentUserParticipant.total_points || 0;
+                const checkpoint = Math.floor(totalPoints / pointsThreshold);
+                const previousCheckpointThreshold = checkpoint * pointsThreshold;
+                const nextCheckpointThreshold = (checkpoint + 1) * pointsThreshold;
+                
+                return (
+                  <View style={styles.checkpointProgressContainer}>
+                    <CheckpointProgress
+                      currentPoints={totalPoints}
+                      nextCheckpointThreshold={nextCheckpointThreshold}
+                      previousCheckpointThreshold={previousCheckpointThreshold}
+                      totalPointsAccumulated={totalPoints}
+                      checkpointLevel={checkpoint + 1}
+                    />
+                  </View>
+                );
+              })()}
+            </>
+          )}
+        </>
+      )
     ) : (
       <View style={styles.noParticipantsContainer}>
         <Text style={styles.noParticipantsText}>No participants to show on the map</Text>
@@ -756,10 +1034,29 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
         >
           <View style={styles.modalContainer}>
             <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Activities Info</Text>
+              <Text style={styles.modalTitle}>{challenge.challenge_type === 'race' ? 'Race Challenge' : 'Survival Challenge'}</Text>
               <Text style={styles.modalBodyText}>
-                This challenge includes multiple activities you can complete{' '}
-                {timeframeLabel.toLowerCase()} to earn points. Stay consistent and have fun!
+                {challenge.challenge_type === 'race' ? (
+                  <>
+                    <Text style={styles.modalBodyTextBold}>How Race Challenges Work:</Text>{'\n\n'}
+                    In a race challenge, participants compete to reach the finish line first by completing activities and earning points.{'\n\n'}
+                    • Each activity awards points when completed{'\n'}
+                    • Points move you forward on the race track{'\n'}
+                    • First to reach the end wins!{'\n\n'}
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.modalBodyTextBold}>How Survival Challenges Work:</Text>{'\n\n'}
+                    In a survival challenge, participants must stay active to remain in the game.{'\n\n'}
+                    • Complete activities daily to stay in the "safe zone"{'\n'}
+                    • Missing activities moves you toward elimination{'\n'}
+                    • Last person standing wins!{'\n\n'}
+                  </>
+                )}
+                <Text style={styles.modalBodyTextBold}>Activity Frequency: {timeframeLabel}</Text>{'\n'}
+                Activities must be completed {timeframeLabel.toLowerCase()} to earn points.{'\n\n'}
+                <Text style={styles.modalBodyTextBold}>Workout Targets:</Text>{'\n'}
+                Each activity has a target value (distance, time, etc.) that you need to reach to earn the listed points.
               </Text>
 
               <TouchableOpacity
@@ -772,6 +1069,133 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Invite Friends Modal */}
+      <Modal
+        visible={showInviteModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowInviteModal(false)}
+      >
+        <View style={styles.inviteModalContainer}>
+          <View style={styles.inviteModalHeader}>
+            <Text style={styles.inviteModalTitle}>Invite Friends</Text>
+            <TouchableOpacity onPress={() => setShowInviteModal(false)}>
+              <Ionicons name="close" size={24} color="#333" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.inviteModalContent}>
+            {friends.length > 0 ? (
+              <FlatList
+                data={friends}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.friendRow,
+                      selectedFriends.includes(item.id) && styles.selectedFriendRow,
+                    ]}
+                    onPress={() => {
+                      setSelectedFriends((prev) =>
+                        prev.includes(item.id)
+                          ? prev.filter((id) => id !== item.id)
+                          : [...prev, item.id]
+                      );
+                    }}
+                  >
+                    <Image
+                      source={{ 
+                        uri: item.avatar_url || 'https://ui-avatars.com/api/?name=User&background=random'
+                      }}
+                      style={styles.friendAvatar}
+                    />
+                    <Text style={styles.friendName}>{item.nickname || 'Unknown User'}</Text>
+                    {selectedFriends.includes(item.id) && (
+                      <Ionicons name="checkmark-circle" size={24} color="#4A90E2" />
+                    )}
+                  </TouchableOpacity>
+                )}
+              />
+            ) : (
+              <View style={styles.noFriendsContainer}>
+                <Ionicons name="people" size={48} color="#ccc" />
+                <Text style={styles.noFriendsText}>Loading friends list...</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.inviteModalFooter}>
+            <TouchableOpacity
+              style={[
+                styles.inviteModalButton,
+                (selectedFriends.length === 0 || inviteLoading) && styles.disabledButton,
+              ]}
+              disabled={selectedFriends.length === 0 || inviteLoading}
+              onPress={async () => {
+                if (selectedFriends.length === 0) return;
+                
+                setInviteLoading(true);
+                try {
+                  // Handle invite logic based on if creator or not
+                  const isCreator = challenge?.creator_id === currentUserId;
+                  
+                  for (const friendId of selectedFriends) {
+                    // If creator, directly add to challenge
+                    if (isCreator) {
+                      await supabase.from('challenge_participants').insert({
+                        challenge_id: challenge_id,
+                        user_id: friendId,
+                        status: 'active',
+                        joined_at: new Date().toISOString(),
+                      });
+                    } else {
+                      // If not creator, create invitation for creator to approve
+                      await supabase.from('challenge_invites').insert({
+                        challenge_id: challenge_id,
+                        sender_id: currentUserId,
+                        receiver_id: friendId,
+                        status: 'pending',
+                        created_at: new Date().toISOString(),
+                      });
+                    }
+                  }
+                  
+                  // Success toast or message
+                  alert(isCreator 
+                    ? "Friends added to challenge successfully!" 
+                    : "Invitations sent to the challenge creator for approval!"
+                  );
+                  
+                  // Refresh participants list
+                  await fetchParticipants();
+                  
+                } catch (err) {
+                  console.error('Error inviting friends:', err);
+                  alert('Failed to send invitations. Please try again.');
+                } finally {
+                  setInviteLoading(false);
+                  setShowInviteModal(false);
+                  setSelectedFriends([]);
+                }
+              }}
+            >
+              {inviteLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="paper-plane" size={18} color="#fff" style={{ marginRight: 8 }} />
+                  <Text style={styles.inviteModalButtonText}>
+                    {challenge?.creator_id === currentUserId 
+                      ? "Add to Challenge" 
+                      : "Send Invitations"}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -780,6 +1204,101 @@ const styles = StyleSheet.create({
   // Container & Scroll
   container: { flex: 1, backgroundColor: '#f8f9fa' },
   scrollContent: { paddingBottom: 16 },
+  // Invite Button in header
+  inviteButtonHeader: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Invite Friends Modal
+  inviteModalContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+    marginTop: 60,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 10,
+  },
+  inviteModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  inviteModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  inviteModalContent: {
+    flex: 1,
+    padding: 16,
+  },
+  friendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  selectedFriendRow: {
+    backgroundColor: 'rgba(74, 144, 226, 0.1)',
+  },
+  friendAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
+  },
+  friendName: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
+  },
+  noFriendsContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  noFriendsText: {
+    fontSize: 16,
+    color: '#999',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  inviteModalFooter: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
+  inviteModalButton: {
+    backgroundColor: '#4A90E2',
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  inviteModalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  disabledButton: {
+    backgroundColor: '#B0BEC5',
+    opacity: 0.8,
+  },
 
   // Loading / Error
   loadingContainer: {
@@ -864,8 +1383,22 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   activityInfo: { flex: 1 },
+  activityMetricContainer: { 
+    flexDirection: 'row', 
+    flexWrap: 'wrap',
+    marginTop: 4,
+    gap: 6,
+  },
   activityName: { fontSize: 15, fontWeight: '600', color: '#333' },
-  activitySubText: { fontSize: 12, color: '#666', marginTop: 2 },
+  activitySubText: { 
+    fontSize: 12, 
+    color: '#666', 
+    marginTop: 2, 
+    backgroundColor: 'rgba(0,0,0,0.05)', 
+    paddingHorizontal: 6, 
+    paddingVertical: 2, 
+    borderRadius: 4 
+  },
   activityPoints: { alignItems: 'center' },
   pointsValue: { fontSize: 16, fontWeight: 'bold', color: '#4A90E2' },
   pointsLabel: { fontSize: 10, color: '#666' },
@@ -890,6 +1423,13 @@ const styles = StyleSheet.create({
   // Map Section
   mapSection: {
     backgroundColor: '#fff', marginHorizontal: 16, marginTop: 12, borderRadius: 12, overflow: 'hidden',
+  },
+  arenaContainer: {
+    backgroundColor: '#1a1c23', padding: 20, alignItems: 'center', borderRadius: 12,
+  },
+  checkpointProgressContainer: {
+    padding: 16,
+    backgroundColor: '#fff', 
   },
 
   // Leaderboard
@@ -939,14 +1479,17 @@ const styles = StyleSheet.create({
     flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20,
   },
   modalContainer: {
-    width: '85%', maxWidth: 400, backgroundColor: '#fff', borderRadius: 16, padding: 20,
+    width: '90%', maxWidth: 450, backgroundColor: '#fff', borderRadius: 16, padding: 20,
   },
   modalContent: {},
   modalTitle: {
     fontSize: 18, fontWeight: '700', color: '#333', marginBottom: 16, textAlign: 'center',
   },
   modalBodyText: {
-    fontSize: 14, color: '#555', lineHeight: 20, marginBottom: 20, textAlign: 'center',
+    fontSize: 14, color: '#555', lineHeight: 20, marginBottom: 20, textAlign: 'left',
+  },
+  modalBodyTextBold: {
+    fontSize: 15, fontWeight: 'bold', color: '#333', 
   },
   modalCloseButton: {
     backgroundColor: '#4A90E2', paddingVertical: 10, borderRadius: 8, alignItems: 'center',

@@ -1,5 +1,3 @@
-// app/(tabs)/joinchallenges/joincreate.tsx
-
 import React, { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
@@ -19,6 +17,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 import SharedLayout from '../../../components/SharedLayout';
 import { supabase } from '../../../lib/supabase';
+import { theme } from '../../../lib/theme';
 
 import FilterModal from './challengesettingscomponents/FilterModal';
 import FeaturedChallenges from './challengesettingscomponents/FeaturedChallenges';
@@ -30,20 +29,19 @@ type ChallengeTab = 'active' | 'upcoming';
 type FilterOption = 'all' | 'race' | 'survival' | 'streak' | 'custom';
 
 export default function JoinCreateScreen() {
-    return (
-      <>
-        <Stack.Screen
-          options={{
-            headerShown: false, // Hides the top bar
-          }}
-        />
-        <JoinCreateContent />
-      </>
-    );
-  }
+  return (
+    <>
+      <Stack.Screen
+        options={{
+          headerShown: false, // Hides the top bar
+        }}
+      />
+      <JoinCreateContent />
+    </>
+  );
+}
 
 function JoinCreateContent() {
-  // 1) Define your filterOptions array
   const filterOptions: FilterOption[] = ['all', 'race', 'survival', 'streak', 'custom'];
 
   const [listTab, setListTab] = useState<ChallengeTab>('active');
@@ -74,7 +72,7 @@ function JoinCreateContent() {
     try {
       const now = new Date().toISOString();
 
-      // Active
+      // Active challenges
       const { data: active, error: activeError } = await supabase
         .from('challenges')
         .select(`
@@ -89,7 +87,7 @@ function JoinCreateContent() {
       if (activeError) throw activeError;
       setActiveChallenges(active || []);
 
-      // Upcoming
+      // Upcoming challenges
       const { data: upcoming, error: upcomingError } = await supabase
         .from('challenges')
         .select(`
@@ -103,7 +101,7 @@ function JoinCreateContent() {
       if (upcomingError) throw upcomingError;
       setUpcomingChallenges(upcoming || []);
 
-      // Featured => union active + upcoming, sort by participant_count desc
+      // Featured challenges: union of active + upcoming sorted by participant count
       const allFeatured = [...(active || []), ...(upcoming || [])];
       const sortedFeatured = allFeatured.sort((a, b) => {
         const countA = a.participant_count?.[0]?.count || 0;
@@ -132,54 +130,55 @@ function JoinCreateContent() {
     if (type === 'active') {
       return (
         <View style={styles.emptyState}>
-          <MaterialCommunityIcons name="run-fast" size={70} color="#ddd" />
-          <Text style={styles.emptyTitle}>No active public challenges</Text>
-          <Text style={styles.emptyText}>Check back later or create your own!</Text>
+          <MaterialCommunityIcons name="run-fast" size={70} color={theme.colors.textSecondary} />
+          <Text style={styles.emptyTitle} adjustsFontSizeToFit>
+            No active public challenges
+          </Text>
+          <Text style={styles.emptyText} adjustsFontSizeToFit>
+            Check back later or create your own!
+          </Text>
         </View>
       );
     }
-    // upcoming
     return (
       <View style={styles.emptyState}>
-        <MaterialCommunityIcons name="timer-outline" size={70} color="#ddd" />
-        <Text style={styles.emptyTitle}>No upcoming public challenges</Text>
-        <Text style={styles.emptyText}>Nothing scheduled yet, create your own!</Text>
+        <MaterialCommunityIcons name="timer-outline" size={70} color={theme.colors.textSecondary} />
+        <Text style={styles.emptyTitle} adjustsFontSizeToFit>
+          No upcoming public challenges
+        </Text>
+        <Text style={styles.emptyText} adjustsFontSizeToFit>
+          Nothing scheduled yet, create your own!
+        </Text>
       </View>
     );
   };
 
   return (
     <SharedLayout style={styles.container}>
-<Animated.View style={[styles.header, { transform: [{ translateY }] }]}>
-  {/* Left side: custom back button + title */}
-  <View style={styles.leftHeader}>
-  <TouchableOpacity 
-  style={styles.backButton} 
-  onPress={() => {
-    // Always navigate to challenges section when back is pressed
-    router.replace('/(tabs)/joinchallenges/challengesettings');
-  }}
->
-  <Ionicons name="chevron-back" size={24} color="#007AFF" />
-</TouchableOpacity>
-
-    <Text style={styles.title}>Join / Create</Text>
-  </View>
-
-  {/* Right side: +Create button */}
-  <TouchableOpacity
-    style={styles.createButton}
-    onPress={() => router.push('/joinchallenges/create')}
-  >
-    <LinearGradient
-      colors={['#FF416C', '#FF4B2B']}
-      style={styles.createButtonGradient}
-    >
-      <Ionicons name="add-circle-outline" size={20} color="#fff" />
-      <Text style={styles.createButtonText}>Create</Text>
-    </LinearGradient>
-  </TouchableOpacity>
-</Animated.View>
+      <Animated.View style={[styles.header, { transform: [{ translateY }] }]}>
+        <View style={styles.leftHeader}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.replace('/(tabs)/joinchallenges/challengesettings')}
+          >
+            <Ionicons name="chevron-back" size={24} color={theme.colors.primary} />
+          </TouchableOpacity>
+          <Text style={styles.title} adjustsFontSizeToFit>
+            Join / Create
+          </Text>
+        </View>
+        <TouchableOpacity style={styles.createButton} onPress={() => router.push('/joinchallenges/create')}>
+          <LinearGradient
+            colors={theme.colors.gradientButton}
+            style={styles.createButtonGradient}
+          >
+            <Ionicons name="add-circle-outline" size={20} color="#fff" />
+            <Text style={styles.createButtonText} adjustsFontSizeToFit>
+              Create
+            </Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </Animated.View>
 
       <ScrollView
         style={styles.scrollContent}
@@ -188,13 +187,11 @@ function JoinCreateContent() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
         scrollEventThrottle={16}
         onScroll={(event) => {
-          Animated.event(
-            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-            { useNativeDriver: false }
-          )(event);
+          Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+            useNativeDriver: false,
+          })(event);
         }}
       >
-        {/* Featured */}
         {featuredChallenges.length > 0 && (
           <FeaturedChallenges
             featuredChallenges={featuredChallenges}
@@ -202,13 +199,12 @@ function JoinCreateContent() {
           />
         )}
 
-        {/* Toggle row => 'active' or 'upcoming' */}
         <View style={styles.toggleContainer}>
           <TouchableOpacity
             style={[styles.toggleButton, listTab === 'active' && styles.toggleButtonActive]}
             onPress={() => setListTab('active')}
           >
-            <Text style={[styles.toggleButtonText, listTab === 'active' && styles.toggleButtonTextActive]}>
+            <Text style={[styles.toggleButtonText, listTab === 'active' && styles.toggleButtonTextActive]} adjustsFontSizeToFit>
               Active
             </Text>
           </TouchableOpacity>
@@ -216,16 +212,12 @@ function JoinCreateContent() {
             style={[styles.toggleButton, listTab === 'upcoming' && styles.toggleButtonActive]}
             onPress={() => setListTab('upcoming')}
           >
-            <Text style={[styles.toggleButtonText, listTab === 'upcoming' && styles.toggleButtonTextActive]}>
+            <Text style={[styles.toggleButtonText, listTab === 'upcoming' && styles.toggleButtonTextActive]} adjustsFontSizeToFit>
               Upcoming
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Search + Filter row */}
-
-
-        {/* Bottom list => either active or upcoming */}
         {listTab === 'active' ? (
           <ChallengesList
             tabType="active"
@@ -258,28 +250,24 @@ function JoinCreateContent() {
           />
         )}
 
-        {/* bottom create button */}
-        <View style={{ marginHorizontal: 20, marginVertical: 30 }}>
-          <TouchableOpacity
-            style={styles.bottomCreateButton}
-            onPress={() => router.push('/joinchallenges/create')}
-          >
+        <View style={styles.bottomCreateContainer}>
+          <TouchableOpacity style={styles.bottomCreateButton} onPress={() => router.push('/joinchallenges/create')}>
             <LinearGradient
-              colors={['#FF416C', '#FF4B2B']}
+              colors={theme.colors.gradientButton}
               style={styles.bottomCreateGradient}
             >
               <Ionicons name="add-circle-outline" size={20} color="#fff" />
-              <Text style={styles.bottomCreateText}>Create a Challenge</Text>
+              <Text style={styles.bottomCreateText} adjustsFontSizeToFit>
+                Create a Challenge
+              </Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
       </ScrollView>
 
-      {/* Filter Modal */}
       <FilterModal
         visible={showFilterModal}
         onClose={() => setShowFilterModal(false)}
-        // 2) Pass filterOptions array
         filterOptions={filterOptions}
         activeFilter={activeFilter}
         onChangeFilter={(f) => {
@@ -292,16 +280,18 @@ function JoinCreateContent() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between', // Keep the create button on the far right
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 12 : 16,
-    paddingBottom: 16,
-    backgroundColor: '#fff',
+    paddingHorizontal: theme.spacing.medium,
+    paddingTop: Platform.OS === 'ios' ? theme.spacing.medium : theme.spacing.medium,
+    paddingBottom: theme.spacing.medium,
+    backgroundColor: theme.colors.background,
     zIndex: 10,
   },
   leftHeader: {
@@ -309,136 +299,103 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   backButton: {
-    marginRight: 10,
+    marginRight: theme.spacing.small,
   },
   title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: theme.typography.heading.fontSize,
+    fontWeight: theme.typography.heading.fontWeight,
+    color: theme.colors.textPrimary,
   },
   createButton: {
-    borderRadius: 20,
+    borderRadius: theme.radius.button,
     overflow: 'hidden',
   },
   createButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+    paddingVertical: theme.spacing.small,
+    paddingHorizontal: theme.spacing.medium,
+    borderRadius: theme.radius.button,
   },
   createButtonText: {
     color: '#fff',
     fontWeight: '600',
-    fontSize: 16,
-    marginLeft: 6,
+    fontSize: theme.typography.body.fontSize,
+    marginLeft: theme.spacing.small,
   },
-
-  scrollContent: { flex: 1 },
-  scrollContentContainer: { paddingBottom: 60 },
-
+  scrollContent: {
+    flex: 1,
+  },
+  scrollContentContainer: {
+    paddingBottom: theme.spacing.large,
+  },
   toggleContainer: {
     flexDirection: 'row',
     alignSelf: 'center',
-    marginTop: 10,
-    borderRadius: 12,
+    marginTop: theme.spacing.small,
+    borderRadius: theme.radius.card,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: 'rgba(0,0,0,0.1)',
   },
   toggleButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: '#f8f9fa',
+    paddingHorizontal: theme.spacing.medium,
+    paddingVertical: theme.spacing.small,
+    backgroundColor: theme.colors.background,
   },
   toggleButtonActive: {
-    backgroundColor: '#4A90E2',
+    backgroundColor: theme.colors.primary,
   },
   toggleButtonText: {
-    fontSize: 14,
+    fontSize: theme.typography.body.fontSize,
     fontWeight: '600',
-    color: '#666',
+    color: theme.colors.textSecondary,
   },
   toggleButtonTextActive: {
     color: '#fff',
   },
-
-  searchFilterSection: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginTop: 16,
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  searchContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginRight: 10,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: '#333',
-    marginLeft: 8,
-    paddingVertical: 2,
-  },
-  filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#4A90E2',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  filterButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 6,
-    textTransform: 'capitalize',
-  },
-
   emptyState: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingVertical: theme.spacing.large,
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginTop: 16,
-    marginBottom: 8,
+    fontSize: theme.typography.heading.fontSize,
+    fontWeight: theme.typography.heading.fontWeight,
+    color: theme.colors.textPrimary,
+    marginTop: theme.spacing.medium,
+    marginBottom: theme.spacing.small,
+    textAlign: 'center',
   },
   emptyText: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: theme.typography.body.fontSize,
+    color: theme.colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 20,
-    marginHorizontal: 40,
+    lineHeight: theme.typography.body.fontSize * 1.5,
+    marginHorizontal: theme.spacing.medium,
   },
-
+  bottomCreateContainer: {
+    marginHorizontal: theme.spacing.medium,
+    marginVertical: theme.spacing.large,
+  },
   bottomCreateButton: {
-    borderRadius: 16,
+    borderRadius: theme.radius.card,
     overflow: 'hidden',
   },
   bottomCreateGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 16,
     justifyContent: 'center',
+    paddingVertical: theme.spacing.medium,
+    paddingHorizontal: theme.spacing.medium,
+    borderRadius: theme.radius.card,
   },
   bottomCreateText: {
-    fontSize: 16,
+    fontSize: theme.typography.body.fontSize,
     fontWeight: '600',
     color: '#fff',
-    marginLeft: 8,
+    marginLeft: theme.spacing.small,
   },
 });
+
+export default JoinCreateScreen;

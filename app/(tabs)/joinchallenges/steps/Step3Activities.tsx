@@ -18,9 +18,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Picker } from '@react-native-picker/picker';
+import { useUser } from '../../../../components/UserContext';
 
 // Instead of storing "0 hours," we keep numeric threshold + a separate metric
-export type MetricType = 'steps' | 'distance_km' | 'distance_miles' | 'time' | 'calories';
+export type MetricType = 'steps' | 'distance_km' | 'distance_miles' | 'time' | 'calories' | 'count';
 
 export interface ActivityRule {
   activityType: string;
@@ -87,27 +88,30 @@ const ACTIVITY_ICONS: { [key: string]: string } = {
   Custom: 'star',
 };
 
-const METRIC_OPTIONS = [
+// The metric options will be generated dynamically based on user preferences
+const getMetricOptions = (useKilometers: boolean) => [
   { label: 'Time (hours)', value: 'time' },
-  { label: 'Steps (count)', value: 'steps' },
-  { label: 'Distance (km)', value: 'distance_km' },
-  { label: 'Distance (miles)', value: 'distance_miles' },
-  { label: 'Calories (count)', value: 'calories' },
+  { label: 'Steps', value: 'steps' },
+  { label: useKilometers ? 'Distance (km)' : 'Distance (miles)', value: useKilometers ? 'distance_km' : 'distance_miles' },
+  { label: 'Calories', value: 'calories' },
+  { label: 'Quantity', value: 'count' },
 ];
 
 // For placeholders in the UI
-function getMetricLabel(metric: MetricType): string {
+function getMetricLabel(metric: MetricType, useKilometers: boolean = true): string {
   switch (metric) {
     case 'steps':
       return 'Steps';
     case 'distance_km':
-      return 'Kilometers';
+      return useKilometers ? 'Kilometers' : 'Miles';
     case 'distance_miles':
-      return 'Miles';
+      return useKilometers ? 'Kilometers' : 'Miles';
     case 'time':
       return 'Hours';
     case 'calories':
       return 'Calories';
+    case 'count':
+      return 'Quantity';
     default:
       return 'Units';
   }
@@ -124,6 +128,7 @@ export default function Step3Activities({
   setCustomActivity,
   handleAddCustomActivity,
 }: Step3ActivitiesProps) {
+  const { settings } = useUser();
   const [expandedActivity, setExpandedActivity] = useState<number | null>(null);
   const [initializedActivities, setInitializedActivities] = useState(false);
 
@@ -228,10 +233,11 @@ export default function Step3Activities({
                     <TouchableOpacity
                       style={localStyles.pickerButton}
                       onPress={() => {
+                        const useKilometers = settings?.useKilometers !== undefined ? settings.useKilometers : true;
                         Alert.alert(
                           'Select Metric',
                           'Please select a metric type:',
-                          METRIC_OPTIONS.map(option => ({
+                          getMetricOptions(useKilometers).map(option => ({
                             text: option.label,
                             onPress: () => updateActivityRule(index, 'metric', option.value),
                           }))
@@ -239,7 +245,8 @@ export default function Step3Activities({
                       }}
                     >
                       <Text style={localStyles.pickerButtonText}>
-                        {METRIC_OPTIONS.find(opt => opt.value === item.metric)?.label || 'Select Metric'}
+                        {getMetricOptions(settings?.useKilometers !== undefined ? settings.useKilometers : true)
+                          .find(opt => opt.value === item.metric)?.label || 'Select Metric'}
                       </Text>
                       <Ionicons name="chevron-down" size={18} color="#fff" />
                     </TouchableOpacity>
@@ -251,14 +258,15 @@ export default function Step3Activities({
                       dropdownIconColor="#fff"
                       mode="dropdown"
                     >
-                      {METRIC_OPTIONS.map((opt) => (
-                        <Picker.Item
-                          key={opt.value}
-                          label={opt.label}
-                          value={opt.value}
-                          color="#333"
-                        />
-                      ))}
+                      {getMetricOptions(settings?.useKilometers !== undefined ? settings.useKilometers : true)
+                        .map((opt) => (
+                          <Picker.Item
+                            key={opt.value}
+                            label={opt.label}
+                            value={opt.value}
+                            color="#333"
+                          />
+                        ))}
                     </Picker>
                   )}
                 </View>
@@ -269,7 +277,7 @@ export default function Step3Activities({
                 <Text style={localStyles.settingLabel}>Target:</Text>
                 <TextInput
                   style={localStyles.settingInput}
-                  placeholder={`Enter target in ${getMetricLabel(item.metric)}`}
+                  placeholder={`Enter target in ${getMetricLabel(item.metric, settings?.useKilometers !== undefined ? settings.useKilometers : true)}`}
                   placeholderTextColor="rgba(255,255,255,0.7)"
                   value={item.targetValue ? item.targetValue.toString() : ''}
                   onChangeText={(text) => {
@@ -440,10 +448,11 @@ export default function Step3Activities({
                     <TouchableOpacity
                       style={localStyles.modalPickerButton}
                       onPress={() => {
+                        const useKilometers = settings?.useKilometers !== undefined ? settings.useKilometers : true;
                         Alert.alert(
                           'Select Metric',
                           'Choose a metric type',
-                          METRIC_OPTIONS.map(option => ({
+                          getMetricOptions(useKilometers).map(option => ({
                             text: option.label,
                             onPress: () =>
                               setCustomActivity({
@@ -455,7 +464,8 @@ export default function Step3Activities({
                       }}
                     >
                       <Text style={localStyles.modalPickerButtonText}>
-                        {METRIC_OPTIONS.find(opt => opt.value === customActivity.metric)?.label ||
+                        {getMetricOptions(settings?.useKilometers !== undefined ? settings.useKilometers : true)
+                          .find(opt => opt.value === customActivity.metric)?.label ||
                           'Select Metric'}
                       </Text>
                       <Ionicons name="chevron-down" size={18} color="#666" />
@@ -472,7 +482,7 @@ export default function Step3Activities({
                       style={localStyles.modalPicker}
                       mode="dropdown"
                     >
-                      {METRIC_OPTIONS.map((opt) => (
+                      {getMetricOptions(settings?.useKilometers !== undefined ? settings.useKilometers : true).map((opt) => (
                         <Picker.Item
                           key={opt.value}
                           label={opt.label}
@@ -488,7 +498,7 @@ export default function Step3Activities({
                 <Text style={localStyles.modalInputLabel}>Target Value</Text>
                 <TextInput
                   style={localStyles.modalInput}
-                  placeholder={`Enter target in ${getMetricLabel(customActivity.metric)}`}
+                  placeholder={`Enter target in ${getMetricLabel(customActivity.metric, settings?.useKilometers !== undefined ? settings.useKilometers : true)}`}
                   placeholderTextColor="#999"
                   value={customActivity.targetValue}
                   onChangeText={(text) => {

@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-export const VALID_CHALLENGE_TYPES = ['race', 'survival', 'streak', 'custom'] as const;
+export const VALID_CHALLENGE_TYPES = ['race', 'survival'] as const;
 export type ChallengeType = typeof VALID_CHALLENGE_TYPES[number];
 
 interface SelectedActivity {
@@ -45,6 +45,82 @@ export async function createChallengeInSupabase({
   if (!userId) throw new Error('User ID is required');
   if (!name || name.trim().length === 0) throw new Error('Challenge name is required');
 
+  // Create base rules object
+  let challengeRules = {
+    challenge_mode: challengeType,
+    allowed_activities: selectedActivities.map((act) => act.activityType),
+    points_per_activity: selectedActivities.reduce((acc, act) => {
+      acc[act.activityType] = act.points;
+      return acc;
+    }, {} as Record<string, number>),
+    metrics: selectedActivities.reduce((acc, act) => {
+      acc[act.activityType] = act.metric;
+      return acc;
+    }, {} as Record<string, string>),
+  };
+  
+  // For survival challenges, add default survival settings
+  if (challengeType === 'survival') {
+    const { DEFAULT_SURVIVAL_SETTINGS } = await import('./survivalUtils');
+    
+    // Determine elimination threshold based on duration
+    let eliminationThreshold = 3;  // Default
+    
+    if (startDate && endDate) {
+      const totalDays = Math.ceil(
+        (endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000)
+      );
+      
+      // Adjust elimination threshold based on challenge length
+      if (totalDays <= 3) {
+        eliminationThreshold = 1;  // Ultra-short challenges
+      } else if (totalDays <= 10) {
+        eliminationThreshold = 2;  // Short challenges
+      }
+      // Else keep default of 3
+    }
+    
+    // Create survival settings with adjusted elimination threshold
+    challengeRules = {
+      ...challengeRules,
+      survival_settings: {
+        ...DEFAULT_SURVIVAL_SETTINGS,
+        elimination_threshold: eliminationThreshold
+      }
+    };
+  };
+  
+  // For race challenges, add checkpoint calculations
+  if (challengeType === 'race') {
+    // Calculate duration in days
+    const effectiveEndDate = isOpenEnded 
+      ? new Date(startDate!.getTime() + 30 * 24 * 60 * 60 * 1000) // Default 30 days for open-ended
+      : endDate;
+    
+    if (startDate) {
+      // Calculate daily points potential
+      const dailyPoints = selectedActivities.reduce((sum, act) => sum + act.points, 0);
+      
+      // Calculate duration
+      const durationDays = Math.ceil(
+        (effectiveEndDate!.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000)
+      );
+      
+      // Total expected points and threshold
+      const totalExpectedPoints = dailyPoints * durationDays;
+      const TOTAL_CHECKPOINTS = 100;
+      const pointsPerCheckpoint = Math.max(1, Math.ceil(totalExpectedPoints / TOTAL_CHECKPOINTS));
+      
+      // Add to rules
+      challengeRules = {
+        ...challengeRules,
+        totalCheckpoints: TOTAL_CHECKPOINTS,
+        pointsPerCheckpoint,
+        estimatedTotalPoints: totalExpectedPoints,
+      };
+    }
+  }
+
   const challengeData = {
     creator_id: userId,
     challenge_type: challengeType as ChallengeType,
@@ -54,18 +130,7 @@ export async function createChallengeInSupabase({
     end_date: isOpenEnded ? null : (endDate ? endDate.toISOString() : null),
     status: 'active' as const,
     is_private: isPrivate,
-    rules: {
-      challenge_mode: challengeType,
-      allowed_activities: selectedActivities.map((act) => act.activityType),
-      points_per_activity: selectedActivities.reduce((acc, act) => {
-        acc[act.activityType] = act.points;
-        return acc;
-      }, {} as Record<string, number>),
-      metrics: selectedActivities.reduce((acc, act) => {
-        acc[act.activityType] = act.metric;
-        return acc;
-      }, {} as Record<string, string>),
-    },
+    rules: challengeRules,
   };
 
   const { data: createdChallenge, error: challengeError } = await supabase
@@ -91,13 +156,32 @@ export async function createChallengeInSupabase({
     if (activitiesError) throw activitiesError;
   }
 
+  // Prepare participant data - add survival-specific fields if needed
+  let participantData = {
+    challenge_id: createdChallenge.id,
+    user_id: userId,
+    status: 'active',
+  };
+  
+  // For survival challenges, initialize survival-specific fields
+  if (challengeType === 'survival') {
+    const { initializeParticipant } = await import('./survivalUtils');
+    const survivalData = initializeParticipant(userId, createdChallenge.id);
+    
+    // Merge the survival-specific fields into the participant data
+    participantData = {
+      ...participantData,
+      lives: survivalData.lives,
+      days_in_danger: survivalData.days_in_danger,
+      distance_from_center: survivalData.distance_from_center,
+      angle: survivalData.angle,
+      is_eliminated: survivalData.is_eliminated,
+    };
+  }
+  
   const { error: participantError } = await supabase
     .from('challenge_participants')
-    .insert({
-      challenge_id: createdChallenge.id,
-      user_id: userId,
-      status: 'active',
-    });
+    .insert(participantData);
   if (participantError) throw participantError;
 
   return createdChallenge;

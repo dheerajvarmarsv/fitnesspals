@@ -1,10 +1,10 @@
 import React, { useEffect } from 'react';
 import { View, StyleSheet, SafeAreaView, ScrollView, Platform, TouchableOpacity, Text } from 'react-native';
-import { Arena } from '../../components/Arena';
-import { ArenaControls } from '../../components/ArenaControls';
-import { ArenaHeader } from '../../components/ArenaHeader';
+import { Arena } from '../components/Arena';
+import { ArenaControls } from '../components/ArenaControls';
+import { ArenaHeader } from '../components/ArenaHeader';
 import { StatusBar } from 'expo-status-bar';
-import { useArenaStore } from '../../lib/arenaStore';
+import { useArenaStore } from '../lib/arenaStore';
 import { Info } from 'lucide-react-native';
 
 export default function ArenaScreen() {

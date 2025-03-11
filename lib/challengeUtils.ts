@@ -1,5 +1,3 @@
-// lib/challengeUtils.ts
-
 import { supabase } from './supabase';
 
 /**
@@ -137,7 +135,7 @@ export async function saveUserActivity(
   const insertData: any = {
     user_id: userId,
     activity_type: activityType,
-    source: 'manual',
+    source: 'manual', // Default to manual for user-entered activities
     created_at: new Date().toISOString(),
     notes,
     metric: activityData.metric,
@@ -186,6 +184,40 @@ export async function saveUserActivity(
 }
 
 /**
+ * Calculate points threshold for challenge checkpoints
+ * @param activities Selected activities for the challenge
+ * @param startDate Challenge start date
+ * @param endDate Challenge end date (or null if open-ended)
+ * @param totalCheckpoints Total number of checkpoints on track
+ * @returns Points needed per checkpoint (minimum 1)
+ */
+export function calculatePointsThreshold(
+  activities: any[],
+  startDate: Date,
+  endDate: Date | null,
+  totalCheckpoints: number = 100
+): number {
+  // For open-ended challenges, use 30 days as default
+  const endDateValue = endDate || new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+  
+  // Calculate challenge duration in days
+  const durationDays = Math.ceil(
+    (endDateValue.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000)
+  );
+  
+  // Estimate daily points from selected activities
+  const dailyPoints = activities
+    .filter(act => act.isSelected || act.points) // Support both formats
+    .reduce((sum, act) => sum + (act.points || 0), 0);
+  
+  // Calculate total expected points
+  const totalExpectedPoints = dailyPoints * durationDays;
+  
+  // Points needed per checkpoint (minimum 1)
+  return Math.max(1, Math.ceil(totalExpectedPoints / totalCheckpoints));
+}
+
+/**
  * Recalculate points in all relevant challenges for activities, considering aggregation
  * by timeframe (daily/weekly) and preventing duplicate point awards.
  */
@@ -226,6 +258,12 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
         id,
         challenge_id,
         total_points,
+        map_position,
+        distance_from_center,
+        angle,
+        lives,
+        days_in_danger,
+        is_eliminated,
         current_streak,
         longest_streak,
         last_awarded_day,
@@ -233,6 +271,8 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
         challenges(
           id,
           challenge_type,
+          rules,
+          survival_settings,
           challenge_activities(
             activity_type,
             metric,
@@ -334,7 +374,7 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
         // Convert threshold for time or distance if needed
         let thresholdValue = matchingActivity.target_value;
         if (matchingActivity.metric === 'time') {
-          thresholdValue = thresholdValue * 60; // if target_value was in hours
+          thresholdValue = thresholdValue * 60; // Convert hours to minutes for internal calculations
         } else if (matchingActivity.metric === 'distance_miles') {
           thresholdValue = thresholdValue / 0.621371; // convert miles to km
         }
@@ -347,34 +387,221 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
           points: matchingActivity.points,
         });
 
-        // If user meets/exceeds threshold, award points
-        if (aggregatedValue >= thresholdValue) {
-          const pointsEarned = matchingActivity.points;
-
+        // Calculate the base points that could be earned
+        const pointsEarned = matchingActivity.points;
+        const currentPoints = participation.total_points || 0;
+        
+        // Calculate points based on the aggregated value's percentage of the threshold
+        const percentComplete = Math.min(1, aggregatedValue / thresholdValue);
+        // Calculate actual points earned for this activity based on percentage completion
+        // This ensures partial progress is properly tracked
+        const earnedPointsForTimeframe = Math.max(0, Math.floor(percentComplete * pointsEarned));
+        
+        // Initialize cumulative points for the timeframe
+        let cumulativePoints = earnedPointsForTimeframe;
+        
+        // Handle partial point accumulation from previous days/weeks in the same timeframe
+        if (timeframe === 'day') {
+          // If it's a new day and we have partial points from previous days
+          if (!participation.last_awarded_day ||
+              new Date(participation.last_awarded_day).toDateString() !== today.toDateString()) {
+            // Add the partial points from previous days (stored in total_points)
+            cumulativePoints += currentPoints;
+          }
+        } else if (timeframe === 'week') {
+          // If it's a new week and we have partial points from previous weeks
+          if (!participation.last_awarded_week || 
+              new Date(participation.last_awarded_week) < startOfWeek) {
+            // Add the partial points from previous weeks (stored in total_points)
+            cumulativePoints += currentPoints;
+          }
+        }
+        
+        // Cap points at target_value if user exceeds the threshold
+        // This implements the rule that users can't earn more than target_value per timeframe
+        const targetPoints = matchingActivity.points; // Max points per timeframe
+        const cappedPointsForTimeframe = Math.min(cumulativePoints, targetPoints);
+        
+        console.log('Activity points calculation:', {
+          activityType: activity.activity_type,
+          metric: activity.metric,
+          aggregatedValue,
+          thresholdValue, 
+          percentComplete,
+          earnedPointsForTimeframe,
+          currentPoints,
+          cumulativePoints,
+          targetPoints,
+          cappedPointsForTimeframe
+        });
+        
+        // Determine if we should award points
+        let newTotalPoints = currentPoints;
+        
+        // If there are points to award (either partial or full)
+        if (earnedPointsForTimeframe > 0) {
+          // If we've reached or exceeded the target, award full points for the timeframe
+          if (cumulativePoints >= targetPoints) {
+            newTotalPoints = cappedPointsForTimeframe;
+          } 
+          // Otherwise, award partial points
+          else {
+            newTotalPoints = cumulativePoints;
+          }
+          
           console.log('Before update:', {
             participationId: participation.id,
             currentPoints: participation.total_points,
-            pointsToAdd: pointsEarned,
-            expectedNewTotal: (participation.total_points || 0) + pointsEarned,
+            aggregatedValue,
+            thresholdValue,
+            earnedPointsForTimeframe,
+            cumulativePoints,
+            newTotalPoints,
           });
 
           // Update the participant record
           const updateData: any = {
-            total_points: (participation.total_points || 0) + pointsEarned,
+            total_points: newTotalPoints,
             last_activity_date: new Date().toISOString(),
           };
+          
+          // Only update the last_awarded fields if we've reached or exceeded the target
+          // This ensures we only mark a timeframe as "complete" when the user earns full points
+          if (cumulativePoints >= targetPoints) {
+            if (timeframe === 'day') {
+              updateData.last_awarded_day = todayDate; // store date only
+              console.log('Daily target reached, marking day as complete');
+            } else if (timeframe === 'week') {
+              updateData.last_awarded_week = todayDate; // store date only
+              console.log('Weekly target reached, marking week as complete');
+            }
+          } else {
+            console.log(`Partial progress for ${timeframe}: ${cumulativePoints}/${targetPoints} points`);
+          }
 
-          if (timeframe === 'day') {
-            updateData.last_awarded_day = todayDate; // store date only
-          } else if (timeframe === 'week') {
-            updateData.last_awarded_week = todayDate; // store date only
+          // For race challenges, calculate new map position
+          if (challenge.challenge_type === 'race') {
+            // Get points threshold from challenge rules
+            const pointsThreshold = challenge.rules?.pointsPerCheckpoint || 10;
+            const maxCheckpoints = challenge.rules?.totalCheckpoints || 100;
+            
+            // Log accumulated points and timeframe
+            console.log('Calculating race position with partial points:', {
+              earnedPointsForTimeframe,
+              cumulativePoints,
+              targetPoints,
+              currentPoints,
+              newTotalPoints,
+              timeframe
+            });
+            
+            // Calculate position based on cumulative points
+            // For checkpoint advancement, we use the accumulated points (which may be partial)
+            const checkpointsCompleted = Math.floor(newTotalPoints / pointsThreshold);
+            const finalPosition = Math.min(checkpointsCompleted, maxCheckpoints - 1);
+            
+            // Add to update data
+            updateData.map_position = finalPosition;
+            
+            console.log('Updating race position:', {
+              oldPosition: participation.map_position,
+              newPosition: finalPosition,
+              pointsThreshold,
+              totalPoints: newTotalPoints,
+              checkpointsCompleted,
+              challenge_type: challenge.challenge_type
+            });
+          } 
+          // For survival challenges, update position in the arena
+          else if (challenge.challenge_type === 'survival') {
+            try {
+              // Get the challenge participant's current survival state
+              const { data: survivalData, error: survivalError } = await supabase
+                .from('challenge_participants')
+                .select('distance_from_center')
+                .eq('id', participation.id)
+                .single();
+              
+              if (survivalError) throw survivalError;
+              
+              // Import the calculations from survivalUtils
+              const { calculateNewDistance } = await import('./survivalUtils');
+              
+              // Determine the maximum possible points for this activity
+              const maxPossiblePoints = matchingActivity.points || 10;
+              
+              // Use the current distance from center (or default if not set)
+              const currentDistance = survivalData?.distance_from_center || 0.8;
+              
+              // Get the survival settings from the challenge or use defaults
+              const survivalSettings = challenge.rules?.survival_settings;
+              
+              // Calculate total days to determine elimination threshold if not already specified
+              if (!survivalSettings?.elimination_threshold) {
+                // Get start/end dates to calculate duration
+                const { data: challengeDates, error: datesError } = await supabase
+                  .from('challenges')
+                  .select('start_date, end_date')
+                  .eq('id', participation.challenge_id)
+                  .single();
+                  
+                if (!datesError && challengeDates) {
+                  const startDate = new Date(challengeDates.start_date);
+                  const endDate = challengeDates.end_date ? new Date(challengeDates.end_date) : new Date(startDate);
+                  
+                  // Default duration if open-ended (30 days)
+                  if (!challengeDates.end_date) {
+                    endDate.setDate(startDate.getDate() + 30);
+                  }
+                  
+                  const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+                  
+                  // Determine elimination threshold based on challenge length
+                  let eliminationThreshold = 3; // Default
+                  
+                  if (totalDays <= 3) {
+                    eliminationThreshold = 1; // Ultra-short challenges
+                  } else if (totalDays <= 10) {
+                    eliminationThreshold = 2; // Short challenges
+                  }
+                  
+                  // Add elimination threshold to survival settings
+                  if (survivalSettings) {
+                    survivalSettings.elimination_threshold = eliminationThreshold;
+                  }
+                }
+              }
+              
+              // Calculate the new distance based on points earned
+              const newDistance = calculateNewDistance(
+                currentDistance,
+                pointsEarned, 
+                maxPossiblePoints, 
+                survivalSettings
+              );
+              
+              // Add to update data
+              updateData.distance_from_center = newDistance;
+              
+              console.log('Updating survival position:', {
+                oldDistance: currentDistance,
+                newDistance,
+                pointsEarned,
+                maxPossiblePoints,
+                challenge_type: challenge.challenge_type
+              });
+            } catch (err) {
+              console.error('Error updating survival position:', err);
+            }
+          } else {
+            console.log('Challenge is not a race or survival type:', challenge.challenge_type);
           }
 
           const { data: updatedParticipant, error: updateError } = await supabase
             .from('challenge_participants')
             .update(updateData)
             .eq('id', participation.id)
-            .select('id, total_points, last_activity_date, last_awarded_day, last_awarded_week');
+            .select('id, total_points, map_position, distance_from_center, lives, days_in_danger, is_eliminated, last_activity_date, last_awarded_day, last_awarded_week');
 
           if (updateError) {
             console.error('Error updating challenge participant:', updateError);
@@ -385,7 +612,7 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
             challengeId: challenge.id,
             participantId: participation.id,
             pointsEarned,
-            newTotal: (participation.total_points || 0) + pointsEarned,
+            newTotal: newTotalPoints,
             timeframe,
             updatedRecord: updatedParticipant,
           });
@@ -393,7 +620,7 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
           // Optionally verify the update
           const { data: verifyParticipant, error: verifyError } = await supabase
             .from('challenge_participants')
-            .select('id, total_points')
+            .select('id, total_points, map_position, distance_from_center, lives, days_in_danger, is_eliminated')
             .eq('id', participation.id)
             .single();
 
@@ -401,7 +628,7 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
             console.error('Error verifying update:', verifyError);
           }
         } else {
-          console.log('Threshold not met, no points awarded');
+          console.log('No points to award, threshold not met');
         }
       }
     }

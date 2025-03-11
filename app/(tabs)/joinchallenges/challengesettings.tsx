@@ -1,3 +1,4 @@
+// app/(tabs)/joinchallenges/challengesettings.tsx
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   StyleSheet,
@@ -9,6 +10,7 @@ import {
   Animated,
   Platform,
   Dimensions,
+  TextInput,
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,6 +21,7 @@ import FilterModal from './challengesettingscomponents/FilterModal';
 import InvitesList from './challengesettingscomponents/InvitesList';
 import ChallengesList from './challengesettingscomponents/ChallengesList';
 import { leaveChallenges } from '../../../lib/challenges';
+import { theme } from '../../../lib/theme'; // Import shared theme
 
 const { height } = Dimensions.get('window');
 
@@ -63,13 +66,12 @@ export default function YourChallengesScreen() {
   const filterOptions: FilterOption[] = ['all', 'race', 'survival', 'streak', 'custom'];
 
   useEffect(() => {
-    // Default to 'yourChallenges' and load data
     setActiveMainTab('yourChallenges');
     fetchYourChallenges();
     fetchInvitedChallenges();
   }, []);
 
-  // Helper: Union arrays by id
+  // Helper to union arrays by id
   const unionById = (arrA: any[], arrB: any[]) => {
     const map = new Map<string, any>();
     [...arrA, ...arrB].forEach((ch) => {
@@ -222,7 +224,6 @@ export default function YourChallengesScreen() {
     setSearchQuery('');
   };
 
-  // Edit mode handlers
   const toggleChallengeSelection = useCallback((challengeId: string) => {
     setSelectedChallenges((prev) =>
       prev.includes(challengeId)
@@ -274,7 +275,12 @@ export default function YourChallengesScreen() {
       <Animated.View style={[styles.header, { transform: [{ translateY }] }]}>
         <Text style={styles.title}>Your Challenges</Text>
         <TouchableOpacity style={styles.createButton} onPress={() => router.push('/joinchallenges/joincreate')}>
-          <LinearGradient colors={['#FF416C', '#FF4B2B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.createButtonGradient}>
+          <LinearGradient
+            colors={theme.colors.gradientButton}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.createButtonGradient}
+          >
             <Text style={styles.createButtonText}>Join / Create</Text>
           </LinearGradient>
         </TouchableOpacity>
@@ -410,8 +416,72 @@ export default function YourChallengesScreen() {
             invitedChallenges={invitedChallenges}
             loading={loading.invites}
             onRefresh={fetchInvitedChallenges}
-            acceptInvite={(inviteId, challengeId) => {}}
-            rejectInvite={(inviteId) => {}}
+            acceptInvite={async (inviteId, challengeId) => {
+              try {
+                setLoading((prev) => ({ ...prev, invites: true }));
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) throw new Error('User not authenticated');
+                const { error: inviteError } = await supabase
+                  .from('challenge_invites')
+                  .update({ status: 'accepted' })
+                  .eq('id', inviteId);
+                if (inviteError) throw inviteError;
+                const { data: challengeData, error: challengeError } = await supabase
+                  .from('challenges')
+                  .select('challenge_type')
+                  .eq('id', challengeId)
+                  .single();
+                if (challengeError) throw challengeError;
+                const participantData = {
+                  challenge_id: challengeId,
+                  user_id: user.id,
+                  status: 'active',
+                  joined_at: new Date().toISOString(),
+                  total_points: 0,
+                  current_streak: 0,
+                  longest_streak: 0,
+                  map_position: 0,
+                };
+                if (challengeData.challenge_type === 'survival') {
+                  const survivalUtilsModule = await import('../../../lib/survivalUtils');
+                  const survivalData = survivalUtilsModule.initializeParticipant(user.id, challengeId);
+                  Object.assign(participantData, {
+                    lives: survivalData.lives,
+                    days_in_danger: survivalData.days_in_danger,
+                    distance_from_center: survivalData.distance_from_center,
+                    angle: survivalData.angle,
+                    is_eliminated: survivalData.is_eliminated,
+                  });
+                }
+                const { error: participantError } = await supabase
+                  .from('challenge_participants')
+                  .insert(participantData);
+                if (participantError) throw participantError;
+                await fetchInvitedChallenges();
+                router.push(`/joinchallenges/challengedetails?challenge_id=${challengeId}`);
+              } catch (error) {
+                console.error('Error accepting challenge invite:', error);
+                alert('Failed to accept invitation. Please try again.');
+              } finally {
+                setLoading((prev) => ({ ...prev, invites: false }));
+              }
+            }}
+            rejectInvite={async (inviteId) => {
+              try {
+                setLoading((prev) => ({ ...prev, invites: true }));
+                const { error } = await supabase
+                  .from('challenge_invites')
+                  .update({ status: 'rejected' })
+                  .eq('id', inviteId);
+                if (error) throw error;
+                await fetchInvitedChallenges();
+              } catch (error) {
+                console.error('Error rejecting challenge invite:', error);
+                alert('Failed to reject invitation. Please try again.');
+              } finally {
+                setLoading((prev) => ({ ...prev, invites: false }));
+              }
+            }}
           />
         )}
       </ScrollView>
@@ -431,49 +501,49 @@ export default function YourChallengesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1, backgroundColor: theme.colors.background },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: theme.spacing.medium,
     paddingTop: Platform.OS === 'ios' ? 12 : 16,
-    paddingBottom: 16,
-    backgroundColor: '#fff',
+    paddingBottom: theme.spacing.medium,
+    backgroundColor: theme.colors.background,
     zIndex: 10,
   },
-  title: { fontSize: 28, fontWeight: 'bold', color: '#333' },
-  createButton: { borderRadius: 20, overflow: 'hidden' },
-  createButtonGradient: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20 },
-  createButtonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
-  mainTabsContainer: { backgroundColor: '#fff', paddingHorizontal: 20, zIndex: 5 },
+  title: { fontSize: 28, fontWeight: 'bold', color: theme.colors.textPrimary, fontFamily: theme.typography.heading.fontFamily },
+  createButton: { borderRadius: theme.radius.button, overflow: 'hidden' },
+  createButtonGradient: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: theme.radius.button },
+  createButtonText: { color: '#FFF', fontWeight: '600', fontSize: 16, fontFamily: theme.typography.body.fontFamily },
+  mainTabsContainer: { backgroundColor: theme.colors.background, paddingHorizontal: theme.spacing.medium, zIndex: 5 },
   mainTabHeader: { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#eee' },
-  mainTabButton: { flex: 1, alignItems: 'center', paddingVertical: 16, position: 'relative' },
-  mainTabText: { fontSize: 16, fontWeight: '500', color: '#999' },
-  activeMainTabText: { color: '#333', fontWeight: '700' },
+  mainTabButton: { flex: 1, alignItems: 'center', paddingVertical: theme.spacing.medium, position: 'relative' },
+  mainTabText: { fontSize: 16, fontWeight: '500', color: '#999', fontFamily: theme.typography.body.fontFamily },
+  activeMainTabText: { color: theme.colors.textPrimary, fontWeight: '700' },
   mainTabIndicator: {
     position: 'absolute',
     bottom: 0,
     left: '25%',
     right: '25%',
     height: 3,
-    backgroundColor: '#333',
+    backgroundColor: theme.colors.textPrimary,
     borderTopLeftRadius: 3,
     borderTopRightRadius: 3,
   },
   inviteBadge: { color: '#FF4B2B', fontWeight: 'bold' },
-  challengeTabsContainer: { backgroundColor: '#fff', paddingHorizontal: 20, marginTop: 10 },
+  challengeTabsContainer: { backgroundColor: theme.colors.background, paddingHorizontal: theme.spacing.medium, marginTop: 10 },
   challengeTabHeader: { flexDirection: 'row', justifyContent: 'space-between' },
   challengeTabButton: { flex: 1, alignItems: 'center', paddingVertical: 12, position: 'relative' },
-  challengeTabText: { fontSize: 15, fontWeight: '500', color: '#999' },
-  activeChallengeTabText: { color: '#333', fontWeight: '700' },
+  challengeTabText: { fontSize: 15, fontWeight: '500', color: '#999', fontFamily: theme.typography.body.fontFamily },
+  activeChallengeTabText: { color: theme.colors.textPrimary, fontWeight: '700' },
   challengeTabIndicator: {
     position: 'absolute',
     bottom: 0,
     left: '25%',
     right: '25%',
     height: 2,
-    backgroundColor: '#333',
+    backgroundColor: theme.colors.textPrimary,
     borderTopLeftRadius: 2,
     borderTopRightRadius: 2,
   },
@@ -482,17 +552,26 @@ const styles = StyleSheet.create({
   challengePagerView: { minHeight: height * 0.7 },
   pagerPage: { flex: 1 },
   emptyState: { alignItems: 'center', paddingVertical: 40 },
-  emptyTitle: { fontSize: 20, fontWeight: 'bold', color: '#333', marginTop: 16, marginBottom: 10 },
-  emptyText: { fontSize: 16, color: '#666', textAlign: 'center', marginBottom: 30, lineHeight: 22 },
+  emptyTitle: { fontSize: 20, fontWeight: 'bold', color: theme.colors.textPrimary, marginTop: theme.spacing.medium, marginBottom: 10, fontFamily: theme.typography.heading.fontFamily },
+  emptyText: { fontSize: 16, color: theme.colors.textSecondary, textAlign: 'center', marginBottom: 30, lineHeight: 22, fontFamily: theme.typography.body.fontFamily },
   editModeHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    padding: theme.spacing.medium,
     backgroundColor: '#f8f9fa',
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
-  editModeButtonText: { fontSize: 16, color: '#4A90E2', fontWeight: '600' },
-  editModeCount: { fontSize: 16, color: '#333', fontWeight: '600' },
+  editModeButtonText: { fontSize: 16, color: theme.colors.primary, fontWeight: '600', fontFamily: theme.typography.body.fontFamily },
+  editModeCount: { fontSize: 16, color: theme.colors.textPrimary, fontWeight: '600', fontFamily: theme.typography.body.fontFamily },
+  // Challenges list card style (if used inside ChallengesList component)
+  challengeCard: { padding: theme.spacing.medium },
+  challengeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  challengeTitle: { fontSize: 16, fontWeight: '700', color: theme.colors.textPrimary, flex: 1, marginRight: 8, fontFamily: theme.typography.heading.fontFamily },
+  challengeTypeBadge: { backgroundColor: 'rgba(74,144,226,0.1)', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4 },
+  challengeTypeText: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '700', fontFamily: theme.typography.small.fontFamily },
+  challengeMeta: { fontSize: 14, color: theme.colors.textSecondary, marginBottom: 4, fontFamily: theme.typography.body.fontFamily },
 });
+
+export {};

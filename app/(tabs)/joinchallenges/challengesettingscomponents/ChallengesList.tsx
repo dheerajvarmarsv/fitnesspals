@@ -11,6 +11,8 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+// 1) Import your theme
+import { theme } from '../../../../lib/theme'; // <-- Adjust the path as needed
 
 interface ChallengesListProps {
   tabType: 'active' | 'upcoming' | 'completed';
@@ -25,7 +27,6 @@ interface ChallengesListProps {
   showFilterModal: () => void;
   goToChallengeDetails: (challengeId: string) => void;
   renderEmptyChallengeState: (tabType: 'active' | 'upcoming' | 'completed') => JSX.Element;
-  // New props for edit mode
   isEditMode?: boolean;
   selectedChallenges?: string[];
   onToggleSelectChallenge?: (challengeId: string) => void;
@@ -52,6 +53,7 @@ export default function ChallengesList({
 }: ChallengesListProps) {
   const shakeAnimation = useRef(new Animated.Value(0)).current;
 
+  // If editing, start the shake animation
   if (isEditMode) {
     Animated.loop(
       Animated.sequence([
@@ -77,6 +79,7 @@ export default function ChallengesList({
     shakeAnimation.setValue(0);
   }
 
+  // Filter logic is unchanged
   const getFilteredChallenges = useCallback(
     (all: any[], filter: string, query: string) => {
       return all.filter((challenge) => {
@@ -84,7 +87,10 @@ export default function ChallengesList({
         const lowerTitle = challenge.title?.toLowerCase() || '';
         const lowerDesc = challenge.description?.toLowerCase() || '';
         const lowerQuery = query.toLowerCase();
-        return matchesFilter && (!query.trim() || lowerTitle.includes(lowerQuery) || lowerDesc.includes(lowerQuery));
+        return (
+          matchesFilter &&
+          (!query.trim() || lowerTitle.includes(lowerQuery) || lowerDesc.includes(lowerQuery))
+        );
       });
     },
     []
@@ -95,7 +101,6 @@ export default function ChallengesList({
   const renderChallengeItem = ({ item }: { item: any }) => {
     const startDate = item.start_date ? new Date(item.start_date).toLocaleDateString() : 'N/A';
     const endDate = item.end_date ? new Date(item.end_date).toLocaleDateString() : 'Open-ended';
-    // Safely extract participant count (if it's an array with a "count" key, use that)
     const participantCount =
       Array.isArray(item.participant_count) && item.participant_count.length > 0
         ? item.participant_count[0].count
@@ -113,15 +118,7 @@ export default function ChallengesList({
     return (
       <Animated.View
         style={[
-          {
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            backgroundColor: '#f8f9fa',
-            padding: 16,
-            borderRadius: 12,
-            marginBottom: 12,
-          },
+          styles.cardContainer,
           isEditMode && {
             transform: [
               {
@@ -144,54 +141,56 @@ export default function ChallengesList({
           }}
           delayLongPress={300}
           activeOpacity={0.7}
-          style={{ flexDirection: 'row', flex: 1, marginRight: 10 }}
+          style={styles.challengeCard}
         >
           {isEditMode && (
-            <View style={{ marginRight: 12 }}>
+            <View style={styles.checkboxContainer}>
               <View
-                style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: 11,
-                  borderWidth: 2,
-                  borderColor: '#ddd',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: isSelected ? '#4A90E2' : '#fff',
-                }}
+                style={[
+                  styles.checkbox,
+                  isSelected && styles.checkboxSelected,
+                ]}
               >
                 {isSelected && <Ionicons name="checkmark" size={16} color="#fff" />}
               </View>
             </View>
           )}
-          <View style={{ flex: 1 }}>
-            <Text style={styles.itemTitle} numberOfLines={1}>
-              {item.title}
-            </Text>
-            {item.description && (
-              <Text style={styles.itemDesc} numberOfLines={1}>
-                {item.description}
-              </Text>
-            )}
-            <View style={styles.itemInfo}>
-              <Text style={styles.itemDates}>
-                {startDate} - {endDate}
-              </Text>
-              <Text style={styles.itemParticipants}>
-                {participantCount} participant{participantCount !== 1 ? 's' : ''}
-              </Text>
+
+          <View style={styles.cardContent}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.challengeTitle}>{item.title}</Text>
+              <View style={styles.challengeTypeBadge}>
+                <Text style={styles.challengeTypeText}>
+                  {item.challenge_type?.toUpperCase()}
+                </Text>
+              </View>
             </View>
+            <Text style={styles.datesText}>
+              {startDate} - {endDate}
+            </Text>
+            <Text style={styles.participantsText}>
+              {participantCount} participant{participantCount !== 1 ? 's' : ''}
+            </Text>
           </View>
+
+          {!isEditMode && (
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={theme.colors.textSecondary}
+              style={styles.chevron}
+            />
+          )}
         </TouchableOpacity>
-        {!isEditMode && <Ionicons name="chevron-forward" size={20} color="#999" />}
       </Animated.View>
     );
   };
 
+  // Loading / Empty states
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4A90E2" />
+        <ActivityIndicator size="large" color={theme.colors.primary} />
         <Text style={styles.loadingText}>Loading challenges...</Text>
       </View>
     );
@@ -221,6 +220,7 @@ export default function ChallengesList({
           </Text>
         </TouchableOpacity>
       </View>
+
       <View style={{ flex: 1 }}>
         <FlatList
           data={filteredChallenges}
@@ -234,35 +234,135 @@ export default function ChallengesList({
   );
 }
 
+// 2) Create styles referencing values from the theme
 const styles = StyleSheet.create({
-  itemTitle: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 4 },
-  itemDesc: { fontSize: 14, color: '#666', marginBottom: 6 },
-  itemInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  itemDates: { fontSize: 12, color: '#888' },
-  itemParticipants: { fontSize: 12, color: '#4A90E2', fontWeight: '500' },
-  loadingContainer: { flex: 1, paddingVertical: 40, alignItems: 'center' },
-  loadingText: { marginTop: 10, color: '#666', fontSize: 16 },
-  searchFilterContainer: { flexDirection: 'row', paddingHorizontal: 20, marginBottom: 16, alignItems: 'center' },
+  cardContainer: {
+    marginBottom: theme.spacing.small, // e.g. 8
+  },
+  challengeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: theme.spacing.medium, // e.g. 16
+    backgroundColor: theme.colors.glassCardBg, // e.g. '#E6F2FF'
+    borderRadius: theme.radius.card, // e.g. 16
+  },
+  cardContent: {
+    flex: 1,
+  },
+  cardHeader: {
+    ...theme.card.challengeHeader,
+    // e.g. {
+    //   flexDirection: 'row',
+    //   justifyContent: 'space-between',
+    //   alignItems: 'center',
+    //   marginBottom: 8,
+    // }
+  },
+  challengeTitle: {
+    ...theme.card.challengeTitle,
+    // e.g. {
+    //   fontSize: 16,
+    //   fontWeight: '700',
+    //   color: '#333333',
+    //   marginRight: 8,
+    //   flex: 1,
+    // }
+    // Override if you need bigger text:
+    // fontSize: 20,
+  },
+  challengeTypeBadge: {
+    ...theme.card.challengeTypeBadge,
+    // e.g. {
+    //   backgroundColor: 'rgba(74,144,226,0.1)',
+    //   borderRadius: 12,
+    //   paddingHorizontal: 8,
+    //   paddingVertical: 4,
+    // }
+  },
+  challengeTypeText: {
+    ...theme.card.challengeTypeText,
+    // e.g. { fontSize: 12, fontWeight: '700', color: '#666666' }
+  },
+  datesText: {
+    ...theme.card.challengeMeta,
+    // e.g. { fontSize: 14, color: '#666666', marginBottom: 4 }
+  },
+  participantsText: {
+    ...theme.card.challengeMeta,
+    // e.g. { fontSize: 14, color: '#666666', marginBottom: 4 }
+    marginBottom: 0, // override if needed
+  },
+  checkboxContainer: {
+    marginRight: theme.spacing.medium,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: '#ddd',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+  },
+  checkboxSelected: {
+    backgroundColor: theme.colors.primary, // e.g. '#007AFF'
+    borderColor: theme.colors.primary,
+  },
+  chevron: {
+    marginLeft: theme.spacing.small,
+  },
+  // Search / Filter
+  searchFilterContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: theme.spacing.medium, // e.g. 16
+    marginBottom: theme.spacing.medium,
+    alignItems: 'center',
+  },
   searchBox: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f5f5f5',
-    paddingHorizontal: 12,
+    paddingHorizontal: theme.spacing.small, // e.g. 8
     paddingVertical: 8,
     borderRadius: 8,
-    marginRight: 10,
+    marginRight: theme.spacing.small,
   },
-  searchInput: { flex: 1, fontSize: 15, color: '#333', marginLeft: 8, paddingVertical: 2 },
+  searchInput: {
+    flex: 1,
+    fontSize: theme.typography.small.fontSize, // e.g. 14 or 15
+    color: theme.typography.small.color,       // e.g. '#666666'
+    marginLeft: 8,
+    paddingVertical: 2,
+  },
   filterButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#4A90E2',
+    backgroundColor: theme.colors.primary, // e.g. '#007AFF'
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: theme.radius.button, // e.g. 20
   },
-  filterButtonText: { color: '#fff', fontSize: 14, fontWeight: '600', marginLeft: 6, textTransform: 'capitalize' },
-  flatListContainer: { paddingHorizontal: 20 },
-  loadingContainer: { flex: 1, paddingVertical: 40, alignItems: 'center' },
+  filterButtonText: {
+    color: '#fff',
+    fontSize: theme.typography.small.fontSize,
+    fontWeight: '600',
+    marginLeft: 6,
+    textTransform: 'capitalize',
+  },
+  flatListContainer: {
+    paddingHorizontal: theme.spacing.medium,
+  },
+  // Loading
+  loadingContainer: {
+    flex: 1,
+    paddingVertical: 40,
+    alignItems: 'center',
+  },
+  loadingText: {
+    ...theme.typography.body,
+    marginTop: 10,
+    color: theme.colors.textSecondary,
+  },
 });

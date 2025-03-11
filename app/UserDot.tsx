@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Platform } from 'react-native';
-import Svg, { Circle, Text as SvgText, G } from 'react-native-svg';
+import { Animated, Platform, Image } from 'react-native';
+import Svg, { Circle, Text as SvgText, G, Image as SvgImage, ClipPath, Defs } from 'react-native-svg';
 import { User } from '../types/user';
 
 interface UserDotProps {
@@ -11,13 +11,13 @@ interface UserDotProps {
   safeZoneRadius: number;
 }
 
-export const UserDot = ({
+export default function UserDot({
   user,
   centerX,
   centerY,
   arenaRadius,
   safeZoneRadius,
-}: UserDotProps) => {
+}: UserDotProps) {
   const AnimatedCircle = Animated.createAnimatedComponent(Circle);
   const AnimatedText = Animated.createAnimatedComponent(SvgText);
   const AnimatedG = Animated.createAnimatedComponent(G);
@@ -88,36 +88,41 @@ export const UserDot = ({
   }, [user.distance, user.isCurrentUser, user.isEliminated]);
 
   // X, Y position:
-  // x = centerX - distance * cos(angle)
-  // y = centerY - distance * sin(angle)
-  const x = Animated.subtract(
+  // For circle edge positioning on the outer edge of the circle:
+  // x = centerX + arenaRadius * distance * cos(angle)
+  // y = centerY + arenaRadius * distance * sin(angle)
+  // This ensures the dot is positioned on the outer edge of the circle when distance is 1.0
+  const x = Animated.add(
     centerX,
-    Animated.multiply(distanceAnimation, cosValAnim)
+    Animated.multiply(Animated.multiply(distanceAnimation, arenaRadius), cosValAnim)
   );
-  const y = Animated.subtract(
+  const y = Animated.add(
     centerY,
-    Animated.multiply(distanceAnimation, sinValAnim)
+    Animated.multiply(Animated.multiply(distanceAnimation, arenaRadius), sinValAnim)
   );
 
   // Danger zone
   const isInDanger = user.distance > safeZoneRadius;
 
-  // Dot color logic
-  let dotColor = '#ffffff';
+  // Dot color logic - always highlight current user and make others gray
+  let dotColor = '#9ca3af'; // Default gray for all other users
   let dotStrokeColor = 'rgba(255, 255, 255, 0.5)';
   
   if (user.isCurrentUser) {
+    // Current user is always blue, even if in danger or eliminated
     dotColor = '#3b82f6';
     dotStrokeColor = '#ffffff';
   } else if (user.isEliminated) {
-    dotColor = '#9ca3af';
-    dotStrokeColor = '#4b5563';
+    // Make eliminated users darker gray
+    dotColor = '#4b5563';
+    dotStrokeColor = '#333333';
   } else if (isInDanger) {
-    dotColor = '#fbbf24'; // Yellow for users in danger
+    // Yellow if in danger but not current user
+    dotColor = '#fbbf24';
   }
 
-  // Dot size
-  const dotSize = user.isCurrentUser ? 12 : 8;
+  // Dot size - make current user significantly larger for better visibility
+  const dotSize = user.isCurrentUser ? 16 : 10;
   
   // Pulse size for current user
   const pulseSize = pulseAnim.interpolate({
@@ -150,8 +155,22 @@ export const UserDot = ({
   // Platform-specific props to avoid warnings on web
   const webSafeProps = Platform.OS === 'web' ? {} : { collapsable: false };
 
+  // Create a unique ID for this user's clip path
+  const clipId = `clip-${user.id.replace(/[^a-zA-Z0-9]/g, '-')}`;
+  
+  // Calculate position values for the clip path and avatar
+  // We need to ensure avatar follows position updates properly
+  const staticX = centerX + (user.distance * cosVal);
+  const staticY = centerY + (user.distance * sinVal);
+  
   return (
     <AnimatedG {...webSafeProps}>
+      <Defs>
+        <ClipPath id={clipId}>
+          <Circle cx={staticX} cy={staticY} r={dotSize} />
+        </ClipPath>
+      </Defs>
+    
       {/* Background glow for eliminated users */}
       {user.isEliminated && (
         <AnimatedCircle
@@ -176,15 +195,35 @@ export const UserDot = ({
         />
       )}
       
-      {/* Main dot */}
+      {/* White background circle for avatar */}
       <AnimatedCircle
         cx={x}
         cy={y}
+        r={dotSize + 2}
+        fill="white"
+        stroke={dotStrokeColor}
+        strokeWidth={user.isCurrentUser ? 3 : 1.5}
+        {...webSafeProps}
+      />
+      
+      {/* User avatar with background tint based on status */}
+      <Circle
+        cx={staticX}
+        cy={staticY}
         r={dotSize}
         fill={dotColor}
-        stroke={dotStrokeColor}
-        strokeWidth={user.isCurrentUser ? 2 : 1}
-        {...webSafeProps}
+        opacity={0.3}
+      />
+      
+      {/* Actual avatar image */}
+      <SvgImage
+        x={staticX - dotSize}
+        y={staticY - dotSize}
+        width={dotSize * 2}
+        height={dotSize * 2}
+        href={{ uri: user.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400' }}
+        clipPath={`url(#${clipId})`}
+        preserveAspectRatio="xMidYMid slice"
       />
 
       {/* Danger zone life indicators */}
@@ -205,21 +244,18 @@ export const UserDot = ({
         </>
       )}
 
-      {/* Show user name for self or on web */}
-      {(user.isCurrentUser || Platform.OS === 'web') && (
-        <AnimatedText
-          x={x}
-          y={Animated.add(y, textOffsetY)}
-          fontSize={user.isCurrentUser ? 12 : 10}
-          fill="#ffffff"
-          fontWeight="bold"
-          textAnchor="middle"
-          opacity={user.isEliminated ? 0.7 : 1}
-          {...webSafeProps}
-        >
-          {user.name}
-        </AnimatedText>
-      )}
+      {/* Display user name - use static positioning for reliability */}
+      <SvgText
+        x={staticX}
+        y={staticY + textOffsetY}
+        fontSize={user.isCurrentUser ? 12 : 9}
+        fill={user.isCurrentUser ? "#ffffff" : "#dddddd"}
+        fontWeight={user.isCurrentUser ? "bold" : "normal"}
+        textAnchor="middle"
+        opacity={user.isEliminated ? 0.7 : 1}
+      >
+        {user.name}
+      </SvgText>
     </AnimatedG>
   );
-};
+}

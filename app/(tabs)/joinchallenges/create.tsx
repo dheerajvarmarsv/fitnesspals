@@ -27,7 +27,7 @@ import Step3Activities from './steps/Step3Activities';
 import Step4Review from './steps/Step4Review';
 import Step5Success from './steps/Step5Success';
 
-const VALID_CHALLENGE_TYPES = ['race', 'survival', 'streak', 'custom'] as const;
+const VALID_CHALLENGE_TYPES = ['race', 'survival'] as const;
 type ChallengeMode = typeof VALID_CHALLENGE_TYPES[number];
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -41,7 +41,7 @@ export interface ChallengeDetails {
   isPrivate: boolean;
 }
 
-export type MetricType = 'steps' | 'distance_km' | 'distance_miles' | 'time' | 'calories';
+export type MetricType = 'steps' | 'distance_km' | 'distance_miles' | 'time' | 'calories' | 'count';
 
 export interface ActivityRule {
   activityType: string;
@@ -76,20 +76,6 @@ const CHALLENGE_MODES: ModeInfo[] = [
     description: 'Meet the daily target or get eliminated. Last person standing wins!',
     gradient: ['#4776E6', '#8E54E9'],
   },
-  {
-    id: 'streak',
-    title: 'STREAK',
-    icon: '🔥',
-    description: 'Maintain daily activities to build your streak. Longest streak wins!',
-    gradient: ['#FF8008', '#FFC837'],
-  },
-  {
-    id: 'custom',
-    title: 'CUSTOM',
-    icon: '🎯',
-    description: 'Design your own challenge with custom rules and scoring!',
-    gradient: ['#11998e', '#38ef7d'],
-  },
 ];
 
 // DEFAULT_ACTIVITIES includes only the seven allowed activities
@@ -115,6 +101,8 @@ function formatThreshold(value: number, metric: string): string {
       return `${value} hours`;
     case 'calories':
       return `${value} calories`;
+    case 'count':
+      return `${value} reps`;
     default:
       return `${value}`;
   }

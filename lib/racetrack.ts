@@ -1,38 +1,99 @@
 import { supabase } from './supabase';
 
 /**
- * Updates a participant's position on the race track and calculates points
+ * Calculates the appropriate map position based on points and threshold
+ * @param totalPoints Total points earned by the participant (cumulative, including partial points)
+ * @param pointsThreshold Points needed per checkpoint 
+ * @param maxCheckpoints Maximum number of checkpoints on the track
+ * @returns The calculated position (0-indexed)
+ */
+export function calculateMapPosition(
+  totalPoints: number,
+  pointsThreshold: number,
+  maxCheckpoints: number = 100
+): number {
+  if (!totalPoints || !pointsThreshold) return 0;
+  
+  // Calculate completed checkpoints based on total accumulated points
+  // This handles partial points naturally - user advances when they accumulate
+  // enough points to cross a checkpoint threshold
+  const completedCheckpoints = Math.floor(totalPoints / pointsThreshold);
+  
+  // Ensure we don't exceed max checkpoints
+  return Math.min(completedCheckpoints, maxCheckpoints - 1);
+}
+
+/**
+ * Updates a participant's position on the race track based on their points
  * @param participantRowId The database row ID of the participant record
  * @param participantUserId The user_id of the participant
  * @param challengeId The challenge_id of the race
- * @param position The new map_position value
+ * @param position The new map_position value (if directly setting position)
+ * @param totalPoints The participant's total points (if calculating position from points)
  * @returns Promise with the updated data or error
  */
 export async function updateRacePosition(
   participantRowId: string,
   participantUserId: string,
   challengeId: string,
-  position: number
+  position?: number,
+  totalPoints?: number
 ) {
   try {
-    // Calculate points based on position
-    const pointsPerStep = 10;
-    const totalPoints = position * pointsPerStep;
+    // Get challenge rules for the points threshold
+    const { data: challenge } = await supabase
+      .from('challenges')
+      .select('rules')
+      .eq('id', challengeId)
+      .single();
+      
+    // Extract threshold from rules or use default
+    const pointsThreshold = challenge?.rules?.pointsPerCheckpoint || 10;
+    const maxCheckpoints = challenge?.rules?.totalCheckpoints || 100;
+    
+    let finalPosition: number;
+    let finalPoints: number;
+    
+    if (totalPoints !== undefined) {
+      // Calculate position from points - this is the standard way
+      finalPoints = totalPoints;
+      finalPosition = calculateMapPosition(totalPoints, pointsThreshold, maxCheckpoints);
+      console.log('Calculated race position from points:', {
+        totalPoints, 
+        pointsThreshold, 
+        maxCheckpoints,
+        finalPosition
+      });
+    } else if (position !== undefined) {
+      // Calculate points from position (legacy support)
+      // Warning: This path should generally be avoided as it can lead to
+      // inconsistencies in the points/position relationship
+      finalPosition = position;
+      finalPoints = position * pointsThreshold;
+      console.log('Calculated race position from position (legacy):', {
+        position,
+        pointsThreshold,
+        finalPoints
+      });
+    } else {
+      throw new Error('Either position or totalPoints must be provided');
+    }
     
     console.log('Updating race position:', {
       participantRowId,
       participantUserId,
       challengeId,
-      position,
-      totalPoints
+      position: finalPosition,
+      totalPoints: finalPoints,
+      pointsThreshold
     });
     
     // Update the database
     const { data, error } = await supabase
       .from('challenge_participants')
       .update({
-        map_position: position,
-        total_points: totalPoints,
+        map_position: finalPosition,
+        total_points: finalPoints,
         last_activity_date: new Date().toISOString()
       })
       .eq('id', participantRowId)

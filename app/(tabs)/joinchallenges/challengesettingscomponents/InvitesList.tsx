@@ -110,6 +110,7 @@ export default function InvitesList({
                   paddingVertical: 4,
                   borderRadius: 12,
                   overflow: 'hidden',
+                  fontWeight: '600',
                 }}
               >
                 {item.challenge.challenge_type?.toUpperCase()}
@@ -138,12 +139,12 @@ export default function InvitesList({
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 12 }}>
               <TouchableOpacity
                 style={{
-                  backgroundColor: 'rgba(255,255,255,0.3)',
+                  backgroundColor: '#4CAF50',
                   paddingHorizontal: 16,
                   paddingVertical: 8,
                   borderRadius: 20,
                 }}
-                onPress={() => acceptInvite(item.id, item.challenge_id)}
+                onPress={() => acceptInvite(item.id, item.challenge.id)}
               >
                 <Text style={{ color: '#fff', fontWeight: 'bold' }}>Accept</Text>
               </TouchableOpacity>

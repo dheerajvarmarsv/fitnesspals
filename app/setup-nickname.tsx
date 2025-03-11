@@ -44,10 +44,25 @@ export default function SetupNickname() {
         return;
       }
 
-      // Update profile with nickname
+      // Update profile with nickname and set default avatar if not already set
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', user.id)
+        .single();
+        
+      if (profileError) throw profileError;
+      
+      // Only set avatar if not already set
+      const defaultAvatar = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400';
+      const avatarUrl = profileData.avatar_url || defaultAvatar;
+      
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({ nickname: nickname.toLowerCase() })
+        .update({ 
+          nickname: nickname.toLowerCase(),
+          avatar_url: avatarUrl
+        })
         .eq('id', user.id);
 
       if (updateError) throw updateError;

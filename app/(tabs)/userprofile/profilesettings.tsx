@@ -63,6 +63,13 @@ export default function ProfileSettings() {
 
   const SETTINGS_ITEMS = [
     {
+      id: 'fitness-connections',
+      icon: '💪',
+      title: 'Fitness Connections',
+      description: 'Connect Apple Health, Google Fit, etc.',
+      path: '/fitness-connections',
+    },
+    {
       id: 'device',
       icon: '📱',
       title: 'Connect a Device',
