@@ -297,10 +297,16 @@ export default function MultiAvatarRaceTrack({
   }
 
   // Calculate progress statistics for visual display
-  const totalParticipants = participants.length;
-  const participantsAtEnd = participants.filter(p => p.currentStep >= totalCheckpoints - 1).length;
-  const completionPercentage = totalParticipants ? Math.round((participantsAtEnd / totalParticipants) * 100) : 0;
-  
+// Calculate progress statistics for visual display
+const totalParticipants = participants.length;
+const participantsAtEnd = participants.filter(p => p.currentStep >= totalCheckpoints - 1).length;
+const completionPercentage = participants.length > 0 
+  ? Math.round(
+      (participants.reduce((sum, p) => sum + Math.min(p.currentStep, totalCheckpoints - 1), 0) / 
+       (totalParticipants * (totalCheckpoints - 1))) 
+      * 100
+    )
+  : 0;
   // Get leaderboard positions
   const leaderboard = [...participants]
     .sort((a, b) => b.currentStep - a.currentStep)
