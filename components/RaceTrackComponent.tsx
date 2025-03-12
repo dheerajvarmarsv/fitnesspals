@@ -37,12 +37,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 const screenWidth = Dimensions.get('window').width;
 const AVATAR_SIZE = 36;
 const STEP_DURATION = 600;
-const TOTAL_CHECKPOINTS = 100;
+// Default values
+const DEFAULT_TOTAL_CHECKPOINTS = 100;
 const SPACING = 80;
 const START_OFFSET = 100;
 const END_OFFSET = 100;
-const CONTENT_WIDTH =
-  SPACING * (TOTAL_CHECKPOINTS - 1) + START_OFFSET + END_OFFSET + 50;
+// Function to calculate content width based on checkpoints
+function calculateContentWidth(totalCheckpoints: number): number {
+  return SPACING * (totalCheckpoints - 1) + START_OFFSET + END_OFFSET + 50;
+}
 
 export interface RaceParticipant {
   id: string;
@@ -57,16 +60,17 @@ interface RaceTrackProps {
   participants: RaceParticipant[];
   containerHeight?: number;
   showTitle?: boolean;
+  totalCheckpoints?: number; // Allow the challenge to specify the exact number of checkpoints
   onMoveParticipant?: (participantId: string, newStep: number, challengeId: string) => void;
   challengeId: string;
 }
 
 /* Generate track points in a sine wave shape */
-function generateTrackPoints(containerHeight: number) {
+function generateTrackPoints(containerHeight: number, totalCheckpoints: number) {
   const points: { x: number; y: number }[] = [];
   const amplitude = containerHeight * 0.15;
   const baseY = containerHeight / 2;
-  for (let i = 0; i < TOTAL_CHECKPOINTS; i++) {
+  for (let i = 0; i < totalCheckpoints; i++) {
     const x = i * SPACING + START_OFFSET;
     const y = baseY + Math.sin(i / 5) * amplitude;
     points.push({ x, y });
@@ -223,7 +227,11 @@ export default function MultiAvatarRaceTrack({
   showTitle = true,
   onMoveParticipant,
   challengeId,
+  totalCheckpoints = DEFAULT_TOTAL_CHECKPOINTS, // Use provided value or default
 }: RaceTrackProps) {
+  // Get content width based on total checkpoints
+  const contentWidth = calculateContentWidth(totalCheckpoints);
+  
   const [trackPoints, setTrackPoints] = useState<{ x: number; y: number }[]>([]);
   const [svgPath, setSvgPath] = useState('');
   const scrollViewRef = useRef<ScrollView>(null);
@@ -239,7 +247,7 @@ export default function MultiAvatarRaceTrack({
   const onLayoutContainer = (e: LayoutChangeEvent) => {
     const { height } = e.nativeEvent.layout;
     const h = height || containerHeight;
-    const pts = generateTrackPoints(h);
+    const pts = generateTrackPoints(h, totalCheckpoints);
     setTrackPoints(pts);
     setSvgPath(createPathFromCheckpoints(pts));
   };
@@ -270,12 +278,12 @@ export default function MultiAvatarRaceTrack({
   const [isAtEnd, setIsAtEnd] = useState(false);
 
   useEffect(() => {
-    if (currentUser && currentUser.currentStep >= TOTAL_CHECKPOINTS - 1) {
+    if (currentUser && currentUser.currentStep >= totalCheckpoints - 1) {
       setIsAtEnd(true);
     } else {
       setIsAtEnd(false);
     }
-  }, [participants, currentUser]);
+  }, [participants, currentUser, totalCheckpoints]);
 
   function moveToNextCheckpoint() {
     if (!currentUser || isAtEnd) return;
@@ -290,7 +298,7 @@ export default function MultiAvatarRaceTrack({
 
   // Calculate progress statistics for visual display
   const totalParticipants = participants.length;
-  const participantsAtEnd = participants.filter(p => p.currentStep >= TOTAL_CHECKPOINTS - 1).length;
+  const participantsAtEnd = participants.filter(p => p.currentStep >= totalCheckpoints - 1).length;
   const completionPercentage = totalParticipants ? Math.round((participantsAtEnd / totalParticipants) * 100) : 0;
   
   // Get leaderboard positions
@@ -319,11 +327,11 @@ export default function MultiAvatarRaceTrack({
           bounces={false}
         >
           <View
-            style={[styles.trackContainer, { height: containerHeight * 0.75 }]}
+            style={[styles.trackContainer, { height: containerHeight * 0.75, width: contentWidth }]}
             onLayout={onLayoutContainer}
           >
             {svgPath ? (
-              <Svg width={CONTENT_WIDTH} height={containerHeight * 0.75}>
+              <Svg width={contentWidth} height={containerHeight * 0.75}>
                 <Defs>
                   <SvgLinearGradient id="roadGradient" x1="0" y1="0" x2="1" y2="0">
                     <Stop offset="0" stopColor="#444" stopOpacity="1" />
@@ -342,7 +350,7 @@ export default function MultiAvatarRaceTrack({
                 <Rect
                   x={0}
                   y={0}
-                  width={CONTENT_WIDTH}
+                  width={contentWidth}
                   height={containerHeight * 0.75}
                   fill="#2e7d32"
                   opacity={0.3}
@@ -390,11 +398,11 @@ export default function MultiAvatarRaceTrack({
                 )}
 
                 {/* FINISH line */}
-                {trackPoints.length > TOTAL_CHECKPOINTS - 1 && (
+                {trackPoints.length > totalCheckpoints - 1 && (
                   <G
                     transform={`translate(${
-                      trackPoints[TOTAL_CHECKPOINTS - 1].x
-                    },${trackPoints[TOTAL_CHECKPOINTS - 1].y})`}
+                      trackPoints[totalCheckpoints - 1].x
+                    },${trackPoints[totalCheckpoints - 1].y})`}
                   >
                     <Polygon points="-25,-8 25,-8 25,8 -25,8" fill="#222" stroke="#fff" strokeWidth={2} />
                     <SvgText x="0" y="30" fill="#fff" fontSize="16" fontWeight="bold" textAnchor="middle">
@@ -403,9 +411,15 @@ export default function MultiAvatarRaceTrack({
                   </G>
                 )}
 
-                {/* Major Checkpoints - only show every 10th and START/FINISH */}
+                {/* Major Checkpoints - only show every interval and START/FINISH */}
                 {trackPoints.map((pt, idx) => {
-                  if (idx % 10 !== 0 && idx !== 0 && idx !== TOTAL_CHECKPOINTS - 1) return null;
+                  // For challenges with fewer checkpoints, adjust label interval
+                  // to ensure we don't have too many or too few labels
+                  const labelInterval = totalCheckpoints <= 10 ? 1 : 
+                    totalCheckpoints <= 20 ? 2 : 
+                    totalCheckpoints <= 50 ? 5 : 10;
+                  
+                  if (idx % labelInterval !== 0 && idx !== 0 && idx !== totalCheckpoints - 1) return null;
                   
                   // Find if any user has reached this checkpoint
                   const isReached = participants.some(p => p.currentStep >= idx);
@@ -420,7 +434,7 @@ export default function MultiAvatarRaceTrack({
                         stroke="#000"
                         strokeWidth={1}
                       />
-                      {idx % 10 === 0 && (
+                      {idx % labelInterval === 0 && (
                         <SvgText
                           x="0"
                           y="-12"
@@ -436,9 +450,16 @@ export default function MultiAvatarRaceTrack({
                   );
                 })}
                 
-                {/* Minor Checkpoints - smaller markers for every 5th point */}
+                {/* Minor Checkpoints - smaller markers for intermediate points */}
                 {trackPoints.map((pt, idx) => {
-                  if (idx % 5 !== 0 || idx % 10 === 0 || idx === 0 || idx === TOTAL_CHECKPOINTS - 1) return null;
+                  // Calculate minor marker interval based on total checkpoints
+                  const majorInterval = totalCheckpoints <= 10 ? 1 : 
+                    totalCheckpoints <= 20 ? 2 : 
+                    totalCheckpoints <= 50 ? 5 : 10;
+                  
+                  const minorInterval = Math.max(1, Math.floor(majorInterval / 2));
+                  
+                  if (idx % minorInterval !== 0 || idx % majorInterval === 0 || idx === 0 || idx === totalCheckpoints - 1) return null;
                   
                   const isReached = participants.some(p => p.currentStep >= idx);
                   
@@ -478,7 +499,7 @@ export default function MultiAvatarRaceTrack({
           {currentUser && (
             <Text style={styles.statsText}>
               Position: {userPosition}/{totalParticipants} • 
-              Checkpoint: {currentUser.currentStep}/{TOTAL_CHECKPOINTS-1} • 
+              Checkpoint: {currentUser.currentStep}/{totalCheckpoints-1} • 
               {completionPercentage}% Finished
             </Text>
           )}
@@ -500,7 +521,7 @@ const styles = StyleSheet.create({
   },
   mapContainer: { flexGrow: 1 },
   scrollContent: { minWidth: screenWidth, alignItems: 'center' },
-  trackContainer: { width: CONTENT_WIDTH, position: 'relative' },
+  trackContainer: { position: 'relative' },
 
   titleContainer: {
     backgroundColor: '#1F1F1F',

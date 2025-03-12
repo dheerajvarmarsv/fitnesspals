@@ -106,10 +106,42 @@ export async function createChallengeInSupabase({
         (effectiveEndDate!.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000)
       );
       
-      // Total expected points and threshold
-      const totalExpectedPoints = dailyPoints * durationDays;
-      const TOTAL_CHECKPOINTS = 100;
-      const pointsPerCheckpoint = Math.max(1, Math.ceil(totalExpectedPoints / TOTAL_CHECKPOINTS));
+      // Get the timeframe from the first activity (all activities have the same timeframe)
+      const timeframe = selectedActivities[0]?.timeframe || 'day';
+      
+      // Exact number of days in the challenge (based on start and end dates)
+      const challengeDays = durationDays;
+      
+      // Set the number of checkpoints based on the timeframe and duration
+      let TOTAL_CHECKPOINTS;
+      if (timeframe === 'day') {
+        // For daily challenges, exactly one checkpoint per day
+        TOTAL_CHECKPOINTS = challengeDays;
+      } else {
+        // For weekly challenges, calculate exact number of weeks
+        // If challenge is 10 days, it should have 2 weeks (not 1.43 weeks)
+        TOTAL_CHECKPOINTS = Math.ceil(challengeDays / 7);
+      }
+      
+      // Ensure at least 1 checkpoint
+      TOTAL_CHECKPOINTS = Math.max(1, TOTAL_CHECKPOINTS);
+      
+      // Calculate points needed for each checkpoint
+      // For daily challenges, the points per checkpoint should be the sum of all activity points
+      // For weekly challenges, it should be the sum of daily points * 7
+      let pointsPerCheckpoint;
+      if (timeframe === 'day') {
+        pointsPerCheckpoint = dailyPoints;
+      } else {
+        // For weekly challenges, multiply daily points by days in a week
+        pointsPerCheckpoint = dailyPoints * 7;
+      }
+      
+      // Ensure minimum point value
+      pointsPerCheckpoint = Math.max(1, Math.ceil(pointsPerCheckpoint));
+      
+      // Calculate total expected points
+      const totalExpectedPoints = pointsPerCheckpoint * TOTAL_CHECKPOINTS;
       
       // Add to rules
       challengeRules = {

@@ -1,4 +1,5 @@
 // app/(tabs)/joinchallenges/challengedetails.tsx
+// This file exports ChallengeDetailsScreen as a default export
 import { subscribeToRaceUpdates, updateRacePosition } from '../../../lib/racetrack';
 import React, { useEffect, useState, useCallback } from 'react';
 import {
@@ -125,7 +126,8 @@ interface RaceParticipant {
   isCurrentUser: boolean;
 }
 
-export default function ChallengeDetailsScreen() {
+// Define component
+function ChallengeDetailsScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
@@ -133,6 +135,9 @@ export default function ChallengeDetailsScreen() {
     </>
   );
 }
+
+// Export component as default
+export default ChallengeDetailsScreen;
 
 function ChallengeDetailsContent() {
   // The ID of the current challenge from route params
@@ -974,6 +979,7 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
             showTitle={true}
             challengeId={challenge_id as string}
             onMoveParticipant={handleMoveParticipant}
+            totalCheckpoints={challenge?.rules?.totalCheckpoints || undefined}
             key={`racetrack-${challenge_id}-${participants.length}`} // Force remount when challenge or participants change
           />
           

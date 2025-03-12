@@ -273,6 +273,7 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
           challenge_type,
           rules,
           survival_settings,
+          start_date,
           challenge_activities(
             activity_type,
             metric,
@@ -304,6 +305,33 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
       // Process each matching challenge activity
       for (const matchingActivity of matchingActivities) {
         const timeframe = matchingActivity.timeframe || 'day';
+        
+        // Get challenge start date for week calculation
+        let challengeStartDate = null;
+        if (challenge.start_date) {
+          challengeStartDate = new Date(challenge.start_date);
+          challengeStartDate.setHours(0, 0, 0, 0);
+        }
+        
+        // Calculate the start of the current week based on challenge start date
+        let challengeWeekStart = new Date(today);
+        if (timeframe === 'week' && challengeStartDate) {
+          // Calculate days since start of challenge
+          const daysSinceStart = Math.floor((today.getTime() - challengeStartDate.getTime()) / (24 * 60 * 60 * 1000));
+          
+          // Calculate which week of the challenge we're in (0-based)
+          const weekNumber = Math.floor(daysSinceStart / 7);
+          
+          // Calculate the start of the current challenge week
+          challengeWeekStart = new Date(challengeStartDate);
+          challengeWeekStart.setDate(challengeStartDate.getDate() + (weekNumber * 7));
+        } else {
+          // Default to calendar week if no challenge start date
+          const dayOfWeek = today.getDay() || 7; // Sunday(0)->7
+          challengeWeekStart.setDate(today.getDate() - dayOfWeek + 1);
+        }
+        
+        const challengeWeekStartISOString = challengeWeekStart.toISOString();
 
         // Prevent awarding points again for the same day
         if (
@@ -320,15 +348,15 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
         if (
           timeframe === 'week' &&
           participation.last_awarded_week &&
-          new Date(participation.last_awarded_week) >= startOfWeek
+          new Date(participation.last_awarded_week) >= challengeWeekStart
         ) {
-          console.log('Points already awarded for this week for this activity');
+          console.log('Points already awarded for this challenge week for this activity');
           continue;
         }
 
         // Aggregate all activities of this type/metric for the current timeframe
         const timeframeStart =
-          timeframe === 'day' ? todayISOString : startOfWeekISOString;
+          timeframe === 'day' ? todayISOString : challengeWeekStartISOString;
 
         const { data: timeframeActivities, error: activitiesError } =
           await supabase
@@ -387,76 +415,65 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
           points: matchingActivity.points,
         });
 
-        // Calculate the base points that could be earned
-        const pointsEarned = matchingActivity.points;
+        // Get the base points that could be earned for this activity
+        const activityPoints = matchingActivity.points;
         const currentPoints = participation.total_points || 0;
         
-        // Calculate points based on the aggregated value's percentage of the threshold
-        const percentComplete = Math.min(1, aggregatedValue / thresholdValue);
-        // Calculate actual points earned for this activity based on percentage completion
-        // This ensures partial progress is properly tracked
-        const earnedPointsForTimeframe = Math.max(0, Math.floor(percentComplete * pointsEarned));
+        // Determine if the user has met the threshold for this activity
+        // This is a binary check - either they meet the threshold or they don't
+        const thresholdMet = aggregatedValue >= thresholdValue;
         
-        // Initialize cumulative points for the timeframe
-        let cumulativePoints = earnedPointsForTimeframe;
-        
-        // Handle partial point accumulation from previous days/weeks in the same timeframe
+        // For the carry-forward logic, determine if points have already been awarded 
+        // in the current timeframe (day or week)
+        let alreadyAwardedInTimeframe = false;
         if (timeframe === 'day') {
-          // If it's a new day and we have partial points from previous days
-          if (!participation.last_awarded_day ||
-              new Date(participation.last_awarded_day).toDateString() !== today.toDateString()) {
-            // Add the partial points from previous days (stored in total_points)
-            cumulativePoints += currentPoints;
-          }
+          alreadyAwardedInTimeframe = participation.last_awarded_day && 
+            new Date(participation.last_awarded_day).toDateString() === today.toDateString();
         } else if (timeframe === 'week') {
-          // If it's a new week and we have partial points from previous weeks
-          if (!participation.last_awarded_week || 
-              new Date(participation.last_awarded_week) < startOfWeek) {
-            // Add the partial points from previous weeks (stored in total_points)
-            cumulativePoints += currentPoints;
-          }
+          alreadyAwardedInTimeframe = participation.last_awarded_week && 
+            new Date(participation.last_awarded_week) >= startOfWeek;
         }
         
-        // Cap points at target_value if user exceeds the threshold
-        // This implements the rule that users can't earn more than target_value per timeframe
-        const targetPoints = matchingActivity.points; // Max points per timeframe
-        const cappedPointsForTimeframe = Math.min(cumulativePoints, targetPoints);
-        
-        console.log('Activity points calculation:', {
-          activityType: activity.activity_type,
-          metric: activity.metric,
-          aggregatedValue,
-          thresholdValue, 
-          percentComplete,
-          earnedPointsForTimeframe,
-          currentPoints,
-          cumulativePoints,
-          targetPoints,
-          cappedPointsForTimeframe
+        console.log('Checkpoint progress check:', {
+          activityType: matchingActivity.activity_type,
+          threshold: thresholdValue,
+          aggregated: aggregatedValue,
+          thresholdMet,
+          alreadyAwardedInTimeframe,
+          currentPoints
         });
         
-        // Determine if we should award points
+        // Calculate the points to award for this activity log
+        let pointsToAward = 0;
+        
+        // If the threshold is met and we haven't already awarded points in this timeframe
+        if (thresholdMet && !alreadyAwardedInTimeframe) {
+          // Award the full points for the activity
+          pointsToAward = activityPoints;
+        }
+        
+        // Calculate the new total points
         let newTotalPoints = currentPoints;
         
-        // If there are points to award (either partial or full)
-        if (earnedPointsForTimeframe > 0) {
-          // If we've reached or exceeded the target, award full points for the timeframe
-          if (cumulativePoints >= targetPoints) {
-            newTotalPoints = cappedPointsForTimeframe;
-          } 
-          // Otherwise, award partial points
-          else {
-            newTotalPoints = cumulativePoints;
-          }
+        // Only add points if there are points to award
+        if (pointsToAward > 0) {
+          // Add the points to the current total
+          newTotalPoints = currentPoints + pointsToAward;
+          
+          console.log('Points calculation:', {
+            activityType: matchingActivity.activity_type,
+            thresholdMet,
+            pointsToAward,
+            currentPoints,
+            newTotalPoints
+          });
           
           console.log('Before update:', {
             participationId: participation.id,
-            currentPoints: participation.total_points,
-            aggregatedValue,
-            thresholdValue,
-            earnedPointsForTimeframe,
-            cumulativePoints,
-            newTotalPoints,
+            currentPoints,
+            thresholdMet,
+            pointsToAward,
+            newTotalPoints
           });
 
           // Update the participant record
@@ -465,9 +482,8 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
             last_activity_date: new Date().toISOString(),
           };
           
-          // Only update the last_awarded fields if we've reached or exceeded the target
-          // This ensures we only mark a timeframe as "complete" when the user earns full points
-          if (cumulativePoints >= targetPoints) {
+          // If threshold was met, mark this timeframe as completed
+          if (thresholdMet) {
             if (timeframe === 'day') {
               updateData.last_awarded_day = todayDate; // store date only
               console.log('Daily target reached, marking day as complete');
@@ -476,7 +492,7 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
               console.log('Weekly target reached, marking week as complete');
             }
           } else {
-            console.log(`Partial progress for ${timeframe}: ${cumulativePoints}/${targetPoints} points`);
+            console.log(`Threshold not met for ${timeframe}, no points awarded`);
           }
 
           // For race challenges, calculate new map position
@@ -486,17 +502,15 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
             const maxCheckpoints = challenge.rules?.totalCheckpoints || 100;
             
             // Log accumulated points and timeframe
-            console.log('Calculating race position with partial points:', {
-              earnedPointsForTimeframe,
-              cumulativePoints,
-              targetPoints,
+            console.log('Calculating race position with total points:', {
+              pointsToAward,
               currentPoints,
               newTotalPoints,
               timeframe
             });
             
-            // Calculate position based on cumulative points
-            // For checkpoint advancement, we use the accumulated points (which may be partial)
+            // Calculate position based on total points earned so far
+            // Each checkpoint requires pointsThreshold points to complete
             const checkpointsCompleted = Math.floor(newTotalPoints / pointsThreshold);
             const finalPosition = Math.min(checkpointsCompleted, maxCheckpoints - 1);
             
@@ -527,8 +541,8 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
               // Import the calculations from survivalUtils
               const { calculateNewDistance } = await import('./survivalUtils');
               
-              // Determine the maximum possible points for this activity
-              const maxPossiblePoints = matchingActivity.points || 10;
+              // Calculate points based on threshold being met
+              const maxPossiblePoints = activityPoints; // Max points for this activity
               
               // Use the current distance from center (or default if not set)
               const currentDistance = survivalData?.distance_from_center || 0.8;
@@ -573,12 +587,14 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
               }
               
               // Calculate the new distance based on points earned
-              const newDistance = calculateNewDistance(
-                currentDistance,
-                pointsEarned, 
-                maxPossiblePoints, 
-                survivalSettings
-              );
+              // Only update distance if threshold was met and points were awarded
+              const newDistance = thresholdMet ? 
+                calculateNewDistance(
+                  currentDistance,
+                  pointsToAward, 
+                  maxPossiblePoints, 
+                  survivalSettings
+                ) : currentDistance;
               
               // Add to update data
               updateData.distance_from_center = newDistance;
@@ -586,7 +602,8 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
               console.log('Updating survival position:', {
                 oldDistance: currentDistance,
                 newDistance,
-                pointsEarned,
+                thresholdMet,
+                pointsToAward,
                 maxPossiblePoints,
                 challenge_type: challenge.challenge_type
               });
@@ -611,7 +628,8 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
           console.log('Points awarded:', {
             challengeId: challenge.id,
             participantId: participation.id,
-            pointsEarned,
+            thresholdMet,
+            pointsToAward,
             newTotal: newTotalPoints,
             timeframe,
             updatedRecord: updatedParticipant,
