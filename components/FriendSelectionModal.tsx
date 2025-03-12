@@ -20,6 +20,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../lib/supabase';
+import { generateAvatarUrl } from './UserContext';
 
 interface Friend {
   id: string;
@@ -150,10 +151,11 @@ export default function FriendSelectionModal({
             ? invitesMap.get(friendId) 
             : 'not_invited';
             
+          const nickname = item.friend?.nickname || 'Unknown';
           return {
             id: friendId,
-            nickname: item.friend?.nickname || 'Unknown',
-            avatar_url: item.friend?.avatar_url || 'https://via.placeholder.com/40',
+            nickname: nickname,
+            avatar_url: generateAvatarUrl(nickname),
             selected: false,
             inviteStatus: inviteStatus
           };

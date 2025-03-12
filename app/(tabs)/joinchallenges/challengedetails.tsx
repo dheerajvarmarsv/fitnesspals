@@ -23,7 +23,7 @@ import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { supabase } from '../../../lib/supabase';
-import { useUser } from '../../../components/UserContext';
+import { useUser, generateAvatarUrl } from '../../../components/UserContext';
 import MultiAvatarRaceTrack from '../../../components/RaceTrackComponent';
 import { Arena } from '../../../components/Arena';
 import { ArenaHeader } from '../../../components/ArenaHeader';
@@ -325,29 +325,32 @@ function ChallengeDetailsContent() {
     if (challenge?.challenge_type === 'survival' && currentUserId && challenge_id) {
       console.log('Setting up arena for survival challenge:', challenge_id);
       
-      // Initialize the arena with the challenge data
-      const setupArena = async () => {
-        try {
-          await useArenaStore.getState().setChallenge(challenge_id as string, currentUserId);
-          console.log('Arena setup complete');
-        } catch (err) {
-          console.error('Error setting up arena:', err);
-        }
-      };
-      
-      setupArena();
-      
-      // Subscribe to real-time updates for survival mode
-      const unsubscribe = useArenaStore.getState().subscribeToParticipantChanges(
-        challenge_id as string, 
-        currentUserId
-      );
-      
-      return () => {
-        // Clean up subscription
-        if (unsubscribe) unsubscribe();
-        console.log('Cleaning up arena subscription');
-      };
+      // Only load arena data when the map tab is active
+      if (activeTab === 'map') {
+        // Initialize the arena with the challenge data
+        const setupArena = async () => {
+          try {
+            await useArenaStore.getState().setChallenge(challenge_id as string, currentUserId);
+            console.log('Arena setup complete');
+          } catch (err) {
+            console.error('Error setting up arena:', err);
+          }
+        };
+        
+        setupArena();
+        
+        // Subscribe to real-time updates for survival mode
+        const unsubscribe = useArenaStore.getState().subscribeToParticipantChanges(
+          challenge_id as string, 
+          currentUserId
+        );
+        
+        return () => {
+          // Clean up subscription
+          if (unsubscribe) unsubscribe();
+          console.log('Cleaning up arena subscription');
+        };
+      }
     }
   }, [challenge, currentUserId, challenge_id, activeTab]);
 
@@ -516,7 +519,8 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
   
     // Proceed with the update
     try {
-      const pointsPerStep = 10;
+      // Get points threshold from challenge rules or default to 10
+      const pointsPerStep = challenge?.rules?.pointsPerCheckpoint || 10;
       const totalPoints = step * pointsPerStep;
       
       console.log('Updating participant in DB:', {
@@ -588,7 +592,7 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
       return {
         id: p.id,
         user_id: p.user_id,
-        avatar_url: p.profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
+        avatar_url: generateAvatarUrl(p.profile?.nickname || 'User'),
         nickname: p.profile?.nickname || 'Unknown',
         currentStep: step,
         isCurrentUser: isCurrentUser,
@@ -932,9 +936,7 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
 
                         <Image
                           source={{
-                            uri:
-                              participant.profile?.avatar_url ||
-                              'https://ui-avatars.com/api/?name=User&background=random',
+                            uri: generateAvatarUrl(participant.profile?.nickname || 'User')
                           }}
                           style={styles.participantAvatar}
                         />
@@ -1112,7 +1114,7 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
                   >
                     <Image
                       source={{ 
-                        uri: item.avatar_url || 'https://ui-avatars.com/api/?name=User&background=random'
+                        uri: generateAvatarUrl(item.nickname || 'User')
                       }}
                       style={styles.friendAvatar}
                     />

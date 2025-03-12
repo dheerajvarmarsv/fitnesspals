@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { Shield, Heart, Trophy, AlertTriangle } from 'lucide-react-native';
 import { useArenaStore } from '../lib/arenaStore';
-const DAYS_IN_DANGER_LIMIT = 3; // Default value
+import { DEFAULT_SURVIVAL_SETTINGS } from '../lib/survivalUtils';
 
 interface ArenaHeaderProps {
   title?: string;
@@ -99,7 +99,7 @@ export const ArenaHeader = ({ title = "Survival Challenge" }: ArenaHeaderProps) 
           <AlertTriangle size={16} color="#ffffff" style={{ marginRight: 6 }} />
           <Text style={styles.dangerText}>
             {currentUser?.lives > 0 ? (
-              <>In danger zone! {DAYS_IN_DANGER_LIMIT - (currentUser.daysInDanger || 0)} day(s) until losing a life</>
+              <>In danger zone! {DEFAULT_SURVIVAL_SETTINGS.elimination_threshold - (currentUser.daysInDanger || 0)} day(s) until losing a life</>
             ) : (
               <>FINAL WARNING! Log an activity now to survive</>
             )}

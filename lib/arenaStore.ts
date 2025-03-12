@@ -2,28 +2,14 @@ import { create } from 'zustand';
 import { User } from '../lib/user';
 import { Dimensions } from 'react-native';
 import { supabase } from './supabase';
-// Import from survivalUtils
-// Use dynamic import to avoid circular dependency
-let DEFAULT_SURVIVAL_SETTINGS: any = {
-  initial_safe_radius: 1.0,
-  final_safe_radius: 0.1,
-  max_points_per_period: 10,
-  max_movement_per_period: 0.05,
-  timeframe: 'daily',
-  elimination_threshold: 3,
-  start_lives: 3
-};
-
-import { calculateSafeZoneRadius } from './survivalUtils';
+import { DEFAULT_SURVIVAL_SETTINGS, calculateSafeZoneRadius } from './survivalUtils';
 
 const { width } = Dimensions.get('window');
 const ARENA_SIZE = width * 0.9; // Visual size for the arena component
 const MAX_SAFE_ZONE_RADIUS = (ARENA_SIZE / 2) * 0.9; // 90% of arena radius
 const MIN_SAFE_ZONE_RADIUS = (ARENA_SIZE / 2) * 0.1; // 10% of arena radius - minimum safe zone
 
-// Constants for arena calculations
-export const DEFAULT_LIVES = DEFAULT_SURVIVAL_SETTINGS.start_lives || 3;
-export const DAYS_IN_DANGER_LIMIT = DEFAULT_SURVIVAL_SETTINGS.elimination_threshold || 3;
+// Constants for arena calculations - use the values from survivalUtils
 
 // Convert participant data from database to User objects for the arena
 export const mapParticipantToUser = (
@@ -45,20 +31,34 @@ export const mapParticipantToUser = (
   const adjustedDistance = distanceFromCenter >= 0.99 ? 1.0 : 
                           distanceFromCenter <= 0.05 ? 0.05 : 
                           distanceFromCenter;
+                          
+  // Get nickname for consistent display
+  const nickname = participant.profile?.nickname || 'User';
+  
+  // Log participant data for debugging
+  if (participant.user_id === currentUserId) {
+    console.log('Converting current user data to User object:', {
+      id: participant.id,
+      total_points: participant.total_points,
+      lives: participant.lives,
+      distance: distanceFromCenter,
+      is_eliminated: participant.is_eliminated
+    });
+  }
   
   return {
     id: participant.id,
-    name: participant.profile?.nickname || 'User',
+    name: nickname,
     angle: angle,
     // Scale normalized distance (0-1) to actual pixel distance for the component
     distance: arenaRadius * adjustedDistance, 
-    lives: participant.lives || DEFAULT_LIVES,
-    points: participant.total_points || 0,
+    lives: participant.lives !== undefined ? participant.lives : DEFAULT_SURVIVAL_SETTINGS.start_lives,
+    points: participant.total_points !== undefined ? participant.total_points : 0,
     daysInDanger: participant.days_in_danger || 0,
     isCurrentUser: participant.user_id === currentUserId,
     isEliminated: participant.is_eliminated || false,
-    // Add avatar URL
-    avatarUrl: participant.profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
+    // Generate avatar URL from nickname for consistent display
+    avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(nickname)}&background=random&color=ffffff&bold=true`,
   };
 };
 
@@ -138,17 +138,22 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
   // Fetch all participants for the current challenge
   fetchParticipants: async (challengeId: string, currentUserId: string) => {
     try {
+      console.log('Fetching participants for challenge:', challengeId);
+      
+      // IMPORTANT: Make sure we get ALL data fields needed from the participants
       const { data: participants, error } = await supabase
         .from('challenge_participants')
         .select(`
           id,
           user_id,
+          challenge_id,
           total_points,
           lives,
           days_in_danger,
           distance_from_center,
           angle,
           is_eliminated,
+          last_activity_date,
           profile:profiles (
             id,
             nickname,
@@ -159,14 +164,54 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
       
       if (error) throw error;
       
+      if (!participants || participants.length === 0) {
+        console.log('No participants found for challenge:', challengeId);
+        set({ users: [] });
+        return;
+      }
+      
+      console.log(`Found ${participants.length} participants for challenge ${challengeId}`);
+      
+      // Log current user data for debugging
+      const currentUserData = participants.find(p => p.user_id === currentUserId);
+      if (currentUserData) {
+        console.log('Current user data:', {
+          id: currentUserData.id,
+          user_id: currentUserData.user_id,
+          total_points: currentUserData.total_points,
+          lives: currentUserData.lives,
+          days_in_danger: currentUserData.days_in_danger,
+          distance_from_center: currentUserData.distance_from_center,
+          is_eliminated: currentUserData.is_eliminated,
+        });
+      } else {
+        console.log('Current user not found in participants');
+      }
+      
       // Map participants to User objects
       const users = participants.map(p => 
         mapParticipantToUser(p, currentUserId, ARENA_SIZE/2)
       );
       
+      // Debug log the mapped user objects
+      if (users.length > 0) {
+        const currentUserObj = users.find(u => u.isCurrentUser);
+        if (currentUserObj) {
+          console.log('Mapped current user object:', {
+            id: currentUserObj.id,
+            points: currentUserObj.points,
+            lives: currentUserObj.lives,
+            distance: currentUserObj.distance,
+            isEliminated: currentUserObj.isEliminated
+          });
+        }
+      }
+      
       set({ users });
     } catch (error) {
       console.error("Error fetching participants:", error);
+      // Set empty users array to prevent UI errors
+      set({ users: [] });
     }
   },
   

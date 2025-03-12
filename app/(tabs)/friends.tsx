@@ -16,7 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import SharedLayout from '../../components/SharedLayout';
-import { useUser } from '../../components/UserContext';
+import { useUser, generateAvatarUrl } from '../../components/UserContext';
 import {
   getFriends,
   getFriendRequests,
@@ -234,7 +234,7 @@ export default function Friends() {
             {friendRequests.map((req) => (
               <View key={req.id} style={styles.requestItem}>
                 <Image
-                  source={{ uri: req.sender?.avatar_url }}
+                  source={{ uri: generateAvatarUrl(req.sender?.nickname || 'User') }}
                   style={styles.avatar}
                 />
                 <View style={styles.requestInfo}>
@@ -277,7 +277,7 @@ export default function Friends() {
             friends.map((friend) => (
               <View key={friend.id} style={styles.friendItem}>
                 <Image
-                  source={{ uri: friend.friend?.avatar_url }}
+                  source={{ uri: generateAvatarUrl(friend.friend?.nickname || 'User') }}
                   style={styles.avatar}
                 />
                 <View style={styles.friendInfo}>
@@ -417,7 +417,7 @@ export default function Friends() {
                       return (
                         <View key={user.id} style={styles.searchResultItem}>
                           <Image
-                            source={{ uri: user.avatar_url }}
+                            source={{ uri: generateAvatarUrl(user.nickname || 'User') }}
                             style={styles.searchResultAvatar}
                           />
                           <Text style={styles.searchResultName}>{user.nickname}</Text>

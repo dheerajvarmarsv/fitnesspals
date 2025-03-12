@@ -29,10 +29,27 @@ interface UserContextType {
   handleLogout: () => Promise<void>;
 }
 
+// Generate avatar URL based on nickname
+// Uses a deterministic hash of the nickname to ensure consistent colors
+const generateAvatarUrl = (nickname: string): string => {
+  // Default nickname if none provided
+  const nameToUse = nickname || 'User';
+  
+  // Create a simple hash from the nickname to get a consistent color
+  const nicknameHash = nameToUse.split('').reduce((hash, char) => {
+    return ((hash << 5) - hash) + char.charCodeAt(0);
+  }, 0);
+  
+  // Convert hash to hex color (absolute value to ensure positive number)
+  const colorHash = Math.abs(nicknameHash).toString(16).padStart(6, '0').substring(0, 6);
+  
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(nameToUse)}&background=${colorHash}&color=ffffff&bold=true`;
+};
+
 const defaultSettings: UserSettings = {
   email: '',
   nickname: '',
-  avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
+  avatarUrl: generateAvatarUrl(''),
   useKilometers: true,
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   privacyMode: 'public',
@@ -134,11 +151,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
       const defaultNotif = defaultSettings.notificationSettings;
       const loadedNotifs = settingsRow?.notification_settings || {};
 
+      // Get nickname for avatar generation
+      const userNickname = profile?.nickname || defaultSettings.nickname;
+      
       // 4) Merge everything into a single UserSettings object
       const updatedSettings: UserSettings = {
         email: profile?.email || defaultSettings.email,
-        nickname: profile?.nickname || defaultSettings.nickname,
-        avatarUrl: profile?.avatar_url || defaultSettings.avatarUrl,
+        nickname: userNickname,
+        // Always generate avatar from nickname, ignore avatar_url from database
+        avatarUrl: generateAvatarUrl(userNickname),
         useKilometers: settingsRow?.use_kilometers ?? defaultSettings.useKilometers,
         timezone: settingsRow?.timezone || defaultSettings.timezone,
         privacyMode: (settingsRow?.privacy_mode as UserSettings['privacyMode'])
@@ -212,11 +233,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
         profileUpdates.email = newSettings.email;
       }
       if (newSettings.nickname !== undefined) {
-        profileUpdates.nickname = newSettings.nickname.toLowerCase();
+        const nickname = newSettings.nickname.toLowerCase();
+        profileUpdates.nickname = nickname;
+        // Always update avatarUrl if nickname changes
+        newSettings.avatarUrl = generateAvatarUrl(nickname);
       }
-      if (newSettings.avatarUrl !== undefined) {
-        profileUpdates.avatar_url = newSettings.avatarUrl;
-      }
+      // No longer store the avatar_url in the database since we generate it from nickname
 
       // Update profile_settings table fields
       if (newSettings.privacyMode !== undefined) {
@@ -284,3 +306,6 @@ export function useUser() {
   }
   return context;
 }
+
+// Export the avatar generation function so it can be used consistently across the app
+export { generateAvatarUrl };

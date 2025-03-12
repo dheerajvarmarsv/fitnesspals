@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Platform, Image } from 'react-native';
 import Svg, { Circle, Text as SvgText, G, Image as SvgImage, ClipPath, Defs } from 'react-native-svg';
 import { User } from '../types/user';
+import { generateAvatarUrl } from '../components/UserContext';
 
 interface UserDotProps {
   user: User;
@@ -221,7 +222,7 @@ export default function UserDot({
         y={staticY - dotSize}
         width={dotSize * 2}
         height={dotSize * 2}
-        href={{ uri: user.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400' }}
+        href={{ uri: generateAvatarUrl(user.name) }}
         clipPath={`url(#${clipId})`}
         preserveAspectRatio="xMidYMid slice"
       />

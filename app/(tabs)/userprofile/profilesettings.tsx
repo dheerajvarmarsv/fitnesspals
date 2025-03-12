@@ -114,17 +114,12 @@ export default function ProfileSettings() {
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.header}>
-          <Link href="/userprofile/avatar" asChild>
-            <TouchableOpacity style={styles.avatarContainer}>
-              <Image
-                source={{ uri: settings.avatarUrl }}
-                style={styles.avatar}
-              />
-              <View style={styles.editIconContainer}>
-                <Ionicons name="camera" size={14} color="#fff" />
-              </View>
-            </TouchableOpacity>
-          </Link>
+          <View style={styles.avatarContainer}>
+            <Image
+              source={{ uri: settings.avatarUrl }}
+              style={styles.avatar}
+            />
+          </View>
           
           <View style={styles.nameContainer}>
             <TouchableOpacity onPress={() => router.push('/userprofile/nickname')}>

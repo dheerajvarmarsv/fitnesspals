@@ -85,9 +85,10 @@ export const calculateNewDistance = (
   // No points earned = no movement
   if (!pointsEarned || pointsEarned <= 0) return currentDistance;
   
-  // Calculate movement based on percentage of max possible points
-  const pointsRatio = Math.min(1, pointsEarned / maxPointsPerPeriod);
-  const movement = maxMovementPerPeriod * pointsRatio;
+  // For Survival Challenge: "No Partial Points" Approach
+  // If points were earned, it means the user fully met the target
+  // Thus, award full movement instead of partial movement
+  const movement = maxMovementPerPeriod;
   
   // Move inward (reduce distance)
   let newDistance = Math.max(0, currentDistance - movement);

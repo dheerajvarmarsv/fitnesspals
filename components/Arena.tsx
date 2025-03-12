@@ -111,14 +111,16 @@ export const Arena = () => {
         <View style={styles.userStatsRow}>
           <View style={styles.statItem}>
             <Text style={styles.statLabel}>Points</Text>
-            <Text style={styles.statValue}>{currentUser?.points || 0}</Text>
+            <Text style={styles.statValue}>
+              {currentUser && typeof currentUser.points === 'number' ? currentUser.points : 0}
+            </Text>
           </View>
           
           <View style={styles.statDivider} />
           
           <View style={styles.statItem}>
             <Text style={styles.statLabel}>Lives</Text>
-            <Text style={styles.statValue}>{currentUser?.lives || 0}</Text>
+            <Text style={styles.statValue}>{currentUser?.lives || 3}/3</Text>
           </View>
           
           <View style={styles.statDivider} />

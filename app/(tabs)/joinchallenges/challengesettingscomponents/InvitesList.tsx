@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { generateAvatarUrl } from '../../../../components/UserContext';
 
 interface InviteItem {
   id: string;
@@ -87,7 +88,7 @@ export default function InvitesList({
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                 <Image
-                  source={{ uri: item.sender?.avatar_url || 'https://via.placeholder.com/40' }}
+                  source={{ uri: generateAvatarUrl(item.sender?.nickname || 'User') }}
                   style={{
                     width: 32,
                     height: 32,
