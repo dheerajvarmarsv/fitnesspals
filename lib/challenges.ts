@@ -216,6 +216,57 @@ export async function createChallengeInSupabase({
     .insert(participantData);
   if (participantError) throw participantError;
 
+  // Process existing activities for this challenge if it's a race or survival challenge
+  // and has a start date (to determine activity timeframe)
+  if ((challengeType === 'race' || challengeType === 'survival') && startDate) {
+    try {
+      // Import the updateChallengesWithActivity function once
+      const { updateChallengesWithActivity } = await import('./challengeUtils');
+      
+      // Fetch recent activities that match the challenge criteria
+      // Get activities from the last 30 days or from challenge start date (whichever is more recent)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      // Use the more recent of challenge start date or 30 days ago
+      const startTimeCutoff = startDate > thirtyDaysAgo ? startDate : thirtyDaysAgo;
+      
+      // Create a set to track processed activity IDs and avoid duplicates
+      const processedActivityIds = new Set<string>();
+      
+      // For each selected activity type, fetch relevant activities
+      for (const activity of selectedActivities) {
+        const { data: existingActivities, error: activitiesError } = await supabase
+          .from('activities')
+          .select('id, activity_type, metric')
+          .eq('user_id', userId)
+          .eq('activity_type', activity.activityType)
+          .eq('metric', activity.metric)
+          .gte('created_at', startTimeCutoff.toISOString())
+          .order('created_at', { ascending: false });
+          
+        if (activitiesError) {
+          console.error('Error fetching existing activities:', activitiesError);
+          continue;
+        }
+        
+        // Process each activity for the new challenge, avoiding duplicates
+        if (existingActivities && existingActivities.length > 0) {
+          for (const existingActivity of existingActivities) {
+            // Skip if already processed
+            if (processedActivityIds.has(existingActivity.id)) continue;
+            
+            await updateChallengesWithActivity(existingActivity.id, userId);
+            processedActivityIds.add(existingActivity.id);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error processing existing activities for new challenge:', error);
+      // Don't throw - still return the challenge even if activity processing fails
+    }
+  }
+
   return createdChallenge;
 }
 
