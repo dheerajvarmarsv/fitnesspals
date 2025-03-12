@@ -252,6 +252,7 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
     });
 
     // Get user's active challenge participation records.
+    // Include processed_activity_ids array to track which activities have met their threshold
     const { data: participations, error: challengesError } = await supabase
       .from('challenge_participants')
       .select(`
@@ -268,6 +269,8 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
         longest_streak,
         last_awarded_day,
         last_awarded_week,
+        processed_activity_ids,
+        last_sync_timestamp,
         challenges(
           id,
           challenge_type,
@@ -275,6 +278,7 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
           survival_settings,
           start_date,
           challenge_activities(
+            id,
             activity_type,
             metric,
             target_value,
@@ -333,24 +337,38 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
         
         const challengeWeekStartISOString = challengeWeekStart.toISOString();
 
-        // Prevent awarding points again for the same day
+        // Get the activity ID for this specific activity in this timeframe
+        const activityTimeframeId = `${matchingActivity.id}_${timeframe}_${timeframe === 'day' ? today.toDateString() : challengeWeekStart.toDateString()}`;
+        
+        // Initialize the processed activity IDs array if it doesn't exist
+        const processedActivityIds = participation.processed_activity_ids || [];
+        
+        // Check if this specific activity has already been processed for this timeframe
+        if (processedActivityIds.includes(activityTimeframeId)) {
+          console.log(`Activity ${matchingActivity.activity_type} already processed for this ${timeframe}`, {
+            activityTimeframeId,
+            processedIds: processedActivityIds
+          });
+          continue;
+        }
+        
+        // Traditional timeframe check as a fallback
         if (
           timeframe === 'day' &&
           participation.last_awarded_day &&
-          new Date(participation.last_awarded_day).toDateString() ===
-            today.toDateString()
+          new Date(participation.last_awarded_day).toDateString() === today.toDateString()
         ) {
-          console.log('Points already awarded for today for this activity');
+          console.log('Daily activities already processed');
           continue;
         }
 
-        // Prevent awarding points again for the same week
+        // Traditional week check as a fallback
         if (
           timeframe === 'week' &&
           participation.last_awarded_week &&
           new Date(participation.last_awarded_week) >= challengeWeekStart
         ) {
-          console.log('Points already awarded for this challenge week for this activity');
+          console.log('Weekly activities already processed');
           continue;
         }
 
@@ -477,9 +495,17 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
           });
 
           // Update the participant record
+          // Create a new array with the current activity added to processed IDs
+          const updatedProcessedActivityIds = [...processedActivityIds];
+          if (!updatedProcessedActivityIds.includes(activityTimeframeId)) {
+            updatedProcessedActivityIds.push(activityTimeframeId);
+          }
+          
           const updateData: any = {
             total_points: newTotalPoints,
             last_activity_date: new Date().toISOString(),
+            processed_activity_ids: updatedProcessedActivityIds,
+            last_sync_timestamp: new Date().toISOString(),
           };
           
           // If threshold was met, mark this timeframe as completed
