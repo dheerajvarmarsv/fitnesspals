@@ -1,44 +1,81 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { Shield, Heart, Trophy, AlertTriangle } from 'lucide-react-native';
 import { useArenaStore } from '../lib/arenaStore';
 import { DEFAULT_SURVIVAL_SETTINGS } from '../lib/survivalUtils';
+import { supabase } from '../lib/supabase';
 
 interface ArenaHeaderProps {
   title?: string;
 }
 
 export const ArenaHeader = ({ title = "Survival Challenge" }: ArenaHeaderProps) => {
-  const { currentDay, totalDays, currentUser, loading } = useArenaStore();
+  const { 
+    currentDay, 
+    totalDays, 
+    currentUser, 
+    loading,
+    safeZoneRadius,
+    challengeId,
+    currentUserParticipant,
+  } = useArenaStore();
+  
+  // Force a data refresh on component mount
+  useEffect(() => {
+    if (challengeId && currentUserParticipant?.user_id) {
+      const refreshData = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('challenge_participants')
+            .select('total_points')
+            .eq('id', currentUserParticipant.id)
+            .single();
+            
+          if (!error && data) {
+            useArenaStore.getState().refreshParticipant({
+              ...currentUserParticipant,
+              total_points: data.total_points
+            });
+          }
+        } catch (err) {
+          console.error('Error refreshing points:', err);
+        }
+      };
+      
+      refreshData();
+    }
+  }, [challengeId, currentUserParticipant?.id]);
+  
+  // Get points directly from the participant data
+  const userPoints = currentUserParticipant?.total_points ?? 0;
+  
+  // Get other user data
+  const userLives = currentUserParticipant?.lives ?? currentUser?.lives ?? DEFAULT_SURVIVAL_SETTINGS.start_lives;
+  const maxLives = DEFAULT_SURVIVAL_SETTINGS.start_lives;
   
   // Calculate progress percentage
   const progressPercentage = totalDays > 0 ? Math.min(100, (currentDay / totalDays) * 100) : 0;
   
-  // Get safe zone radius from store
-  const { safeZoneRadius } = useArenaStore();
-  
   // Determine user status
-  const isInDanger = currentUser ? 
-    currentUser?.distance > safeZoneRadius : false;
-  
-  // Determine if user is eliminated
-  const isEliminated = currentUser?.isEliminated || false;
-  
-  // Calculate danger percentage for visual indication
-  const dangerPercentage = currentUser && !isEliminated ? 
-    Math.min(100, Math.max(0, ((currentUser.distance - safeZoneRadius) / (1 - safeZoneRadius)) * 100)) : 0;
+  const isEliminated = currentUserParticipant?.is_eliminated ?? currentUser?.isEliminated ?? false;
+  let isInDanger = false;
+  if (!isEliminated && currentUser) {
+    isInDanger = currentUser.distance > safeZoneRadius;
+  }
   
   // Set status color and text
-  let statusColor = '#22c55e'; // Default green for safe
+  let statusColor = '#22c55e';
   let statusText = 'Safe';
-  
   if (isEliminated) {
-    statusColor = '#9ca3af'; // Gray for eliminated
+    statusColor = '#9ca3af';
     statusText = 'Eliminated';
   } else if (isInDanger) {
-    statusColor = '#ef4444'; // Red for danger
+    statusColor = '#ef4444';
     statusText = 'Danger';
   }
+
+  const daysInDanger = currentUserParticipant?.days_in_danger ?? 0;
+  const daysUntilLifeLoss = DEFAULT_SURVIVAL_SETTINGS.elimination_threshold - daysInDanger;
 
   return (
     <View style={styles.container}>
@@ -46,14 +83,12 @@ export const ArenaHeader = ({ title = "Survival Challenge" }: ArenaHeaderProps) 
         <Text style={styles.title}>{title}</Text>
         <View style={styles.dayContainer}>
           <Text style={styles.subtitle}>Day {currentDay} of {totalDays}</Text>
-          
-          {/* Progress bar */}
           <View style={styles.progressBarContainer}>
             <View style={[styles.progressBar, { width: `${progressPercentage}%` }]} />
           </View>
         </View>
       </View>
-      
+
       {loading ? (
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Loading challenge data...</Text>
@@ -63,7 +98,7 @@ export const ArenaHeader = ({ title = "Survival Challenge" }: ArenaHeaderProps) 
           <View style={styles.statItem}>
             <Trophy size={18} color="#fbbf24" style={styles.statIcon} />
             <Text style={styles.statLabel}>Points</Text>
-            <Text style={styles.statValue}>{currentUser.points || 0}</Text>
+            <Text style={styles.statValue}>{userPoints}</Text>
           </View>
           
           <View style={styles.statDivider} />
@@ -71,7 +106,7 @@ export const ArenaHeader = ({ title = "Survival Challenge" }: ArenaHeaderProps) 
           <View style={styles.statItem}>
             <Heart size={18} color={isEliminated ? "#9ca3af" : "#ef4444"} style={styles.statIcon} />
             <Text style={styles.statLabel}>Lives</Text>
-            <Text style={styles.statValue}>{currentUser.lives || 0}</Text>
+            <Text style={styles.statValue}>{userLives}/{maxLives}</Text>
           </View>
           
           <View style={styles.statDivider} />
@@ -98,11 +133,9 @@ export const ArenaHeader = ({ title = "Survival Challenge" }: ArenaHeaderProps) 
         <View style={styles.dangerAlert}>
           <AlertTriangle size={16} color="#ffffff" style={{ marginRight: 6 }} />
           <Text style={styles.dangerText}>
-            {currentUser?.lives > 0 ? (
-              <>In danger zone! {DEFAULT_SURVIVAL_SETTINGS.elimination_threshold - (currentUser.daysInDanger || 0)} day(s) until losing a life</>
-            ) : (
-              <>FINAL WARNING! Log an activity now to survive</>
-            )}
+            {daysUntilLifeLoss > 1
+              ? `In danger zone! ${daysUntilLifeLoss} day(s) until losing a life`
+              : 'FINAL WARNING! Log enough activities now to survive'}
           </Text>
         </View>
       )}
@@ -125,7 +158,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#ffffff',
     marginBottom: 8,
-    // Add text shadow for better visibility
     ...Platform.select({
       web: {
         textShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
@@ -154,7 +186,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   loadingContainer: {
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(0,0,0,0.3)',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
@@ -165,7 +197,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   errorContainer: {
-    backgroundColor: 'rgba(239, 68, 68, 0.2)', // Light red background
+    backgroundColor: 'rgba(239,68,68,0.2)',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
@@ -177,10 +209,9 @@ const styles = StyleSheet.create({
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(0,0,0,0.3)',
     borderRadius: 12,
     padding: 16,
-    // Add subtle shadow for depth
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -216,13 +247,13 @@ const styles = StyleSheet.create({
   statDivider: {
     width: 1,
     height: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
     marginHorizontal: 8,
   },
   dangerAlert: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.7)', // Semi-transparent red
+    backgroundColor: 'rgba(239,68,68,0.7)',
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 12,

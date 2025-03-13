@@ -214,6 +214,20 @@ function ChallengeDetailsContent() {
     }
   }, [challenge_id]);
 
+  const renderArena = () => {
+    return (
+      <View style={styles.arenaContainer}>
+        <Arena />
+        {!realTimeConnected && arenaInitialized && (
+          <View style={styles.connectionWarning}>
+            <Text style={styles.connectionWarningText}>
+              ⚠️ Real-time updates unavailable
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  };
   // 3) Fetch participants
   const fetchParticipants = useCallback(async () => {
     if (!challenge_id) return;
@@ -321,39 +335,89 @@ function ChallengeDetailsContent() {
   }, [loadAllData]);
   
   // Setup arena for survival challenges
+  const [arenaInitialized, setArenaInitialized] = useState(false);
+  const [realTimeConnected, setRealTimeConnected] = useState(false);
+  
+  // Setup arena for survival challenges with better error handling
   useEffect(() => {
     if (challenge?.challenge_type === 'survival' && currentUserId && challenge_id) {
       console.log('Setting up arena for survival challenge:', challenge_id);
       
-      // Only load arena data when the map tab is active
-      if (activeTab === 'map') {
+      // Initialize arena data when map tab is active
+      if (activeTab === 'map' && !arenaInitialized) {
+        setLoading(true);
+        
         // Initialize the arena with the challenge data
         const setupArena = async () => {
           try {
+            // Clear previous state first
+            useArenaStore.getState().reset();
+            
+            // Initialize with current challenge data
             await useArenaStore.getState().setChallenge(challenge_id as string, currentUserId);
             console.log('Arena setup complete');
+            
+            // Mark as initialized
+            setArenaInitialized(true);
           } catch (err) {
             console.error('Error setting up arena:', err);
+            setError('Could not initialize arena. Please try refreshing.');
+          } finally {
+            setLoading(false);
           }
         };
         
         setupArena();
-        
-        // Subscribe to real-time updates for survival mode
-        const unsubscribe = useArenaStore.getState().subscribeToParticipantChanges(
-          challenge_id as string, 
-          currentUserId
-        );
-        
-        return () => {
-          // Clean up subscription
-          if (unsubscribe) unsubscribe();
-          console.log('Cleaning up arena subscription');
-        };
       }
+      
+      // Setup real-time updates with Supabase subscription
+      const setupRealTimeUpdates = () => {
+        const channel = supabase
+          .channel(`challenge_arena_${challenge_id}`)
+          .on('postgres_changes', {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'challenge_participants',
+            filter: `challenge_id=eq.${challenge_id}`
+          }, (payload) => {
+            // Handle real-time updates to participants
+            console.log('Participant update received:', payload.new);
+            
+            // Update the participant in ArenaStore
+            if (arenaInitialized) {
+              useArenaStore.getState().refreshParticipant(payload.new);
+            }
+            
+            // Also update local participants state if needed
+            setParticipants(prev => prev.map(p => 
+              p.id === payload.new.id ? { ...p, ...payload.new } : p
+            ));
+          })
+          .subscribe((status) => {
+            console.log(`Arena real-time subscription status: ${status}`);
+            setRealTimeConnected(status === 'SUBSCRIBED');
+          });
+          
+        return () => {
+          supabase.removeChannel(channel);
+        };
+      };
+      
+      // Only setup real-time if we're on the map tab
+      const cleanup = activeTab === 'map' ? setupRealTimeUpdates() : undefined;
+      
+      return () => {
+        // Clean up function
+        if (cleanup) cleanup();
+        
+        // Reset arena state if navigating away from map tab
+        if (activeTab !== 'map' && arenaInitialized) {
+          useArenaStore.getState().reset();
+          setArenaInitialized(false);
+        }
+      };
     }
-  }, [challenge, currentUserId, challenge_id, activeTab]);
-
+  }, [challenge, currentUserId, challenge_id, activeTab, arenaInitialized]);
   // Pull-to-refresh
   // Fetch friends list for invitations
   const fetchFriends = useCallback(async () => {
@@ -982,7 +1046,7 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
             challengeId={challenge_id as string}
             onMoveParticipant={handleMoveParticipant}
             totalCheckpoints={challenge?.rules?.totalCheckpoints || undefined}
-            key={`racetrack-${challenge_id}-${participants.length}`} // Force remount when challenge or participants change
+            key={`racetrack-${challenge_id}-${participants.length}`}
           />
           
           {/* Checkpoint Progress for current user */}
@@ -1220,6 +1284,30 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  connectionWarning: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(251, 191, 36, 0.8)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  arenaContainer: {
+    backgroundColor: '#1a1c23',
+    padding: 20,
+    alignItems: 'center',
+    borderRadius: 12,
+    width: '100%',
+    position: 'relative',
+  },
+  connectionWarningText: {
+    color: '#000',
+    fontSize: 12,
+    fontWeight: '600',
   },
   // Invite Friends Modal
   inviteModalContainer: {

@@ -12,27 +12,84 @@ const CENTER_Y = MAP_SIZE / 2;
 const ARENA_RADIUS = ARENA_SIZE / 2;
 
 export const Arena = () => {
-  const { safeZoneRadius, users, loading, currentDay, totalDays, currentUser } = useArenaStore();
+  const { 
+    safeZoneRadius, 
+    users, 
+    loading, 
+    currentDay, 
+    totalDays, 
+    currentUser,
+    challengeId,
+    currentUserParticipant // Added this to the destructuring
+  } = useArenaStore();
+  
+  const currentUserId = currentUser?.id || null;
   const safeZoneAnimation = useRef(new Animated.Value(safeZoneRadius)).current;
   const [isAnimating, setIsAnimating] = useState(false);
   const mapRef = useRef(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Pulse animation for the arena boundary
   const pulseAnim = useRef(new Animated.Value(0)).current;
   
-  // Calculate progress percentage
+  // Use currentUserParticipant for accurate database values
+  const userPoints = currentUserParticipant?.total_points || currentUser?.points || 0;
+  const userLives = currentUserParticipant?.lives || currentUser?.lives || 3;
+  const maxLives = 3; // This could come from survival_settings
+  
+  // Calculate progress based on actual database values
   const progressPercentage = totalDays > 0 ? Math.min(100, (currentDay / totalDays) * 100) : 0;
   
-  // Determine user status
+  // Determine user status based on data from database
   const isInDanger = currentUser ? 
     currentUser.distance > safeZoneRadius : false;
     
-  // Determine if user is eliminated
-  const isEliminated = currentUser?.isEliminated || false;
+  // Determine if user is eliminated based on database flag
+  const isEliminated = currentUserParticipant?.is_eliminated || currentUser?.isEliminated || false;
   
+  // Set status color and text based on actual status
+  let statusColor = '#22c55e'; // Default green for safe
+  let statusText = 'Safe';
+  
+  if (isEliminated) {
+    statusColor = '#9ca3af'; // Gray for eliminated
+    statusText = 'Eliminated';
+  } else if (isInDanger) {
+    statusColor = '#ef4444'; // Red for danger
+    statusText = 'Danger';
+  }
+
+  // Set up real-time subscription when component mounts
   useEffect(() => {
-    // Start pulsing animation
-    Animated.loop(
+    if (challengeId && currentUserId) {
+      // Set up real-time subscription
+      const unsubscribe = useArenaStore.getState().subscribeToParticipantChanges(
+        challengeId,
+        currentUserId
+      );
+      
+      return () => {
+        // Clean up subscription
+        if (unsubscribe) unsubscribe();
+      };
+    }
+  }, [challengeId, currentUserId]);
+   
+  // Animate safe zone changes when radius changes
+  useEffect(() => {
+    setIsAnimating(true);
+    Animated.timing(safeZoneAnimation, {
+      toValue: safeZoneRadius,
+      duration: 800,
+      useNativeDriver: false,
+    }).start(() => {
+      setIsAnimating(false);
+    });
+  }, [safeZoneRadius]);
+  
+  // Start pulsing animation
+  useEffect(() => {
+    const pulseAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
           toValue: 1,
@@ -45,19 +102,16 @@ export const Arena = () => {
           useNativeDriver: false,
         })
       ])
-    ).start();
+    );
+    
+    pulseAnimation.start();
+    
+    return () => {
+      // Clean up animation
+      pulseAnimation.stop();
+      pulseAnim.setValue(0);
+    };
   }, []);
-
-  useEffect(() => {
-    setIsAnimating(true);
-    Animated.timing(safeZoneAnimation, {
-      toValue: safeZoneRadius,
-      duration: 800,
-      useNativeDriver: false,
-    }).start(() => {
-      setIsAnimating(false);
-    });
-  }, [safeZoneRadius]);
 
   const AnimatedCircle = Animated.createAnimatedComponent(Circle);
   
@@ -75,18 +129,6 @@ export const Arena = () => {
 
   // Platform-specific props to avoid warnings on web
   const webSafeProps = Platform.OS === 'web' ? {} : { collapsable: false };
-
-  // Set status color and text
-  let statusColor = '#22c55e'; // Default green for safe
-  let statusText = 'Safe';
-  
-  if (isEliminated) {
-    statusColor = '#9ca3af'; // Gray for eliminated
-    statusText = 'Eliminated';
-  } else if (isInDanger) {
-    statusColor = '#ef4444'; // Red for danger
-    statusText = 'Danger';
-  }
 
   if (loading) {
     return (
@@ -112,7 +154,7 @@ export const Arena = () => {
           <View style={styles.statItem}>
             <Text style={styles.statLabel}>Points</Text>
             <Text style={styles.statValue}>
-              {currentUser && typeof currentUser.points === 'number' ? currentUser.points : 0}
+              {userPoints}
             </Text>
           </View>
           
@@ -120,7 +162,7 @@ export const Arena = () => {
           
           <View style={styles.statItem}>
             <Text style={styles.statLabel}>Lives</Text>
-            <Text style={styles.statValue}>{currentUser?.lives || 3}/3</Text>
+            <Text style={styles.statValue}>{userLives}/{maxLives}</Text>
           </View>
           
           <View style={styles.statDivider} />
