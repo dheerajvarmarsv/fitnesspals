@@ -17,6 +17,7 @@ import {
   Modal,
   FlatList,
   Alert,
+  Pressable
 } from 'react-native';
 import CheckpointProgress from '../../../components/CheckpointProgress';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
@@ -227,6 +228,56 @@ function ChallengeDetailsContent() {
         )}
       </View>
     );
+  };
+  const handleParticipantLongPress = (participant: Participant) => {
+    // Only the creator can remove participants
+    if (challenge?.creator_id !== currentUserId) return;
+  
+    // Prevent creator from removing themselves
+    if (participant.user_id === currentUserId) {
+      Alert.alert("Not allowed", "You cannot remove yourself from your own challenge.");
+      return;
+    }
+  
+    Alert.alert(
+      "Remove Participant",
+      `Are you sure you want to remove ${participant.profile?.nickname || 'this user'} from the challenge?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => removeParticipant(participant),
+        },
+      ]
+    );
+  };
+  
+  const removeParticipant = async (participant: Participant) => {
+    try {
+      // 1. Remove from challenge_participants
+      await supabase
+        .from('challenge_participants')
+        .delete()
+        .eq('id', participant.id);
+  
+      // 2. Also remove any invites for this user in this challenge
+      await supabase
+        .from('challenge_invites')
+        .delete()
+        .eq('challenge_id', participant.challenge_id)
+        .eq('receiver_id', participant.user_id);
+  
+      Alert.alert(
+        "Removed",
+        `${participant.profile?.nickname || 'User'} has been removed from the challenge.`
+      );
+  
+      await fetchParticipants(); // refresh the list
+    } catch (err) {
+      console.error('Error removing participant:', err);
+      Alert.alert("Error", "Failed to remove participant. Please try again.");
+    }
   };
   // 3) Fetch participants
   const fetchParticipants = useCallback(async () => {
@@ -970,58 +1021,61 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
               <View style={{ maxHeight: 300 }}>
                 <ScrollView nestedScrollEnabled>
                   <View style={styles.leaderboardContainer}>
-                    {participants.map((participant, index) => (
-                      <View
-                        key={participant.id}
-                        style={[
-                          styles.participantRow,
-                          index === 0 && styles.firstPlaceRow,
-                          index === 1 && styles.secondPlaceRow,
-                          index === 2 && styles.thirdPlaceRow,
-                          participant.user_id === currentUserId && styles.currentUserRow,
-                        ]}
-                      >
-                        <View style={styles.rankContainer}>
-                          {index < 3 ? (
-                            <View
-                              style={[
-                                styles.medalIcon,
-                                index === 0 && styles.goldMedal,
-                                index === 1 && styles.silverMedal,
-                                index === 2 && styles.bronzeMedal,
-                              ]}
-                            >
-                              <Text style={styles.medalText}>{index + 1}</Text>
-                            </View>
-                          ) : (
-                            <Text style={styles.rankText}>{index + 1}</Text>
-                          )}
-                        </View>
+                  {participants.map((participant, index) => (
+  <Pressable
+    key={participant.id}
+    onLongPress={() => handleParticipantLongPress(participant)}
+    android_ripple={{ color: 'rgba(255,255,255,0.1)' }}
+    style={({ pressed }) => [
+      styles.participantRow,
+      index === 0 && styles.firstPlaceRow,
+      index === 1 && styles.secondPlaceRow,
+      index === 2 && styles.thirdPlaceRow,
+      participant.user_id === currentUserId && styles.currentUserRow,
+      pressed ? { opacity: 0.7 } : null,
+    ]}
+  >
+    <View style={styles.rankContainer}>
+      {index < 3 ? (
+        <View
+          style={[
+            styles.medalIcon,
+            index === 0 && styles.goldMedal,
+            index === 1 && styles.silverMedal,
+            index === 2 && styles.bronzeMedal,
+          ]}
+        >
+          <Text style={styles.medalText}>{index + 1}</Text>
+        </View>
+      ) : (
+        <Text style={styles.rankText}>{index + 1}</Text>
+      )}
+    </View>
 
-                        <Image
-                          source={{
-                            uri: generateAvatarUrl(participant.profile?.nickname || 'User')
-                          }}
-                          style={styles.participantAvatar}
-                        />
+    <Image
+      source={{
+        uri: generateAvatarUrl(participant.profile?.nickname || 'User'),
+      }}
+      style={styles.participantAvatar}
+    />
 
-                        <View style={styles.participantInfo}>
-                          <Text style={styles.participantName}>
-                            {participant.profile?.nickname || 'Unknown'}
-                            {participant.user_id === currentUserId && ' (You)'}
-                          </Text>
-                          <Text style={styles.participantStatus}>
-                            {participant.status.charAt(0).toUpperCase() +
-                              participant.status.slice(1)}
-                          </Text>
-                        </View>
+    <View style={styles.participantInfo}>
+      <Text style={styles.participantName}>
+        {participant.profile?.nickname || 'Unknown'}
+        {participant.user_id === currentUserId && ' (You)'}
+      </Text>
+      <Text style={styles.participantStatus}>
+        {participant.status.charAt(0).toUpperCase() +
+          participant.status.slice(1)}
+      </Text>
+    </View>
 
-                        <View style={styles.scoreContainer}>
-                          <Text style={styles.scoreValue}>{participant.total_points}</Text>
-                          <Text style={styles.scoreLabel}>pts</Text>
-                        </View>
-                      </View>
-                    ))}
+    <View style={styles.scoreContainer}>
+      <Text style={styles.scoreValue}>{participant.total_points}</Text>
+      <Text style={styles.scoreLabel}>pts</Text>
+    </View>
+  </Pressable>
+))}
                   </View>
                 </ScrollView>
               </View>
@@ -1213,24 +1267,13 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
                   const isCreator = challenge?.creator_id === currentUserId;
                   
                   for (const friendId of selectedFriends) {
-                    // If creator, directly add to challenge
-                    if (isCreator) {
-                      await supabase.from('challenge_participants').insert({
-                        challenge_id: challenge_id,
-                        user_id: friendId,
-                        status: 'active',
-                        joined_at: new Date().toISOString(),
-                      });
-                    } else {
-                      // If not creator, create invitation for creator to approve
-                      await supabase.from('challenge_invites').insert({
-                        challenge_id: challenge_id,
-                        sender_id: currentUserId,
-                        receiver_id: friendId,
-                        status: 'pending',
-                        created_at: new Date().toISOString(),
-                      });
-                    }
+                    await supabase.from('challenge_invites').insert({
+                      challenge_id: challenge_id,
+                      sender_id: currentUserId,
+                      receiver_id: friendId,
+                      status: 'pending',
+                      created_at: new Date().toISOString(),
+                    });
                   }
                   
                   // Success toast or message

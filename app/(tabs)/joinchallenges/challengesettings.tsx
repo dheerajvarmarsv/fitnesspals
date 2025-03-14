@@ -14,8 +14,8 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import PagerView from 'react-native-pager-view';
 import SharedLayout from '../../../components/SharedLayout';
+import PagerView from '../../../components/PagerView';
 import { supabase } from '../../../lib/supabase';
 import FilterModal from './challengesettingscomponents/FilterModal';
 import InvitesList from './challengesettingscomponents/InvitesList';
@@ -32,7 +32,8 @@ type FilterOption = 'all' | 'race' | 'survival' | 'streak' | 'custom';
 export default function YourChallengesScreen() {
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('yourChallenges');
   const [activeChallengeTab, setActiveChallengeTab] = useState<ChallengeTab>('active');
-  const challengePagerRef = useRef<PagerView>(null);
+  // Use type any for the ref since PagerView might not be available on web
+  const challengePagerRef = useRef<any>(null);
 
   const [activeChallenges, setActiveChallenges] = useState<any[]>([]);
   const [upcomingChallenges, setUpcomingChallenges] = useState<any[]>([]);
@@ -219,7 +220,10 @@ export default function YourChallengesScreen() {
 
   const handleChallengeTabChange = (index: number) => {
     setActiveChallengeTab(challengeTabs[index]);
-    challengePagerRef.current?.setPage(index);
+    // Our CustomPagerView handles platform differences internally
+    if (challengePagerRef.current) {
+      challengePagerRef.current.setPage(index);
+    }
     setActiveFilter('all');
     setSearchQuery('');
   };
@@ -351,11 +355,13 @@ export default function YourChallengesScreen() {
                 ))}
               </View>
             </View>
-            <PagerView
+<PagerView
               ref={challengePagerRef}
               style={styles.challengePagerView}
               initialPage={0}
-              onPageSelected={(e) => setActiveChallengeTab(challengeTabs[e.nativeEvent.position])}
+              onPageSelected={(e) => {
+                setActiveChallengeTab(challengeTabs[e.nativeEvent.position]);
+              }}
             >
               {challengeTabs.map((tab) => {
                 let challengesData: any[] = [];
@@ -551,6 +557,7 @@ const styles = StyleSheet.create({
   scrollContentContainer: { paddingBottom: 40 },
   challengePagerView: { minHeight: height * 0.7 },
   pagerPage: { flex: 1 },
+  webTabsContainer: { flex: 1, minHeight: height * 0.7 },
   emptyState: { alignItems: 'center', paddingVertical: 40 },
   emptyTitle: { fontSize: 20, fontWeight: 'bold', color: theme.colors.textPrimary, marginTop: theme.spacing.medium, marginBottom: 10, fontFamily: theme.typography.heading.fontFamily },
   emptyText: { fontSize: 16, color: theme.colors.textSecondary, textAlign: 'center', marginBottom: 30, lineHeight: 22, fontFamily: theme.typography.body.fontFamily },

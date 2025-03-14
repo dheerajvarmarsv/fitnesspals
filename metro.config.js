@@ -22,7 +22,24 @@ const config = {
     assetExts: defaultConfig.resolver.assetExts
       .filter(ext => ext !== 'svg')
       .concat(['db']),
-    sourceExts: [...defaultConfig.resolver.sourceExts, 'mjs', 'svg']
+    sourceExts: [...defaultConfig.resolver.sourceExts, 'mjs', 'svg'],
+    // Properly handle platform-specific extensions
+    platforms: ['ios', 'android', 'web'],
+    // Override resolving to give platform-specific files priority
+    resolveRequest: (context, moduleName, platform) => {
+      // Allow custom resolver if provided
+      if (defaultConfig.resolver.resolveRequest) {
+        const resolution = defaultConfig.resolver.resolveRequest(
+          context,
+          moduleName,
+          platform
+        );
+        if (resolution) {
+          return resolution;
+        }
+      }
+      return context.resolveRequest(context, moduleName, platform);
+    }
   }
 };
 
