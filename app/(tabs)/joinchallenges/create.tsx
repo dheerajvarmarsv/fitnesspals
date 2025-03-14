@@ -36,7 +36,6 @@ export interface ChallengeDetails {
   description: string;
   startDate: Date | null;
   endDate: Date | null;
-  isOpenEnded: boolean;
   globalTimeframe: 'day' | 'week';
   isPrivate: boolean;
 }
@@ -122,7 +121,6 @@ export default function CreateChallenge() {
     description: '',
     startDate: new Date(new Date().setHours(0, 0, 0, 0)),
     endDate: new Date(new Date().setDate(new Date().getDate() + 14)),
-    isOpenEnded: false,
     globalTimeframe: 'day',
     isPrivate: false,
   });
@@ -184,8 +182,8 @@ export default function CreateChallenge() {
       return (
         details.name.trim().length > 0 &&
         details.startDate !== null &&
-        (details.isOpenEnded ||
-          (details.endDate !== null && details.endDate >= details.startDate))
+        details.endDate !== null && 
+        details.endDate >= details.startDate
       );
     }
     if (currentStep === 3) {
@@ -205,7 +203,6 @@ export default function CreateChallenge() {
       description: details.description,
       startDate: details.startDate,
       endDate: details.endDate,
-      isOpenEnded: details.isOpenEnded,
       selectedActivities: selectedActivities.map((act) => ({
         activityType: act.activityType,
         targetValue: act.targetValue,

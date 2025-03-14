@@ -3,7 +3,7 @@ import { View, StyleSheet, Dimensions, Animated, Platform, ActivityIndicator, Te
 import Svg, { Circle, G, Line, Defs, RadialGradient, Stop, Pattern, Rect } from 'react-native-svg';
 import UserDot from '../app/UserDot';
 import { useArenaStore } from '../lib/arenaStore';
-import { calculateSafeZoneRadius } from '../lib/survivalUtils';
+import { calculateSafeZoneRadius, DEFAULT_SURVIVAL_SETTINGS } from '../lib/survivalUtils';
 
 const { width } = Dimensions.get('window');
 const ARENA_SIZE = width * 0.9;
@@ -36,16 +36,22 @@ export const Arena = () => {
   
   // Use currentUserParticipant for accurate database values
   const userPoints = currentUserParticipant?.total_points || currentUser?.points || 0;
-  const userLives = currentUserParticipant?.lives || currentUser?.lives || 3;
-  const maxLives = 3; // This could come from survival_settings
+  
+  // Get survival settings to get max lives
+  const survivalSettings = challengeDetails?.survival_settings || 
+                        challengeDetails?.rules?.survival_settings;
+  
+  // Use lives from participant data with fallback to user object or survival settings
+  const userLives = currentUserParticipant?.lives || currentUser?.lives || 0;
+  const maxLives = survivalSettings?.start_lives || DEFAULT_SURVIVAL_SETTINGS.start_lives;
   
   // Calculate progress based on actual database values
   const progressPercentage = totalDays > 0 ? Math.min(100, (currentDay / totalDays) * 100) : 0;
   
   // Determine user status based on data from database and use normalized safe zone
   // Get survival settings from the dedicated column or fallback to rules
-  const survivalSettings = challengeDetails?.survival_settings || 
-                        challengeDetails?.rules?.survival_settings;
+  // const survivalSettings = challengeDetails?.survival_settings || 
+  //                       challengeDetails?.rules?.survival_settings;
                            
   // Calculate normalized safe zone (0-1)
   const normalizedSafeZone = calculateSafeZoneRadius(currentDay, totalDays, survivalSettings);

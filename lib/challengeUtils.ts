@@ -611,16 +611,16 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
               // Use the current distance from center (or default if not set)
               const currentDistance = survivalData?.distance_from_center || 1.0;
               
-              // Calculate the new distance based on points earned (all-or-nothing)
+              // Calculate the new distance based on points earned and challenge-specific values
               // Only update distance if threshold was met and points were awarded
               const newDistance = thresholdMet ? 
                 calculateNewDistance(
-                  currentDistance,
-                  pointsToAward, 
-                  activityPoints, // Max points for this activity
-                  survivalSettings,
-                  currentDay,
-                  totalDays
+                  currentDistance,               // Current position
+                  pointsToAward,                 // Points actually awarded
+                  matchingActivity.points,       // Maximum possible points for this activity
+                  survivalSettings,              // Challenge-specific survival settings
+                  currentDay,                    // Current day in the challenge
+                  totalDays                      // Total days in the challenge
                 ) : currentDistance;
               
               // Add to update data

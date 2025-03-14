@@ -19,7 +19,6 @@ export interface ChallengeDetails {
   description: string;
   startDate: Date | null;
   endDate: Date | null;
-  isOpenEnded: boolean;
   globalTimeframe: 'day' | 'week';
   isPrivate: boolean;
 }
@@ -102,51 +101,19 @@ export default function Step2ChallengeDetails({
           </TouchableOpacity>
         </View>
 
-        {/* End Date (if not open-ended) */}
-        {!details.isOpenEnded && (
-          <View style={styles.dateRow}>
-            <Text style={styles.dateLabel}>Ends</Text>
-            <TouchableOpacity
-              style={styles.datePickerButton}
-              onPress={() => setShowEndPicker(true)}
-            >
-              <Text style={styles.dateText}>
-                {details.endDate ? details.endDate.toDateString() : 'Select'}
-              </Text>
-              <Ionicons name="calendar-outline" size={18} color="#666" />
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Open-ended Toggle */}
-        <Pressable
-          style={styles.toggleContainer}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setDetails({
-              ...details,
-              isOpenEnded: !details.isOpenEnded,
-              endDate: null, // clear end date if toggling open-ended
-            });
-          }}
-        >
-          <View
-            style={[
-              styles.toggleTrack,
-              details.isOpenEnded && styles.toggleTrackActive,
-            ]}
+        {/* End Date */}
+        <View style={styles.dateRow}>
+          <Text style={styles.dateLabel}>Ends</Text>
+          <TouchableOpacity
+            style={styles.datePickerButton}
+            onPress={() => setShowEndPicker(true)}
           >
-            <Animated.View
-              style={[
-                styles.toggleThumb,
-                details.isOpenEnded && styles.toggleThumbActive,
-              ]}
-            />
-          </View>
-          <Text style={styles.toggleLabel}>
-            Open-ended challenge (no end date)
-          </Text>
-        </Pressable>
+            <Text style={styles.dateText}>
+              {details.endDate ? details.endDate.toDateString() : 'Select'}
+            </Text>
+            <Ionicons name="calendar-outline" size={18} color="#666" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Visibility */}

@@ -71,16 +71,15 @@ export const calculateSafeZoneRadius = (
  * - When they complete activities successfully, they move toward the center
  * - If they fail to meet targets, they stay where they are
  * 
- * Uses the formula:
- * P_pos = B × (1 - R) where:
- * - P_pos is the new position
- * - B is the base safe position: B = 1 - (d - 1) / (D - 1)
- * - R is 1 for success and 0 for failure
+ * The movement is dynamically calculated based on:
+ * - The challenge's specific time periods (daily/weekly)
+ * - Current progress in the challenge (currentDay vs totalDays)
+ * - The challenge's survival settings
  */
 export const calculateNewDistance = (
   currentDistance: number,
   pointsEarned: number,
-  maxPossiblePoints: number = 10,
+  maxPossiblePoints: number,
   settings?: any,
   currentDay: number = 1,
   totalDays: number = 30
@@ -92,20 +91,84 @@ export const calculateNewDistance = (
   if (!pointsEarned || pointsEarned <= 0) return currentDistance;
   
   // Calculate base safe position: B = 1 - (d - 1) / (D - 1)
+  // This represents where the safe zone is for the current day
   let baseSafePosition = 1;
   if (totalDays > 1) {
     baseSafePosition = 1 - ((currentDay - 1) / (totalDays - 1));
   }
   
-  // For Survival Challenge: "No Partial Points" Approach, but with gradual movement
-  // Use maximum movement per period from settings (default 0.05 or 5% of arena radius)
-  const maxMovement = survivalSettings.max_movement_per_period || 0.05;
+  // Calculate dynamic movement factor based on challenge duration
+  // Shorter challenges should have larger movements to compensate
+  let durationFactor = 1;
+  if (totalDays <= 7) {
+    // For very short challenges, allow faster movement
+    durationFactor = 2;
+  } else if (totalDays <= 14) {
+    // For medium length challenges
+    durationFactor = 1.5;
+  }
   
-  // Move inward (reduce distance) by the maximum allowed movement
-  // This creates a gradual inward movement with each successful activity
-  let newDistance = Math.max(0, currentDistance - maxMovement);
+  // Get the movement per period from settings, scaled by duration factor
+  const baseMovement = survivalSettings.max_movement_per_period || 0.05;
+  const maxMovement = baseMovement * durationFactor;
   
-  // Return the new distance
+  // Calculate the percentage of points earned relative to maximum possible
+  // This provides partial credit for activity completion
+  const pointsRatio = Math.min(1, pointsEarned / Math.max(1, maxPossiblePoints));
+  
+  // For timeframe considerations
+  const timeframe = survivalSettings.timeframe || 'daily';
+  let timeframeFactor = 1;
+  
+  // Weekly challenges should have larger movements since there are fewer opportunities
+  if (timeframe === 'weekly') {
+    timeframeFactor = 3; // Weekly movements are ~3x larger than daily
+  }
+  
+  // Calculate movement amount using all factors
+  const movementAmount = maxMovement * pointsRatio * timeframeFactor;
+  
+  // Calculate minimum movement based on challenge duration
+  // Shorter challenges need larger minimum movements
+  let minMovementPercent = 0.01; // 1% by default
+  
+  // For very short challenges (7 days or less), minimum movement is larger
+  if (totalDays <= 7) {
+    minMovementPercent = 0.03; // 3% for short challenges
+  } else if (totalDays <= 14) {
+    minMovementPercent = 0.02; // 2% for medium challenges
+  }
+  
+  // Scale minimum movement based on weekly/daily timeframe
+  if (timeframe === 'weekly') {
+    minMovementPercent *= 3; // Larger minimum movement for weekly challenges
+  }
+  
+  // Apply minimum movement to ensure changes are visible
+  const effectiveMovement = Math.max(minMovementPercent, movementAmount);
+  
+  // Calculate new distance by moving inward (reducing distance)
+  // Never go below 0 (center of arena)
+  const newDistance = Math.max(0, currentDistance - effectiveMovement);
+  
+  // Log for debugging
+  console.log('Distance calculation:', {
+    currentDistance,
+    pointsEarned,
+    maxPossiblePoints,
+    pointsRatio,
+    timeframe,
+    baseMovement,
+    durationFactor,
+    timeframeFactor,
+    movementAmount,
+    effectiveMovement,
+    newDistance,
+    currentDay,
+    totalDays,
+    baseSafePosition
+  });
+  
   return newDistance;
 };
 
@@ -151,9 +214,15 @@ export const processDangerStatus = (
   const distanceFromCenter = participant.distance_from_center || 1.0;
   const isInDanger = distanceFromCenter > safeZoneRadius;
   
-  // Current values
+  // Current values - always use settings from the challenge
   let daysInDanger = participant.days_in_danger || 0;
-  let lives = participant.lives || (survivalSettings.start_lives || 3);
+  
+  // Use participant's current lives, or fall back to settings
+  const defaultLives = survivalSettings.start_lives || DEFAULT_SURVIVAL_SETTINGS.start_lives;
+  let lives = participant.lives !== undefined && participant.lives !== null ? 
+      participant.lives : defaultLives;
+      
+  // Check elimination status
   let isEliminated = participant.is_eliminated || false;
   
   // Process danger status

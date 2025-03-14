@@ -18,7 +18,6 @@ interface ChallengeCreationParams {
   description: string;
   startDate: Date | null;
   endDate: Date | null;
-  isOpenEnded: boolean;
   selectedActivities: SelectedActivity[];
   isPrivate: boolean;
 }
@@ -33,7 +32,6 @@ export async function createChallengeInSupabase({
   description,
   startDate,
   endDate,
-  isOpenEnded,
   selectedActivities,
   isPrivate,
 }: ChallengeCreationParams) {
@@ -93,9 +91,11 @@ export async function createChallengeInSupabase({
   // For race challenges, add checkpoint calculations
   if (challengeType === 'race') {
     // Calculate duration in days
-    const effectiveEndDate = isOpenEnded 
-      ? new Date(startDate!.getTime() + 30 * 24 * 60 * 60 * 1000) // Default 30 days for open-ended
-      : endDate;
+    // Since open-ended is no longer supported, always use endDate
+    // If endDate is null for some reason, default to 30 days from start date
+    const effectiveEndDate = endDate || (startDate 
+      ? new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000) // Default 30 days
+      : null);
     
     if (startDate) {
       // Calculate daily points potential
@@ -160,7 +160,7 @@ export async function createChallengeInSupabase({
     title: name.trim(),
     description: description ? description.trim() : null,
     start_date: startDate ? startDate.toISOString() : null,
-    end_date: isOpenEnded ? null : (endDate ? endDate.toISOString() : null),
+    end_date: endDate ? endDate.toISOString() : null,
     status: 'active' as const,
     is_private: isPrivate,
     rules: challengeRules,
@@ -204,7 +204,36 @@ export async function createChallengeInSupabase({
   // For survival challenges, initialize survival-specific fields
   if (challengeType === 'survival') {
     const { initializeParticipant } = await import('./survivalUtils');
-    const survivalData = initializeParticipant(userId, createdChallenge.id);
+    
+    // Pass the challenge-specific survival settings
+    const challengeSettings = challengeData.survival_settings || challengeRules.survival_settings;
+    
+    // Calculate days based on start/end dates if available
+    let currentDay = 1;
+    let totalDays = 30;
+    
+    if (startDate) {
+      const today = new Date();
+      const challengeStartDate = new Date(startDate);
+      const challengeEndDate = endDate ? new Date(endDate) : new Date(challengeStartDate);
+      
+      // Default duration if open-ended (30 days)
+      if (!endDate) {
+        challengeEndDate.setDate(challengeStartDate.getDate() + 30);
+      }
+      
+      totalDays = Math.ceil((challengeEndDate.getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24));
+      currentDay = Math.max(1, Math.min(Math.ceil((today.getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24)), totalDays));
+    }
+    
+    // Initialize with all the dynamic challenge parameters
+    const survivalData = initializeParticipant(
+      userId, 
+      createdChallenge.id, 
+      challengeSettings,
+      currentDay,
+      totalDays
+    );
     
     // Merge the survival-specific fields into the participant data
     participantData = {

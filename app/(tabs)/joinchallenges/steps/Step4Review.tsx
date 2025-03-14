@@ -19,7 +19,6 @@ export interface ChallengeDetails {
   description: string;
   startDate: Date | null;
   endDate: Date | null;
-  isOpenEnded: boolean;
   globalTimeframe: 'day' | 'week';
   isPrivate: boolean;
 }
@@ -223,9 +222,7 @@ export default function Step4Review({
                     style={styles.icon}
                   />
                   <Text style={styles.detailText}>
-                    {details.isOpenEnded
-                      ? 'No end date (open-ended)'
-                      : `Ends: ${details.endDate?.toDateString()}`}
+                    Ends: {details.endDate?.toDateString()}
                   </Text>
                 </View>
                 <View style={styles.detailRow}>
