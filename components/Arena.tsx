@@ -3,6 +3,7 @@ import { View, StyleSheet, Dimensions, Animated, Platform, ActivityIndicator, Te
 import Svg, { Circle, G, Line, Defs, RadialGradient, Stop, Pattern, Rect } from 'react-native-svg';
 import UserDot from '../app/UserDot';
 import { useArenaStore } from '../lib/arenaStore';
+import { calculateSafeZoneRadius } from '../lib/survivalUtils';
 
 const { width } = Dimensions.get('window');
 const ARENA_SIZE = width * 0.9;
@@ -20,7 +21,8 @@ export const Arena = () => {
     totalDays, 
     currentUser,
     challengeId,
-    currentUserParticipant // Added this to the destructuring
+    currentUserParticipant,
+    challengeDetails // Added this to use survival settings
   } = useArenaStore();
   
   const currentUserId = currentUser?.id || null;
@@ -40,9 +42,18 @@ export const Arena = () => {
   // Calculate progress based on actual database values
   const progressPercentage = totalDays > 0 ? Math.min(100, (currentDay / totalDays) * 100) : 0;
   
-  // Determine user status based on data from database
-  const isInDanger = currentUser ? 
-    currentUser.distance > safeZoneRadius : false;
+  // Determine user status based on data from database and use normalized safe zone
+  // Get survival settings from the dedicated column or fallback to rules
+  const survivalSettings = challengeDetails?.survival_settings || 
+                        challengeDetails?.rules?.survival_settings;
+                           
+  // Calculate normalized safe zone (0-1)
+  const normalizedSafeZone = calculateSafeZoneRadius(currentDay, totalDays, survivalSettings);
+  
+  // Compare with user's distance_from_center
+  const isInDanger = currentUserParticipant ? 
+    (currentUserParticipant.distance_from_center > normalizedSafeZone) : 
+    (currentUser ? currentUser.distance > safeZoneRadius : false);
     
   // Determine if user is eliminated based on database flag
   const isEliminated = currentUserParticipant?.is_eliminated || currentUser?.isEliminated || false;
@@ -178,7 +189,20 @@ export const Arena = () => {
         {isInDanger && !isEliminated && (
           <View style={styles.dangerAlert}>
             <Text style={styles.dangerText}>
-              In danger zone! Log activity to survive
+              {currentUserParticipant?.days_in_danger !== undefined && (
+                // Get elimination threshold from survival_settings column or rules
+                (challengeDetails?.survival_settings?.elimination_threshold !== undefined && (
+                  currentUserParticipant.days_in_danger >= (challengeDetails.survival_settings.elimination_threshold - 1) ? 
+                    'FINAL WARNING! Log enough activities now to survive' : 
+                    `In danger zone! ${challengeDetails.survival_settings.elimination_threshold - currentUserParticipant.days_in_danger} day(s) until losing a life`
+                )) || 
+                // Fallback to rules if needed
+                (challengeDetails?.rules?.survival_settings?.elimination_threshold !== undefined && (
+                  currentUserParticipant.days_in_danger >= (challengeDetails.rules.survival_settings.elimination_threshold - 1) ? 
+                    'FINAL WARNING! Log enough activities now to survive' : 
+                    `In danger zone! ${challengeDetails.rules.survival_settings.elimination_threshold - currentUserParticipant.days_in_danger} day(s) until losing a life`
+                ))
+              ) || 'In danger zone! Log activity to survive'}
             </Text>
           </View>
         )}

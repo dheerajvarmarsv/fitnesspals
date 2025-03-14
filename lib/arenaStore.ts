@@ -136,6 +136,7 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
       let currentDay = Math.ceil((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
       currentDay = Math.max(1, Math.min(currentDay, totalDays));
 
+      // Get survival settings from the column or fallback to rules or defaults
       const survivalSettings = challenge.survival_settings 
         || challenge.rules?.survival_settings 
         || DEFAULT_SURVIVAL_SETTINGS;
@@ -266,6 +267,23 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
 
   refreshParticipant: (updatedParticipant: any) => {
     set(state => {
+      // Get the safe zone radius for the current day/total days
+      const { currentDay, totalDays } = state;
+      
+      // Get survival settings from challenge details
+      const survivalSettings = state.challengeDetails?.survival_settings || 
+                           state.challengeDetails?.rules?.survival_settings || 
+                           DEFAULT_SURVIVAL_SETTINGS;
+                           
+      // Calculate today's safe zone radius
+      const safeZoneNormalized = calculateSafeZoneRadius(currentDay, totalDays, survivalSettings);
+      
+      // Determine if participant is in danger based on distance from center
+      const distance = updatedParticipant.distance_from_center != null ? 
+        updatedParticipant.distance_from_center : 1.0;
+      const isInDanger = distance > safeZoneNormalized;
+      
+      // Map participant to user with new data
       const freshUser = mapParticipantToUser(
         {
           ...updatedParticipant,
@@ -275,10 +293,12 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
         ARENA_SIZE / 2
       );
       
+      // Update participant data in state
       const updatedParticipantsData = state.participantsData.map(p => 
-        p.id === updatedParticipant.id ? { ...p, ...updatedParticipant } : p
+        p.id === updatedParticipant.id ? { ...p, ...updatedParticipant, isInDanger } : p
       );
       
+      // Update users in state
       const updatedUsers = state.users.map(u => 
         u.id === updatedParticipant.id ? freshUser : u
       );
@@ -289,7 +309,7 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
         participantsData: updatedParticipantsData,
         users: updatedUsers,
         currentUserParticipant: isCurrentUserParticipant
-          ? { ...state.currentUserParticipant, ...updatedParticipant }
+          ? { ...state.currentUserParticipant, ...updatedParticipant, isInDanger }
           : state.currentUserParticipant
       };
     });

@@ -153,7 +153,8 @@ export async function createChallengeInSupabase({
     }
   }
 
-  const challengeData = {
+  // Prepare challenge data
+  const challengeData: any = {
     creator_id: userId,
     challenge_type: challengeType as ChallengeType,
     title: name.trim(),
@@ -164,6 +165,11 @@ export async function createChallengeInSupabase({
     is_private: isPrivate,
     rules: challengeRules,
   };
+  
+  // For survival challenges, set the survival_settings column too
+  if (challengeType === 'survival' && challengeRules.survival_settings) {
+    challengeData.survival_settings = challengeRules.survival_settings;
+  }
 
   const { data: createdChallenge, error: challengeError } = await supabase
     .from('challenges')

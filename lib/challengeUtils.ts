@@ -558,7 +558,7 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
               // Get the challenge participant's current survival state
               const { data: survivalData, error: survivalError } = await supabase
                 .from('challenge_participants')
-                .select('distance_from_center')
+                .select('distance_from_center, lives, days_in_danger, is_eliminated')
                 .eq('id', participation.id)
                 .single();
               
@@ -567,59 +567,60 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
               // Import the calculations from survivalUtils
               const { calculateNewDistance } = await import('./survivalUtils');
               
-              // Calculate points based on threshold being met
-              const maxPossiblePoints = activityPoints; // Max points for this activity
+              // Get start/end dates to calculate duration
+              const { data: challengeDates, error: datesError } = await supabase
+                .from('challenges')
+                .select('start_date, end_date')
+                .eq('id', challenge.id)
+                .single();
               
-              // Use the current distance from center (or default if not set)
-              const currentDistance = survivalData?.distance_from_center || 0.8;
+              let totalDays = 30; // Default
+              let currentDay = 1; // Default
               
-              // Get the survival settings from the challenge or use defaults
-              const survivalSettings = challenge.rules?.survival_settings;
-              
-              // Calculate total days to determine elimination threshold if not already specified
-              if (!survivalSettings?.elimination_threshold) {
-                // Get start/end dates to calculate duration
-                const { data: challengeDates, error: datesError } = await supabase
-                  .from('challenges')
-                  .select('start_date, end_date')
-                  .eq('id', participation.challenge_id)
-                  .single();
-                  
-                if (!datesError && challengeDates) {
-                  const startDate = new Date(challengeDates.start_date);
-                  const endDate = challengeDates.end_date ? new Date(challengeDates.end_date) : new Date(startDate);
-                  
-                  // Default duration if open-ended (30 days)
-                  if (!challengeDates.end_date) {
-                    endDate.setDate(startDate.getDate() + 30);
-                  }
-                  
-                  const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-                  
-                  // Determine elimination threshold based on challenge length
-                  let eliminationThreshold = 3; // Default
-                  
-                  if (totalDays <= 3) {
-                    eliminationThreshold = 1; // Ultra-short challenges
-                  } else if (totalDays <= 10) {
-                    eliminationThreshold = 2; // Short challenges
-                  }
-                  
-                  // Add elimination threshold to survival settings
-                  if (survivalSettings) {
-                    survivalSettings.elimination_threshold = eliminationThreshold;
-                  }
+              if (!datesError && challengeDates) {
+                const startDate = new Date(challengeDates.start_date);
+                const endDate = challengeDates.end_date ? new Date(challengeDates.end_date) : new Date(startDate);
+                
+                // Default duration if open-ended (30 days)
+                if (!challengeDates.end_date) {
+                  endDate.setDate(startDate.getDate() + 30);
                 }
+                
+                totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+                const today = new Date();
+                currentDay = Math.max(1, Math.min(Math.ceil((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)), totalDays));
               }
               
-              // Calculate the new distance based on points earned
+              // Get the survival settings from the dedicated column or fallback to rules
+              const survivalSettings = challenge.survival_settings || 
+                                    challenge.rules?.survival_settings;
+              
+              // Determine elimination threshold based on challenge length if not already specified
+              if (survivalSettings && !survivalSettings.elimination_threshold) {
+                let eliminationThreshold = 3; // Default
+                
+                if (totalDays <= 3) {
+                  eliminationThreshold = 1; // Ultra-short challenges
+                } else if (totalDays <= 10) {
+                  eliminationThreshold = 2; // Short challenges
+                }
+                
+                survivalSettings.elimination_threshold = eliminationThreshold;
+              }
+              
+              // Use the current distance from center (or default if not set)
+              const currentDistance = survivalData?.distance_from_center || 1.0;
+              
+              // Calculate the new distance based on points earned (all-or-nothing)
               // Only update distance if threshold was met and points were awarded
               const newDistance = thresholdMet ? 
                 calculateNewDistance(
                   currentDistance,
                   pointsToAward, 
-                  maxPossiblePoints, 
-                  survivalSettings
+                  activityPoints, // Max points for this activity
+                  survivalSettings,
+                  currentDay,
+                  totalDays
                 ) : currentDistance;
               
               // Add to update data
@@ -630,8 +631,10 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
                 newDistance,
                 thresholdMet,
                 pointsToAward,
-                maxPossiblePoints,
-                challenge_type: challenge.challenge_type
+                maxPossiblePoints: activityPoints,
+                challenge_type: challenge.challenge_type,
+                currentDay,
+                totalDays
               });
             } catch (err) {
               console.error('Error updating survival position:', err);

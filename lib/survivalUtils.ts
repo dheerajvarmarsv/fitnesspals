@@ -66,39 +66,46 @@ export const calculateSafeZoneRadius = (
  * Calculate the new distance from center based on points earned
  * Returns a value between 0-1 (normalized distance)
  * 
+ * For survival challenges with "no partial points" approach:
+ * - Users start at the outer edge (distance_from_center = 1)
+ * - When they complete activities successfully, they move toward the center
+ * - If they fail to meet targets, they stay where they are
+ * 
  * Uses the formula:
- * movement = (points_earned / max_points_per_period) × max_movement_per_period
+ * P_pos = B × (1 - R) where:
+ * - P_pos is the new position
+ * - B is the base safe position: B = 1 - (d - 1) / (D - 1)
+ * - R is 1 for success and 0 for failure
  */
 export const calculateNewDistance = (
   currentDistance: number,
   pointsEarned: number,
   maxPossiblePoints: number = 10,
-  settings?: any
+  settings?: any,
+  currentDay: number = 1,
+  totalDays: number = 30
 ): number => {
   // Use default settings if none provided
   const survivalSettings = settings || DEFAULT_SURVIVAL_SETTINGS;
   
-  // Extract parameters
-  const maxPointsPerPeriod = survivalSettings.max_points_per_period || 10;
-  const maxMovementPerPeriod = survivalSettings.max_movement_per_period || 0.05;
-  
-  // No points earned = no movement
+  // No points earned = no movement (user failed to meet target)
   if (!pointsEarned || pointsEarned <= 0) return currentDistance;
   
-  // For Survival Challenge: "No Partial Points" Approach
-  // If points were earned, it means the user fully met the target
-  // Thus, award full movement instead of partial movement
-  const movement = maxMovementPerPeriod;
-  
-  // Move inward (reduce distance)
-  let newDistance = Math.max(0, currentDistance - movement);
-  
-  // Place dots exactly on the edge of the circle when at maximum distance
-  // This ensures dots appear at the border of the circle when they're in danger
-  if (currentDistance >= 0.99) {
-    newDistance = 1.0;
+  // Calculate base safe position: B = 1 - (d - 1) / (D - 1)
+  let baseSafePosition = 1;
+  if (totalDays > 1) {
+    baseSafePosition = 1 - ((currentDay - 1) / (totalDays - 1));
   }
   
+  // For Survival Challenge: "No Partial Points" Approach, but with gradual movement
+  // Use maximum movement per period from settings (default 0.05 or 5% of arena radius)
+  const maxMovement = survivalSettings.max_movement_per_period || 0.05;
+  
+  // Move inward (reduce distance) by the maximum allowed movement
+  // This creates a gradual inward movement with each successful activity
+  let newDistance = Math.max(0, currentDistance - maxMovement);
+  
+  // Return the new distance
   return newDistance;
 };
 
@@ -235,7 +242,7 @@ export const initializeParticipant = (
     user_id: userId,
     lives: startLives,
     days_in_danger: 0,
-    distance_from_center: startDistance,
+    distance_from_center: 1.0, // Always start at outer edge
     angle: angle,
     is_eliminated: false
   };
@@ -271,8 +278,8 @@ export const processDailySurvivalUpdates = async (supabaseClient: any) => {
         challenge_type,
         start_date,
         end_date,
-        survival_settings,
-        rules
+        rules,
+        survival_settings
       `)
       .eq('challenge_type', 'survival')
       .eq('status', 'active');
@@ -292,9 +299,9 @@ export const processDailySurvivalUpdates = async (supabaseClient: any) => {
       try {
         console.log(`Processing challenge: ${challenge.id}`);
         
-        // Get survival settings, using defaults if needed
+        // Get survival settings from the dedicated column or fallback to rules
         const survivalSettings = challenge.survival_settings || 
-                               (challenge.rules?.survival_settings) || 
+                               challenge.rules?.survival_settings || 
                                DEFAULT_SURVIVAL_SETTINGS;
                                
         // Determine timeframe (daily/weekly)
