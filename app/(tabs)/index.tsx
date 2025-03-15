@@ -12,85 +12,142 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import SharedLayout from '../../components/SharedLayout';
+
 import { supabase } from '../../lib/supabase';
 import { useUser } from '../../components/UserContext';
 import AddActivityModal from '../../components/AddActivityModal';
-import ActivitySummary from '../../components/ActivitySummary';
+import CalendarStrip from '../../components/CalendarStrip';
 import { getActiveChallengesForUser } from '../../lib/challengeUtils';
 
 const { width } = Dimensions.get('window');
 
-// --- Light Mode UI tokens ---
-// --- Light Mode UI tokens ---
+// RANDOM sets for custom activities
+const RANDOM_CUSTOM_COLOR_SETS = [
+  { light: '#E8EAF6', primary: '#3F51B5', gradient: ['#3F51B5', '#1A237E'], text: '#1A237E' },
+  { light: '#FFF3E0', primary: '#FFA726', gradient: ['#FFA726', '#EF6C00'], text: '#EF6C00' },
+  { light: '#E0F2F1', primary: '#26A69A', gradient: ['#26A69A', '#004D40'], text: '#004D40' },
+  { light: '#FCE4EC', primary: '#F48FB1', gradient: ['#F48FB1', '#AD1457'], text: '#AD1457' },
+];
+
+const RANDOM_CUSTOM_ICONS = [
+  'alien',
+  'chess-knight',
+  'dragon',
+  'fire-alt',
+  'gem',
+  'hippo',
+];
+
+function pickRandom<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+// Predefined activity color sets (from AddActivityModal)
+const ACTIVITY_COLORS: { 
+  [key: string]: { light: string; primary: string; gradient: string[]; text: string }
+} = {
+  Workout:        { light: '#E1F5FE', primary: '#2196F3', gradient: ['#2196F3', '#0D47A1'], text: '#0D47A1' },
+  Steps:          { light: '#E8F5E9', primary: '#4CAF50', gradient: ['#4CAF50', '#1B5E20'], text: '#1B5E20' },
+  Sleep:          { light: '#E0F7FA', primary: '#00BCD4', gradient: ['#00BCD4', '#006064'], text: '#006064' },
+  'Screen Time':  { light: '#FFF3E0', primary: '#FF9800', gradient: ['#FF9800', '#E65100'], text: '#E65100' },
+  'No Sugars':    { light: '#FCE4EC', primary: '#F06292', gradient: ['#F06292', '#880E4F'], text: '#880E4F' },
+  'High Intensity': { light: '#FFEBEE', primary: '#F44336', gradient: ['#F44336', '#B71C1C'], text: '#B71C1C' },
+  Yoga:           { light: '#F3E5F5', primary: '#9C27B0', gradient: ['#9C27B0', '#4A148C'], text: '#4A148C' },
+  Count:          { light: '#ECEFF1', primary: '#607D8B', gradient: ['#607D8B', '#263238'], text: '#263238' },
+  Walking:        { light: '#F1F8E9', primary: '#8BC34A', gradient: ['#8BC34A', '#33691E'], text: '#33691E' },
+  Running:        { light: '#FFF8E1', primary: '#FFC107', gradient: ['#FFC107', '#FF6F00'], text: '#FF6F00' },
+  Cycling:        { light: '#E3F2FD', primary: '#42A5F5', gradient: ['#42A5F5', '#1565C0'], text: '#1565C0' },
+  Swimming:       { light: '#E1F5FE', primary: '#29B6F6', gradient: ['#29B6F6', '#01579B'], text: '#01579B' },
+  Hiking:         { light: '#DCEDC8', primary: '#9CCC65', gradient: ['#9CCC65', '#33691E'], text: '#33691E' },
+  Meditation:     { light: '#EDE7F6', primary: '#7E57C2', gradient: ['#7E57C2', '#4527A0'], text: '#4527A0' },
+  'Weight Training': { light: '#EFEBE9', primary: '#8D6E63', gradient: ['#8D6E63', '#3E2723'], text: '#3E2723' },
+  'Cardio Workout': { light: '#FFCDD2', primary: '#EF5350', gradient: ['#EF5350', '#B71C1C'], text: '#B71C1C' },
+  Custom:         { light: '#E8EAF6', primary: '#3F51B5', gradient: ['#3F51B5', '#1A237E'], text: '#1A237E' },
+};
+
+// Predefined activity icons (from AddActivityModal)
+const ACTIVITY_ICONS: { [key: string]: string } = {
+  Workout: 'dumbbell',
+  Steps: 'shoe-prints',
+  Sleep: 'bed',
+  'Screen Time': 'mobile',
+  'No Sugars': 'cookie-bite',
+  'High Intensity': 'fire',
+  Yoga: 'pray',
+  Count: 'hashtag',
+  Walking: 'walking',
+  Running: 'running',
+  Cycling: 'biking',
+  Swimming: 'swimmer',
+  Hiking: 'mountain',
+  Meditation: 'brain',
+  'Weight Training': 'dumbbell',
+  'Cardio Workout': 'heartbeat',
+  Custom: 'star',
+};
+
+function getColorSetForActivity(activityType: string) {
+  const colorSet = ACTIVITY_COLORS[activityType];
+  if (colorSet) return colorSet;
+  return pickRandom(RANDOM_CUSTOM_COLOR_SETS);
+}
+
+function getIconForActivity(activityType: string) {
+  if (ACTIVITY_ICONS[activityType]) return ACTIVITY_ICONS[activityType];
+  return pickRandom(RANDOM_CUSTOM_ICONS);
+}
+
 const theme = {
   colors: {
-    gradientBackground: ['#E6F2FF', '#BCD6FF', '#007AFF'],
-    gradientButton:  ['#4895EF', '#3A56D4'],
-    primary: '#007AFF',            // Vibrant Blue for progress indicators and CTAs
-    background: '#FFFFFF',           // Clean white background
-    glassCardBg: '#E6F2FF',          // Light blue for cards
-    glassBorder: 'rgba(255,255,255,0.35)',
-    textPrimary: '#333333',          // Dark gray for primary text
-    textSecondary: '#666666',        // Medium gray for secondary text
-    error: '#EF4444',
-    errorLight: '#FEE2E2',
+    background: '#ffffff',
+    primary: '#4A90E2',
+    text: {
+      primary: '#333333',
+      secondary: '#666666',
+    },
+    warningBanner: {
+      background: '#FEE2E2',
+      text: '#DC2626',
+    },
+  },
+  typography: {
+    fontFamily: Platform.select({
+      ios: 'SF Pro',
+      android: 'Roboto',
+      default: 'Inter',
+    }),
+    sizes: {
+      greeting: 32,
+      widgetTitle: 16,
+      widgetValue: 28,
+      warningText: 16,
+    },
+    weights: {
+      greeting: '700' as '700',
+      widgetTitle: '600' as '600',
+      widgetValue: '700' as '700',
+    },
   },
   spacing: {
     small: 8,
     medium: 16,
     large: 24,
   },
-  radius: {
+  borderRadius: {
     card: 16,
-    button: 20,
-  },
-  typography: {
-    heading: {
-      fontSize: 24,
-      fontWeight: '700',
-      color: '#333333',
-      fontFamily: Platform.select({ ios: 'SF Pro', android: 'Roboto', default: 'Inter' }),
-    },
-    body: {
-      fontSize: 16,
-      color: '#333333',
-      fontFamily: Platform.select({ ios: 'SF Pro', android: 'Roboto', default: 'Inter' }),
-    },
-    small: {
-      fontSize: 14,
-      color: '#666666',
-      fontFamily: Platform.select({ ios: 'SF Pro', android: 'Roboto', default: 'Inter' }),
-    },
-  },
-  shadows: {
-    light: {
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.05,
-      shadowRadius: 4,
-      elevation: 2,
-    },
-    medium: {
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
-      elevation: 4,
-    },
+    warningBanner: 16,
   },
 };
 
-// --- Stable array of random positions for "noise" squares ---
 const NOISE_SQUARES = Array.from({ length: 150 }).map((_, i) => ({
   key: i,
   top: Math.random() * 100,
   left: Math.random() * 100,
 }));
 
-// --- Simple noise overlay component ---
 function NoiseOverlay() {
   return (
     <View style={StyleSheet.absoluteFill}>
@@ -111,15 +168,11 @@ function NoiseOverlay() {
   );
 }
 
-// --- Single subtle linear gradient + noise overlay ---
 function SingleLinearGradientBackground() {
   return (
     <View style={StyleSheet.absoluteFill}>
       <LinearGradient
-        colors={theme.colors.gradientBackground}
-        locations={[0, 0.5, 1]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+        colors={[theme.colors.background, theme.colors.background]}
         style={StyleSheet.absoluteFill}
       />
       <NoiseOverlay />
@@ -127,25 +180,56 @@ function SingleLinearGradientBackground() {
   );
 }
 
-// --- Fetch summary for today ---
-async function fetchTodayActivitiesSummary(userId: string) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+function isSameDay(a: Date, b: Date) {
+  return (
+    a.getDate() === b.getDate() &&
+    a.getMonth() === b.getMonth() &&
+    a.getFullYear() === b.getFullYear()
+  );
+}
 
+function isFutureDay(date: Date, today: Date) {
+  if (date.getFullYear() > today.getFullYear()) return true;
+  if (date.getFullYear() < today.getFullYear()) return false;
+  if (date.getMonth() > today.getMonth()) return true;
+  if (date.getMonth() < today.getMonth()) return false;
+  return date.getDate() > today.getDate();
+}
+
+async function fetchActivitiesByDate(userId: string, date: Date) {
+  const startOfDay = new Date(date);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(date);
+  endOfDay.setHours(23, 59, 59, 999);
+  const { data, error } = await supabase
+    .from('activities')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('created_at', startOfDay.toISOString())
+    .lt('created_at', endOfDay.toISOString())
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('Error fetching activities by date:', error);
+    throw new Error(error.message);
+  }
+  return data || [];
+}
+
+async function fetchActivitySummaryByDate(userId: string, date: Date) {
+  const startOfDay = new Date(date);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(date);
+  endOfDay.setHours(23, 59, 59, 999);
   const { data, error } = await supabase
     .from('activities')
     .select('duration, distance, calories, steps, activity_type')
     .eq('user_id', userId)
-    .gte('created_at', today.toISOString())
-    .lt('created_at', tomorrow.toISOString());
-
+    .gte('created_at', startOfDay.toISOString())
+    .lt('created_at', endOfDay.toISOString());
   if (error) {
     console.error('Error fetching summary:', error);
     throw new Error(error.message);
   }
-
   let steps = 0, duration = 0, distance = 0, calories = 0;
   (data || []).forEach((act) => {
     if (act.steps) steps += act.steps;
@@ -156,53 +240,42 @@ async function fetchTodayActivitiesSummary(userId: string) {
   return { steps, distance, duration, calories };
 }
 
-// --- Fetch activities list for today ---
-async function fetchTodayActivitiesList(userId: string) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-
-  const { data, error } = await supabase
-    .from('activities')
-    .select('*')
-    .eq('user_id', userId)
-    .gte('created_at', today.toISOString())
-    .lt('created_at', tomorrow.toISOString())
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('Error fetching activities:', error);
-    throw new Error(error.message);
-  }
-  return data || [];
-}
-
-function getActivityIcon(activityType: string): string {
-  switch (activityType.toLowerCase()) {
-    case 'walking':
-    case 'running':
+function formatMetricValue(activity: any, useKilometers: boolean): string {
+  let displayValue = '';
+  switch (activity.metric) {
+    case 'time':
+      if (activity.duration) displayValue = `${activity.duration} min`;
+      break;
+    case 'distance_km':
+      if (activity.distance !== null) {
+        if (useKilometers) {
+          displayValue = `${activity.distance.toFixed(2)} km`;
+        } else {
+          const miles = activity.distance * 0.621371;
+          displayValue = `${miles.toFixed(2)} mi`;
+        }
+      }
+      break;
+    case 'distance_miles':
+      if (activity.distance !== null) {
+        const miles = activity.distance * 0.621371;
+        displayValue = `${miles.toFixed(2)} mi`;
+      }
+      break;
+    case 'calories':
+      if (activity.calories) displayValue = `${activity.calories} cal`;
+      break;
     case 'steps':
-      return 'walk';
-    case 'cycling':
-      return 'bicycle';
-    case 'swimming':
-      return 'water';
-    case 'sleep':
-      return 'bed';
-    case 'screen time':
-      return 'phone-portrait';
-    case 'workout':
-      return 'barbell';
-    case 'yoga':
-      return 'body';
-    case 'high intensity':
-      return 'flame';
-    case 'no sugars':
-      return 'nutrition';
+      if (activity.steps) displayValue = `${activity.steps} steps`;
+      break;
+    case 'count':
+      if (activity.count) displayValue = `${activity.count} count`;
+      break;
     default:
-      return 'fitness';
+      displayValue = 'No data';
+      break;
   }
+  return displayValue;
 }
 
 export default function HomeScreen() {
@@ -218,17 +291,14 @@ export default function HomeScreen() {
     calories: 0,
   });
   const [showAllChallenges, setShowAllChallenges] = useState(false);
-  const [showAllActivities, setShowAllActivities] = useState(false);
   const [showAddActivityModal, setShowAddActivityModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState(new Date());
 
-  const todayString = new Date().toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  const today = new Date();
+  const onToday = isSameDay(selectedDate, today);
 
   const loadHomeData = useCallback(async () => {
     try {
@@ -242,19 +312,22 @@ export default function HomeScreen() {
       }
       const userChallenges = await getActiveChallengesForUser(user.id);
       setActiveChallenges(Array.isArray(userChallenges) ? userChallenges : []);
-
-      const summary = await fetchTodayActivitiesSummary(user.id);
-      setActivitySummary(summary);
-
-      const todayActivities = await fetchTodayActivitiesList(user.id);
-      setActivities(todayActivities);
+      if (isFutureDay(selectedDate, today)) {
+        setActivitySummary({ steps: 0, distance: 0, duration: 0, calories: 0 });
+        setActivities([]);
+      } else {
+        const summary = await fetchActivitySummaryByDate(user.id, selectedDate);
+        setActivitySummary(summary);
+        const dayActivities = await fetchActivitiesByDate(user.id, selectedDate);
+        setActivities(dayActivities);
+      }
     } catch (err: any) {
       console.error('Error loading home data:', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedDate]);
 
   useEffect(() => {
     loadHomeData();
@@ -266,95 +339,115 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
-  const displayedActivities = showAllActivities ? activities : activities.slice(0, 3);
-  const displayedChallenges = showAllChallenges ? activeChallenges : activeChallenges.slice(0, 3);
+  const renderedChallenges = showAllChallenges ? activeChallenges : activeChallenges.slice(0, 3);
 
-  // --- If loading, show spinner ---
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <SingleLinearGradientBackground />
         <View style={styles.loadingContent}>
-          <ActivityIndicator size="large" color={theme.colors.textPrimary} />
+          <ActivityIndicator size="large" color={theme.colors.text.primary} />
           <Text style={styles.loadingText}>Loading dashboard...</Text>
         </View>
       </View>
     );
   }
 
-  // --- Render a single row in Activities ---
-  function renderActivityRow(activity: any) {
-    const iconName = getActivityIcon(activity.activity_type);
-    let displayValue = '';
-
-    switch (activity.metric) {
-      case 'time':
-        if (activity.duration) displayValue = `${activity.duration} min`;
-        break;
-      case 'distance_km':
-        if (activity.distance !== null) {
-          if (settings.useKilometers) {
-            displayValue = `${activity.distance.toFixed(2)} km`;
-          } else {
-            const miles = activity.distance * 0.621371;
-            displayValue = `${miles.toFixed(2)} mi`;
-          }
-        }
-        break;
-      case 'distance_miles':
-        if (activity.distance !== null) {
-          const miles = activity.distance * 0.621371;
-          displayValue = `${miles.toFixed(2)} mi`;
-        }
-        break;
-      case 'calories':
-        if (activity.calories) displayValue = `${activity.calories} cal`;
-        break;
-      case 'steps':
-        if (activity.steps) displayValue = `${activity.steps} steps`;
-        break;
-      case 'count':
-        if (activity.count) displayValue = `${activity.count} count`;
-        break;
-      default:
-        displayValue = 'No data';
-        break;
+  function renderActivitiesCarousel() {
+    if (activities.length === 0) {
+      return (
+        <View style={styles.emptyStateWrapper}>
+          {Platform.OS === 'ios' ? (
+            <BlurView intensity={60} tint="light" style={styles.card}>
+              <View style={styles.emptyContent}>
+                <Ionicons
+                  name="fitness-outline"
+                  size={40}
+                  color={theme.colors.text.secondary}
+                  style={{ marginBottom: 12 }}
+                />
+                {isFutureDay(selectedDate, today) ? (
+                  <>
+                    <Text style={styles.emptyTitle}>No data (future date)</Text>
+                    <Text style={styles.emptyText}>
+                      You can't add or view future activities.
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.emptyTitle}>
+                      No activities{onToday ? ' yet' : ''}
+                    </Text>
+                    <Text style={styles.emptyText}>
+                      {onToday
+                        ? 'Start your fitness journey by adding your first activity!'
+                        : 'No activities were logged on this date.'}
+                    </Text>
+                  </>
+                )}
+              </View>
+            </BlurView>
+          ) : (
+            <View style={[styles.card, styles.androidShadow]}>
+              <View style={styles.emptyContent}>
+                <Ionicons
+                  name="fitness-outline"
+                  size={40}
+                  color={theme.colors.text.secondary}
+                  style={{ marginBottom: 12 }}
+                />
+                {isFutureDay(selectedDate, today) ? (
+                  <>
+                    <Text style={styles.emptyTitle}>No data (future date)</Text>
+                    <Text style={styles.emptyText}>
+                      You can't add or view future activities.
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.emptyTitle}>
+                      No activities{onToday ? ' yet' : ''}
+                    </Text>
+                    <Text style={styles.emptyText}>
+                      {onToday
+                        ? 'Start your fitness journey by adding your first activity!'
+                        : 'No activities were logged on this date.'}
+                    </Text>
+                  </>
+                )}
+              </View>
+            </View>
+          )}
+        </View>
+      );
     }
 
     return (
-      <View key={activity.id} style={styles.activityCardWrapper}>
-        {Platform.OS === 'ios' ? (
-          <BlurView intensity={80} tint="light" style={styles.glassCard}>
-            <View style={styles.activityItem}>
-              <Ionicons
-                name={iconName}
-                size={22}
-                color={theme.colors.textPrimary}
-                style={{ marginRight: 12 }}
-              />
-              <View>
-                <Text style={styles.activityName}>{activity.activity_type}</Text>
-                <Text style={styles.activityMeta}>{displayValue || 'No data'}</Text>
-              </View>
-            </View>
-          </BlurView>
-        ) : (
-          <View style={[styles.glassCard, styles.androidCard]}>
-            <View style={styles.activityItem}>
-              <Ionicons
-                name={iconName}
-                size={22}
-                color={theme.colors.textPrimary}
-                style={{ marginRight: 12 }}
-              />
-              <View>
-                <Text style={styles.activityName}>{activity.activity_type}</Text>
-                <Text style={styles.activityMeta}>{displayValue || 'No data'}</Text>
-              </View>
-            </View>
-          </View>
-        )}
-      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.activitiesHorizontalScroll}
+      >
+        {activities.map((activity) => {
+          const type = activity.activity_type || 'Custom';
+          const colorSet = ACTIVITY_COLORS[type] ?? pickRandom(RANDOM_CUSTOM_COLOR_SETS);
+          const iconName = ACTIVITY_ICONS[type] ?? pickRandom(RANDOM_CUSTOM_ICONS);
+          const metricValue = formatMetricValue(activity, settings.useKilometers);
+          return (
+            <LinearGradient
+              key={activity.id}
+              colors={colorSet.gradient}
+              style={styles.activitySquareCard}
+            >
+              <FontAwesome5 name={iconName} size={34} color="#fff" style={{ marginBottom: 8 }} />
+              <Text style={[styles.activitySquareTitle, { color: '#fff' }]}>
+                {type}
+              </Text>
+              <Text style={[styles.activitySquareValue, { color: '#fff' }]}>{metricValue}</Text>
+            </LinearGradient>
+          );
+        })}
+      </ScrollView>
     );
   }
 
@@ -369,176 +462,162 @@ export default function HomeScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={theme.colors.textPrimary}
-            colors={[theme.colors.textPrimary]}
+            tintColor={theme.colors.text.primary}
+            colors={[theme.colors.text.primary]}
           />
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Sticky Header */}
         <View style={styles.stickyHeader}>
           <View style={styles.topHeader}>
             <Text style={styles.appName}>CTP</Text>
             <View style={styles.syncContainer}>
               <View style={styles.syncStatus}>
                 <View style={[styles.statusDot, !isOnline && { backgroundColor: '#F59E0B' }]} />
-                <Text style={styles.syncText}>{isOnline ? 'Updated Now' : 'Offline'}</Text>
+                <Text style={styles.syncText}>
+                  {isOnline ? 'Updated Now' : 'Offline'}
+                </Text>
               </View>
-              <TouchableOpacity style={styles.gradientButtonWrapper} onPress={onRefresh} disabled={refreshing}>
-              <LinearGradient
-  colors={theme.colors.gradientButton}
-  start={{ x: 0, y: 0 }}
-  end={{ x: 1, y: 0 }}
-  style={styles.gradientButton}
->
-  <Ionicons name={refreshing ? 'sync' : 'sync-outline'} size={20} color="#FFF" />
-</LinearGradient>
+              <TouchableOpacity
+                style={styles.gradientButtonWrapper}
+                onPress={onRefresh}
+                disabled={refreshing}
+              >
+                <LinearGradient
+                  colors={['#E0E0E0', '#E0E0E0']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.gradientButton}
+                >
+                  <Ionicons name={refreshing ? 'sync' : 'sync-outline'} size={20} color="#000" />
+                </LinearGradient>
               </TouchableOpacity>
             </View>
           </View>
           <View style={styles.bottomHeader}>
-            <Text style={styles.greeting}>Hello, {settings.nickname || 'Friend'}</Text>
+            <Text style={styles.greeting}>
+              Hello, {settings.nickname || 'Friend'}
+            </Text>
             <Text style={styles.dashboardTitle}>Your Dashboard</Text>
           </View>
         </View>
 
-        {/* Remaining Content */}
         {error && (
           <View style={styles.errorBanner}>
             <View style={styles.errorContent}>
-              <Ionicons name="alert-circle-outline" size={22} color={theme.colors.error} />
+              <Ionicons name="alert-circle-outline" size={22} color={theme.colors.warningBanner.text} />
               <Text style={styles.errorText}>{error}</Text>
             </View>
           </View>
         )}
 
-        <View style={styles.section}>
+        <View style={styles.calendarContainer}>
+          <CalendarStrip
+            selectedDate={selectedDate}
+            onDateSelect={(date) => setSelectedDate(date)}
+            style={{ height: 100, paddingBottom: 10 }}
+            calendarAnimation={{ type: 'sequence', duration: 30 }}
+            daySelectionAnimation={{
+              type: 'background',
+              duration: 200,
+              highlightColor: theme.colors.primary,
+            }}
+          />
+        </View>
+
+        {/* Activity Summary */}
+        <View style={[styles.section, { marginBottom: theme.spacing.small }]}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>TODAY'S ACTIVITY</Text>
+            <Text style={styles.sectionTitle}>Activity Summary</Text>
             <TouchableOpacity
-              style={styles.gradientButtonWrapper}
-              onPress={() => setShowAddActivityModal(true)}
+              style={[styles.gradientButtonWrapper, !onToday && { opacity: 0.5 }]}
+              onPress={() => {
+                if (onToday) setShowAddActivityModal(true);
+              }}
+              disabled={!onToday}
             >
-              <LinearGradient colors={theme.colors.gradientButton} style={styles.gradientButton}>
-                <Ionicons name="add" size={18} color="#FFF" style={{ marginRight: 6 }} />
-                <Text style={styles.gradientButtonText}>Add Activity</Text>
+              <LinearGradient
+                colors={['#E0E0E0', '#E0E0E0']}
+                style={styles.gradientButton}
+              >
+                <Ionicons name="add" size={18} color="#000" style={{ marginRight: 6 }} />
+                <Text style={[styles.gradientButtonText, { color: '#000' }]}>Add Activity</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
-          <View style={styles.summaryCardWrapper}>
-            {Platform.OS === 'ios' ? (
-              <BlurView intensity={80} tint="light" style={styles.glassCard}>
-                <ActivitySummary
-                  steps={activitySummary.steps}
-                  distance={activitySummary.distance}
-                  duration={activitySummary.duration}
-                  calories={activitySummary.calories}
-                  useKilometers={settings.useKilometers}
-                />
-              </BlurView>
-            ) : (
-              <View style={[styles.glassCard, styles.androidCard]}>
-                <ActivitySummary
-                  steps={activitySummary.steps}
-                  distance={activitySummary.distance}
-                  duration={activitySummary.duration}
-                  calories={activitySummary.calories}
-                  useKilometers={settings.useKilometers}
-                />
-              </View>
-            )}
-          </View>
-          <Text style={styles.subsectionTitle}>Today’s Logged Activities</Text>
-          {activities.length === 0 ? (
-            <View style={styles.emptyStateWrapper}>
-              {Platform.OS === 'ios' ? (
-                <BlurView intensity={60} tint="light" style={styles.glassCard}>
-                  <View style={styles.emptyContent}>
-                    <Ionicons
-                      name="fitness-outline"
-                      size={40}
-                      color={theme.colors.textSecondary}
-                      style={{ marginBottom: 12 }}
-                    />
-                    <Text style={styles.emptyTitle}>No activities yet</Text>
-                    <Text style={styles.emptyText}>
-                      Start your fitness journey by adding your first activity!
-                    </Text>
-                    <TouchableOpacity
-                      style={[styles.gradientButtonWrapper, { marginTop: theme.spacing.medium }]}
-                      onPress={() => setShowAddActivityModal(true)}
-                    >
-                      <LinearGradient colors={theme.colors.gradientButton} style={styles.gradientButton}>
-                        <Text style={styles.gradientButtonText}>Log Activity</Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  </View>
-                </BlurView>
-              ) : (
-                <View style={[styles.glassCard, styles.androidCard]}>
-                  <View style={styles.emptyContent}>
-                    <Ionicons
-                      name="fitness-outline"
-                      size={40}
-                      color={theme.colors.textSecondary}
-                      style={{ marginBottom: 12 }}
-                    />
-                    <Text style={styles.emptyTitle}>No activities yet</Text>
-                    <Text style={styles.emptyText}>
-                      Start your fitness journey by adding your first activity!
-                    </Text>
-                    <TouchableOpacity
-                      style={[styles.gradientButtonWrapper, { marginTop: theme.spacing.medium }]}
-                      onPress={() => setShowAddActivityModal(true)}
-                    >
-                      <LinearGradient colors={theme.colors.gradientButton} style={styles.gradientButton}>
-                        <Text style={styles.gradientButtonText}>Log Activity</Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  </View>
+          <View style={[styles.summaryCardWrapper, styles.androidShadow]}>
+            <View style={styles.activitySummaryContainer}>
+              <View style={styles.activityStatItem}>
+                <View style={[styles.activityStatIconContainer, { backgroundColor: 'rgba(74,144,226,0.1)' }]}>
+                  <Ionicons name="walk" size={28} color="#4A90E2" />
                 </View>
-              )}
+                <Text style={styles.activityStatValue}>{activitySummary.steps}</Text>
+                <Text style={styles.activityStatLabel}>steps</Text>
+              </View>
+              <View style={styles.activityStatItem}>
+                <View style={[styles.activityStatIconContainer, { backgroundColor: 'rgba(80,200,120,0.1)' }]}>
+                  <Ionicons name="pin" size={28} color="#50C878" />
+                </View>
+                <Text style={styles.activityStatValue}>
+                  {settings.useKilometers
+                    ? `${activitySummary.distance.toFixed(2)} km`
+                    : `${(activitySummary.distance * 0.621371).toFixed(2)} mi`}
+                </Text>
+                <Text style={styles.activityStatLabel}>distance</Text>
+              </View>
+              <View style={styles.activityStatItem}>
+                <View style={[styles.activityStatIconContainer, { backgroundColor: 'rgba(156,106,222,0.1)' }]}>
+                  <Ionicons name="time" size={28} color="#9C6ADE" />
+                </View>
+                <Text style={styles.activityStatValue}>
+                  {(activitySummary.duration / 60).toFixed(1)}
+                </Text>
+                <Text style={styles.activityStatLabel}>hours</Text>
+              </View>
+              <View style={styles.activityStatItem}>
+                <View style={[styles.activityStatIconContainer, { backgroundColor: 'rgba(245,166,35,0.1)' }]}>
+                  <Ionicons name="flame" size={28} color="#F5A623" />
+                </View>
+                <Text style={styles.activityStatValue}>{activitySummary.calories}</Text>
+                <Text style={styles.activityStatLabel}>cal</Text>
+              </View>
             </View>
-          ) : (
-            <View style={{ marginTop: 8 }}>
-              {displayedActivities.map((activity) => renderActivityRow(activity))}
-              {activities.length > 3 && (
-                <TouchableOpacity
-                  style={[styles.gradientButtonWrapper, { alignSelf: 'center', marginTop: 16 }]}
-                  onPress={() => setShowAllActivities(!showAllActivities)}
-                >
-                  <LinearGradient colors={theme.colors.gradientButton} style={styles.gradientButton}>
-                    <Text style={styles.gradientButtonText}>
-                      {showAllActivities ? 'Show Less' : `View All (${activities.length})`}
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
+          </View>
         </View>
 
+        {/* Today's Logged Activities */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { marginBottom: theme.spacing.small }]}>
+            Today's Logged Activities
+          </Text>
+          {renderActivitiesCarousel()}
+        </View>
+
+        {/* Challenges */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>CHALLENGES</Text>
+            <Text style={styles.sectionTitle}>Challenges</Text>
             <TouchableOpacity
-              style={styles.gradientButtonWrapper}
+              style={[styles.gradientButtonWrapper]}
               onPress={() => router.push('/joinchallenges/joincreate')}
             >
-              <LinearGradient colors={theme.colors.gradientButton} style={styles.gradientButton}>
-                <Text style={styles.gradientButtonText}>Join / Create</Text>
+              <LinearGradient
+                colors={['#E0E0E0', '#E0E0E0']}
+                style={styles.gradientButton}
+              >
+                <Text style={[styles.gradientButtonText, { color: '#000' }]}>Join / Create</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
           {activeChallenges.length === 0 ? (
             <View style={styles.emptyStateWrapper}>
               {Platform.OS === 'ios' ? (
-                <BlurView intensity={60} tint="light" style={styles.glassCard}>
+                <BlurView intensity={60} tint="light" style={styles.card}>
                   <View style={styles.emptyContent}>
                     <Ionicons
                       name="trophy-outline"
                       size={40}
-                      color={theme.colors.textSecondary}
+                      color={theme.colors.text.secondary}
                       style={{ marginBottom: 12 }}
                     />
                     <Text style={styles.emptyTitle}>No active challenges</Text>
@@ -549,19 +628,22 @@ export default function HomeScreen() {
                       style={[styles.gradientButtonWrapper, { marginTop: theme.spacing.medium }]}
                       onPress={() => router.push('/joinchallenges/joincreate')}
                     >
-                      <LinearGradient colors={theme.colors.gradientButton} style={styles.gradientButton}>
-                        <Text style={styles.gradientButtonText}>Find Challenges</Text>
+                      <LinearGradient
+                        colors={['#E0E0E0', '#E0E0E0']}
+                        style={styles.gradientButton}
+                      >
+                        <Text style={[styles.gradientButtonText, { color: '#000' }]}>Join / Create</Text>
                       </LinearGradient>
                     </TouchableOpacity>
                   </View>
                 </BlurView>
               ) : (
-                <View style={[styles.glassCard, styles.androidCard]}>
+                <View style={[styles.card, styles.androidShadow]}>
                   <View style={styles.emptyContent}>
                     <Ionicons
                       name="trophy-outline"
                       size={40}
-                      color={theme.colors.textSecondary}
+                      color={theme.colors.text.secondary}
                       style={{ marginBottom: 12 }}
                     />
                     <Text style={styles.emptyTitle}>No active challenges</Text>
@@ -572,8 +654,11 @@ export default function HomeScreen() {
                       style={[styles.gradientButtonWrapper, { marginTop: theme.spacing.medium }]}
                       onPress={() => router.push('/joinchallenges/joincreate')}
                     >
-                      <LinearGradient colors={theme.colors.gradientButton} style={styles.gradientButton}>
-                        <Text style={styles.gradientButtonText}>Find Challenges</Text>
+                      <LinearGradient
+                        colors={['#E0E0E0', '#E0E0E0']}
+                        style={styles.gradientButton}
+                      >
+                        <Text style={[styles.gradientButtonText, { color: '#000' }]}>Join / Create</Text>
                       </LinearGradient>
                     </TouchableOpacity>
                   </View>
@@ -581,8 +666,8 @@ export default function HomeScreen() {
               )}
             </View>
           ) : (
-            <View style={{ marginTop: 8 }}>
-              {displayedChallenges.map((challenge) => (
+            <>
+              {renderedChallenges.map((challenge) => (
                 <View key={challenge.id} style={styles.activityCardWrapper}>
                   {Platform.OS === 'ios' ? (
                     <TouchableOpacity
@@ -590,7 +675,7 @@ export default function HomeScreen() {
                         router.push(`/joinchallenges/challengedetails?challenge_id=${challenge.id}`)
                       }
                     >
-                      <BlurView intensity={60} tint="light" style={styles.glassCard}>
+                      <BlurView intensity={60} tint="light" style={styles.card}>
                         <View style={styles.challengeCard}>
                           <View style={styles.challengeHeader}>
                             <Text style={styles.challengeTitle}>{challenge.title}</Text>
@@ -617,7 +702,7 @@ export default function HomeScreen() {
                       onPress={() =>
                         router.push(`/joinchallenges/challengedetails?challenge_id=${challenge.id}`)
                       }
-                      style={[styles.glassCard, styles.androidCard]}
+                      style={[styles.card, styles.androidShadow]}
                     >
                       <View style={styles.challengeCard}>
                         <View style={styles.challengeHeader}>
@@ -642,47 +727,49 @@ export default function HomeScreen() {
                   )}
                 </View>
               ))}
-              {activeChallenges.length > 3 && (
+              {activeChallenges.length > 3 && !showAllChallenges && (
                 <TouchableOpacity
                   style={[styles.gradientButtonWrapper, { alignSelf: 'center', marginTop: 16 }]}
-                  onPress={() => setShowAllChallenges(!showAllChallenges)}
+                  onPress={() => setShowAllChallenges(true)}
                 >
-                  <LinearGradient colors={theme.colors.gradientButton} style={styles.gradientButton}>
-                    <Text style={styles.gradientButtonText}>
-                      {showAllChallenges ? 'Show Less' : `View All (${activeChallenges.length})`}
-                    </Text>
+                  <LinearGradient
+                    colors={['#E0E0E0', '#E0E0E0']}
+                    style={styles.gradientButton}
+                  >
+                    <Text style={[styles.gradientButtonText, { color: '#000' }]}>View All Challenges</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               )}
-            </View>
+            </>
           )}
         </View>
       </ScrollView>
 
-      {/* Add Activity Modal */}
       <AddActivityModal
         visible={showAddActivityModal}
         onClose={() => setShowAddActivityModal(false)}
         onSaveComplete={loadHomeData}
+        selectedDate={selectedDate}
       />
     </View>
   );
 }
 
-// --- Styles ---
+function getSquareSize() {
+  return Math.min(160, (width - 64) / 3);
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.background,
   },
   scrollContainer: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: theme.spacing.large,
+    paddingBottom: theme.spacing.large * 3,
   },
-
-  // Loading
   loadingContainer: {
     flex: 1,
   },
@@ -693,18 +780,14 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    fontSize: theme.typography.body.fontSize,
-    color: theme.colors.textSecondary,
+    fontSize: theme.typography.sizes.widgetTitle,
+    color: theme.colors.text.secondary,
   },
-
-  // Sticky header container
   stickyHeader: {
-    backgroundColor: '#FFFFFF',
-    paddingTop: 50, // Increase this value for more space from the top
+    backgroundColor: theme.colors.background,
+    paddingTop: 50,
     paddingBottom: theme.spacing.medium,
     paddingHorizontal: theme.spacing.large,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.glassBorder,
   },
   topHeader: {
     flexDirection: 'row',
@@ -716,7 +799,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '800',
     letterSpacing: 1,
-    color: theme.colors.textPrimary,
+    color: theme.colors.text.primary,
     textTransform: 'uppercase',
   },
   syncContainer: {
@@ -729,7 +812,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     marginRight: 8,
-    ...theme.shadows.light,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -742,13 +824,12 @@ const styles = StyleSheet.create({
   },
   syncText: {
     fontSize: 13,
-    color: theme.colors.textSecondary,
+    color: theme.colors.text.secondary,
     fontWeight: '500',
   },
   gradientButtonWrapper: {
-    borderRadius: theme.radius.button,
+    borderRadius: theme.borderRadius.card,
     overflow: 'hidden',
-    ...theme.shadows.light,
   },
   gradientButton: {
     flexDirection: 'row',
@@ -758,7 +839,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   gradientButtonText: {
-    color: '#FFF',
+    color: '#000',
     fontWeight: '600',
     fontSize: 14,
   },
@@ -766,37 +847,38 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.small,
   },
   greeting: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: theme.colors.textSecondary,
+    fontSize: theme.typography.sizes.greeting,
+    fontWeight: theme.typography.weights.greeting,
+    color: theme.colors.text.primary,
     marginBottom: 4,
+    fontFamily: theme.typography.fontFamily,
   },
   dashboardTitle: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: theme.colors.textPrimary,
+    color: theme.colors.text.primary,
   },
-
-  // Error Banner
   errorBanner: {
     marginHorizontal: theme.spacing.medium,
     marginBottom: theme.spacing.small,
-    borderRadius: theme.radius.card,
+    borderRadius: theme.borderRadius.warningBanner,
     overflow: 'hidden',
   },
   errorContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.errorLight,
+    backgroundColor: theme.colors.warningBanner.background,
     padding: 16,
   },
   errorText: {
-    color: theme.colors.error,
+    color: theme.colors.warningBanner.text,
     marginLeft: 8,
     flex: 1,
   },
-
-  // Sections
+  calendarContainer: {
+    marginHorizontal: theme.spacing.medium,
+    marginBottom: theme.spacing.medium,
+  },
   section: {
     marginBottom: theme.spacing.large,
     paddingHorizontal: theme.spacing.medium,
@@ -805,68 +887,107 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: theme.spacing.small,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: '800',
-    color: theme.colors.textPrimary,
+    color: theme.colors.text.primary,
     letterSpacing: 0.5,
   },
-  subsectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-    marginTop: 16,
-    marginBottom: 12,
-  },
-
-  // Glassmorphic card
-  glassCard: {
-    backgroundColor: theme.colors.glassCardBg,
-    borderWidth: 1,
-    borderColor: theme.colors.glassBorder,
-    borderRadius: theme.radius.card,
-  },
-  androidCard: {
-    ...theme.shadows.medium,
-  },
-
-  // Summary Card
   summaryCardWrapper: {
-    ...theme.shadows.medium,
-    borderRadius: theme.radius.card,
+    borderRadius: theme.borderRadius.card,
     overflow: 'hidden',
+    marginBottom: theme.spacing.medium,
   },
-
-  // Activities
-  activityCardWrapper: {
-    ...theme.shadows.light,
-    marginBottom: theme.spacing.small,
-    borderRadius: theme.radius.card,
-    overflow: 'hidden',
+  androidShadow: {
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.15,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
-  activityItem: {
+  activitySummaryContainer: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: theme.borderRadius.card,
     padding: theme.spacing.medium,
   },
-  activityName: {
+  activityStatItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  activityStatIconContainer: {
+    borderRadius: 30,
+    width: 50,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  activityStatValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 4,
+  },
+  activityStatLabel: {
+    fontSize: 12,
+    color: '#666',
+    textTransform: 'uppercase',
+  },
+  activitiesHorizontalScroll: {
+    paddingVertical: theme.spacing.small,
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.small,
+  },
+  activitySquareCard: {
+    width: Math.min(120, (width - 64) / 3),
+    height: Math.min(120, (width - 64) / 3),
+    borderRadius: theme.borderRadius.card,
+    marginRight: theme.spacing.small,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.small,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.15,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  activitySquareTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  activitySquareValue: {
     fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-    marginBottom: 2,
+    textAlign: 'center',
   },
-  activityMeta: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
+  card: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: theme.borderRadius.card,
   },
-
-  // Empty state
   emptyStateWrapper: {
-    ...theme.shadows.medium,
-    borderRadius: theme.radius.card,
+    borderRadius: theme.borderRadius.card,
     overflow: 'hidden',
+    marginTop: theme.spacing.small,
   },
   emptyContent: {
     alignItems: 'center',
@@ -875,19 +996,22 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: theme.colors.textPrimary,
+    color: theme.colors.text.primary,
     marginBottom: 8,
     textAlign: 'center',
   },
   emptyText: {
     fontSize: 15,
-    color: theme.colors.textSecondary,
+    color: theme.colors.text.secondary,
     textAlign: 'center',
     lineHeight: 20,
     marginHorizontal: theme.spacing.small,
   },
-
-  // Challenges
+  activityCardWrapper: {
+    marginBottom: theme.spacing.small,
+    borderRadius: theme.borderRadius.card,
+    overflow: 'hidden',
+  },
   challengeCard: {
     padding: theme.spacing.medium,
   },
@@ -900,7 +1024,7 @@ const styles = StyleSheet.create({
   challengeTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: theme.colors.textPrimary,
+    color: theme.colors.text.primary,
     flex: 1,
     marginRight: 8,
   },
@@ -911,13 +1035,13 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   challengeTypeText: {
-    color: theme.colors.textSecondary,
+    color: theme.colors.text.secondary,
     fontSize: 12,
     fontWeight: '700',
   },
   challengeMeta: {
     fontSize: 14,
-    color: theme.colors.textSecondary,
+    color: theme.colors.text.secondary,
     marginBottom: 4,
   },
 });
