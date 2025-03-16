@@ -16,6 +16,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 
+import Svg, { Text as SvgText, LinearGradient as SvgLinearGradient, Stop, Defs } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
 import { useUser } from '../../components/UserContext';
 import AddActivityModal from '../../components/AddActivityModal';
@@ -88,7 +89,10 @@ const ACTIVITY_ICONS: { [key: string]: string } = {
   'Cardio Workout': 'heartbeat',
   Custom: 'star',
 };
-
+const getTextWidth = (text) => {
+  // Simple estimation - adjust the multiplier based on your font
+  return text.length * 20; // Approximately 20 units per character
+}
 function getColorSetForActivity(activityType: string) {
   const colorSet = ACTIVITY_COLORS[activityType];
   if (colorSet) return colorSet;
@@ -495,9 +499,31 @@ export default function HomeScreen() {
             </View>
           </View>
           <View style={styles.bottomHeader}>
-            <Text style={styles.greeting}>
-              Hello, {settings.nickname || 'Friend'}
-            </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+  <Text style={[styles.greeting, { color: '#000000' }]}>Hello, </Text>
+  <View>
+    <Svg height="40" width={getTextWidth(settings.nickname || 'Friend')}>
+      <Defs>
+        <SvgLinearGradient id="nameGradient" x1="0" y1="0" x2="100%" y2="0">
+          <Stop offset="0" stopColor="#F58529" />
+          <Stop offset="0.33" stopColor="#DD2A7B" />
+          <Stop offset="0.66" stopColor="#8134AF" />
+          <Stop offset="1" stopColor="#515BD4" />
+        </SvgLinearGradient>
+      </Defs>
+      <SvgText
+        fill="url(#nameGradient)"
+        fontSize={theme.typography.sizes.greeting}
+        fontWeight={theme.typography.weights.greeting}
+        x="0"
+        y="30"
+        fontFamily={theme.typography.fontFamily}
+      >
+        {settings.nickname || 'Friend'}
+      </SvgText>
+    </Svg>
+  </View>
+</View>
             <Text style={styles.dashboardTitle}>Your Dashboard</Text>
           </View>
         </View>
@@ -849,14 +875,15 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: theme.typography.sizes.greeting,
     fontWeight: theme.typography.weights.greeting,
-    color: theme.colors.text.primary,
-    marginBottom: 4,
-    fontFamily: theme.typography.fontFamily,
+    backgroundColor: 'transparent',
+    textAlign: 'center',
+    color: '#F58529', // Using the starting gradient color as a static fallback
   },
   dashboardTitle: {
     fontSize: 32,
     fontWeight: 'bold',
     color: theme.colors.text.primary,
+    textAlign: 'center',
   },
   errorBanner: {
     marginHorizontal: theme.spacing.medium,
@@ -981,7 +1008,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   card: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#F5F8FF',
     borderRadius: theme.borderRadius.card,
   },
   emptyStateWrapper: {
@@ -1029,15 +1056,15 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   challengeTypeBadge: {
-    backgroundColor: 'rgba(74,144,226,0.1)',
+    backgroundColor: 'rgba(82, 130, 255, 0.2)', // Light blue bg for badge
     borderRadius: 12,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
   },
   challengeTypeText: {
-    color: theme.colors.text.secondary,
+    color: '#4067E3', // Medium blue text within badge
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   challengeMeta: {
     fontSize: 14,
