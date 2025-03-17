@@ -107,7 +107,7 @@ function getIconForActivity(activityType: string) {
 const theme = {
   colors: {
     background: '#ffffff',
-    primary: '#4A90E2',
+    primary: '#00000',
     text: {
       primary: '#333333',
       secondary: '#666666',

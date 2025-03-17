@@ -41,8 +41,6 @@ const CalendarStrip: React.FC<CalendarStripProps> = ({
   daySelectionAnimation = {
     type: 'background',
     duration: 300,
-    // This value is no longer used directly because we are rendering a gradient on selection.
-    highlightColor: '#4A90E2',
   },
   highlightDateNumberStyle = {},
   highlightDateNameStyle = {},
@@ -269,10 +267,10 @@ const styles = StyleSheet.create({
   },
   todayName: {
     fontWeight: '700',
-    color: '#4A90E2',
+    color: '#00000',
   },
   todayNumber: {
-    color: '#4A90E2',
+    color: '#00000',
   },
   selectedText: {
     color: 'white',

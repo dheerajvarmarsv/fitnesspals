@@ -17,7 +17,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 import SharedLayout from '../../../components/SharedLayout';
 import { supabase } from '../../../lib/supabase';
-import { theme } from '../../../lib/theme';
+import { lightTheme as theme } from '../../../lib/theme';
 
 import FilterModal from './challengesettingscomponents/FilterModal';
 import FeaturedChallenges from './challengesettingscomponents/FeaturedChallenges';

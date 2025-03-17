@@ -36,7 +36,7 @@ export default function PrivacySettings() {
             <View style={styles.optionHeader}>
               <Text style={styles.optionTitle}>Public</Text>
               {settings.privacyMode === 'public' && (
-                <Ionicons name="checkmark-circle" size={24} color="#4A90E2" />
+                <Ionicons name="checkmark-circle" size={24} color="#00000" />
               )}
             </View>
             <Text style={styles.optionDescription}>
@@ -55,7 +55,7 @@ export default function PrivacySettings() {
             <View style={styles.optionHeader}>
               <Text style={styles.optionTitle}>Private</Text>
               {settings.privacyMode === 'private' && (
-                <Ionicons name="checkmark-circle" size={24} color="#4A90E2" />
+                <Ionicons name="checkmark-circle" size={24} color="#00000" />
               )}
             </View>
             <Text style={styles.optionDescription}>
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
   },
   optionSelected: {
     backgroundColor: '#EBF5FF',
-    borderColor: '#4A90E2',
+    borderColor: '#00000',
     borderWidth: 1,
   },
   optionHeader: {

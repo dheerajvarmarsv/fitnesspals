@@ -342,7 +342,7 @@ export default function Step3Activities({
         end={{ x: 1, y: 0 }}
         style={localStyles.addCustomGradient}
       >
-        <Ionicons name="add-circle" size={24} color="#4A90E2" />
+        <Ionicons name="add-circle" size={24} color="#00000" />
         <Text style={localStyles.addCustomActivityText}>Add Custom Activity</Text>
       </LinearGradient>
     </Pressable>
@@ -602,7 +602,7 @@ const localStyles = StyleSheet.create({
     width: 80,
   },
   timeframeSelected: {
-    backgroundColor: '#4A90E2',
+    backgroundColor: '#00000',
   },
   timeframeText: {
     fontSize: 14,
@@ -738,7 +738,7 @@ const localStyles = StyleSheet.create({
     marginVertical: 16,
     overflow: 'hidden',
     borderWidth: 2,
-    borderColor: '#4A90E2',
+    borderColor: '#00000',
     borderStyle: 'dashed',
   },
   addCustomGradient: {
@@ -751,7 +751,7 @@ const localStyles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 16,
     fontWeight: '700',
-    color: '#4A90E2',
+    color: '#00000',
   },
   noActivitiesWarning: {
     flexDirection: 'row',
@@ -859,7 +859,7 @@ const localStyles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 8,
-    backgroundColor: '#4A90E2',
+    backgroundColor: '#00000',
   },
   modalAddButtonDisabled: {
     backgroundColor: '#ccc',

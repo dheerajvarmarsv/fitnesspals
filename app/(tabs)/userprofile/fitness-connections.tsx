@@ -11,7 +11,7 @@ export default function FitnessConnectionsScreen() {
         options={{ 
           title: 'Fitness Connections',
           headerStyle: {
-            backgroundColor: '#4A90E2',
+            backgroundColor: '#00000',
           },
           headerTintColor: '#fff',
           headerTitleStyle: {

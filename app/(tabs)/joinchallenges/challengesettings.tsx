@@ -1,4 +1,3 @@
-// app/(tabs)/joinchallenges/challengesettings.tsx
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   StyleSheet,
@@ -10,24 +9,22 @@ import {
   Animated,
   Platform,
   Dimensions,
-  TextInput,
 } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import SharedLayout from '../../../components/SharedLayout';
-import PagerView from '../../../components/PagerView';
 import { supabase } from '../../../lib/supabase';
 import FilterModal from './challengesettingscomponents/FilterModal';
 import InvitesList from './challengesettingscomponents/InvitesList';
 import ChallengesList from './challengesettingscomponents/ChallengesList';
 import { leaveChallenges } from '../../../lib/challenges';
-import { theme } from '../../../lib/theme'; // Import shared theme
+import { lightTheme as theme } from '../../../lib/theme';
 
 const { height } = Dimensions.get('window');
 
 type MainTab = 'yourChallenges' | 'invites';
 type ChallengeTab = 'active' | 'upcoming' | 'completed';
-type FilterOption = 'all' | 'race' | 'survival' | 'streak' | 'custom';
+//type FilterOption = 'all' | 'race' | 'survival' | 'streak' | 'custom';
 
 export default function YourChallengesScreen() {
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('yourChallenges');
@@ -64,7 +61,7 @@ export default function YourChallengesScreen() {
   });
 
   const challengeTabs: ChallengeTab[] = ['active', 'upcoming', 'completed'];
-  const filterOptions: FilterOption[] = ['all', 'race', 'survival', 'streak', 'custom'];
+  //const r: FilterOption[] = ['all', 'race', 'survival', 'streak', 'custom'];
 
   useEffect(() => {
     setActiveMainTab('yourChallenges');
@@ -280,7 +277,7 @@ export default function YourChallengesScreen() {
         <Text style={styles.title}>Your Challenges</Text>
         <TouchableOpacity style={styles.createButton} onPress={() => router.push('/joinchallenges/joincreate')}>
           <LinearGradient
-            colors={theme.colors.gradientButton}
+            colors={['#DD2A7B', '#8134AF', '#515BD4']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.createButtonGradient}
@@ -355,67 +352,110 @@ export default function YourChallengesScreen() {
                 ))}
               </View>
             </View>
-<PagerView
-              ref={challengePagerRef}
-              style={styles.challengePagerView}
-              initialPage={0}
-              onPageSelected={(e) => {
-                setActiveChallengeTab(challengeTabs[e.nativeEvent.position]);
-              }}
-            >
-              {challengeTabs.map((tab) => {
-                let challengesData: any[] = [];
-                if (tab === 'active') challengesData = activeChallenges;
-                if (tab === 'upcoming') challengesData = upcomingChallenges;
-                if (tab === 'completed') challengesData = completedChallenges;
-                return (
-                  <View key={tab} style={styles.pagerPage}>
-                    <ChallengesList
-                      tabType={tab}
-                      challenges={challengesData}
-                      loading={loading[tab]}
-                      refreshing={refreshing}
-                      onRefresh={handleRefresh}
-                      activeFilter={activeFilter}
-                      setActiveFilter={setActiveFilter}
-                      searchQuery={searchQuery}
-                      setSearchQuery={setSearchQuery}
-                      showFilterModal={() => setShowFilterModal(true)}
-                      goToChallengeDetails={(id) => {
-                        if (isEditMode) {
-                          toggleChallengeSelection(id);
-                        } else {
-                          goToChallengeDetails(id);
-                        }
-                      }}
-                      renderEmptyChallengeState={(tab) => {
-                        const messages = {
-                          active: 'You have no active challenges',
-                          upcoming: 'No upcoming challenges',
-                          completed: 'No completed challenges yet',
-                        };
-                        return (
-                          <View style={styles.emptyState}>
-                            <Text style={styles.emptyTitle}>{messages[tab]}</Text>
-                            <Text style={styles.emptyText}>
-                              {tab === 'active'
-                                ? 'Start a new challenge or join one'
-                                : tab === 'upcoming'
-                                ? 'Join challenges to see them here'
-                                : 'Complete challenges to see your achievements'}
-                            </Text>
-                          </View>
-                        );
-                      }}
-                      isEditMode={isEditMode}
-                      selectedChallenges={selectedChallenges}
-                      onToggleSelectChallenge={toggleChallengeSelection}
-                      onEnterEditMode={enterEditMode}
-                    />
-                  </View>
-                );
-              })}
-            </PagerView>
+
+            <View style={styles.pagerPage}>
+              {activeChallengeTab === 'active' && (
+                <ChallengesList
+                  tabType="active"
+                  challenges={activeChallenges}
+                  loading={loading.active}
+                  refreshing={refreshing}
+                  onRefresh={handleRefresh}
+                  activeFilter={activeFilter}
+                  setActiveFilter={setActiveFilter}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                  showFilterModal={() => setShowFilterModal(true)}
+                  goToChallengeDetails={id => {
+                    if (isEditMode) {
+                      toggleChallengeSelection(id);
+                    } else {
+                      goToChallengeDetails(id);
+                    }
+                  }}
+                  renderEmptyChallengeState={() => (
+                    <View style={styles.emptyState}>
+                      <Text style={styles.emptyTitle}>You have no active challenges</Text>
+                      <Text style={styles.emptyText}>
+                        Start a new challenge or join one
+                      </Text>
+                    </View>
+                  )}
+                  isEditMode={isEditMode}
+                  selectedChallenges={selectedChallenges}
+                  onToggleSelectChallenge={toggleChallengeSelection}
+                  onEnterEditMode={enterEditMode}
+                />
+              )}
+              
+              {activeChallengeTab === 'upcoming' && (
+                <ChallengesList
+                  tabType="upcoming"
+                  challenges={upcomingChallenges}
+                  loading={loading.upcoming}
+                  refreshing={refreshing}
+                  onRefresh={handleRefresh}
+                  activeFilter={activeFilter}
+                  setActiveFilter={setActiveFilter}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                  showFilterModal={() => setShowFilterModal(true)}
+                  goToChallengeDetails={id => {
+                    if (isEditMode) {
+                      toggleChallengeSelection(id);
+                    } else {
+                      goToChallengeDetails(id);
+                    }
+                  }}
+                  renderEmptyChallengeState={() => (
+                    <View style={styles.emptyState}>
+                      <Text style={styles.emptyTitle}>No upcoming challenges</Text>
+                      <Text style={styles.emptyText}>
+                        Join challenges to see them here
+                      </Text>
+                    </View>
+                  )}
+                  isEditMode={isEditMode}
+                  selectedChallenges={selectedChallenges}
+                  onToggleSelectChallenge={toggleChallengeSelection}
+                  onEnterEditMode={enterEditMode}
+                />
+              )}
+              
+              {activeChallengeTab === 'completed' && (
+                <ChallengesList
+                  tabType="completed"
+                  challenges={completedChallenges}
+                  loading={loading.completed}
+                  refreshing={refreshing}
+                  onRefresh={handleRefresh}
+                  activeFilter={activeFilter}
+                  setActiveFilter={setActiveFilter}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                  showFilterModal={() => setShowFilterModal(true)}
+                  goToChallengeDetails={id => {
+                    if (isEditMode) {
+                      toggleChallengeSelection(id);
+                    } else {
+                      goToChallengeDetails(id);
+                    }
+                  }}
+                  renderEmptyChallengeState={() => (
+                    <View style={styles.emptyState}>
+                      <Text style={styles.emptyTitle}>No completed challenges yet</Text>
+                      <Text style={styles.emptyText}>
+                        Complete challenges to see your achievements
+                      </Text>
+                    </View>
+                  )}
+                  isEditMode={isEditMode}
+                  selectedChallenges={selectedChallenges}
+                  onToggleSelectChallenge={toggleChallengeSelection}
+                  onEnterEditMode={enterEditMode}
+                />
+              )}
+            </View>
           </>
         ) : (
           <InvitesList
@@ -491,94 +531,171 @@ export default function YourChallengesScreen() {
           />
         )}
       </ScrollView>
-
-      <FilterModal
-        visible={showFilterModal}
-        onClose={() => setShowFilterModal(false)}
-        filterOptions={filterOptions}
-        activeFilter={activeFilter}
-        onChangeFilter={(f) => {
-          setActiveFilter(f as FilterOption);
-          setShowFilterModal(false);
-        }}
-      />
     </SharedLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.background },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#fff' 
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: theme.spacing.medium,
+    paddingHorizontal: 16,
     paddingTop: Platform.OS === 'ios' ? 12 : 16,
-    paddingBottom: theme.spacing.medium,
-    backgroundColor: theme.colors.background,
+    paddingBottom: 16,
+    backgroundColor: '#fff',
     zIndex: 10,
   },
-  title: { fontSize: 28, fontWeight: 'bold', color: theme.colors.textPrimary, fontFamily: theme.typography.heading.fontFamily },
-  createButton: { borderRadius: theme.radius.button, overflow: 'hidden' },
-  createButtonGradient: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: theme.radius.button },
-  createButtonText: { color: '#FFF', fontWeight: '600', fontSize: 16, fontFamily: theme.typography.body.fontFamily },
-  mainTabsContainer: { backgroundColor: theme.colors.background, paddingHorizontal: theme.spacing.medium, zIndex: 5 },
-  mainTabHeader: { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#eee' },
-  mainTabButton: { flex: 1, alignItems: 'center', paddingVertical: theme.spacing.medium, position: 'relative' },
-  mainTabText: { fontSize: 16, fontWeight: '500', color: '#999', fontFamily: theme.typography.body.fontFamily },
-  activeMainTabText: { color: theme.colors.textPrimary, fontWeight: '700' },
+  title: { 
+    fontSize: 28, 
+    fontWeight: 'bold', 
+    color: '#333',
+  },
+  createButton: { 
+    borderRadius: 20, 
+    overflow: 'hidden' 
+  },
+  createButtonGradient: { 
+    paddingVertical: 8, 
+    paddingHorizontal: 16, 
+    borderRadius: 20 
+  },
+  createButtonText: { 
+    color: '#FFF', 
+    fontWeight: '600', 
+    fontSize: 16
+  },
+  mainTabsContainer: { 
+    backgroundColor: '#fff', 
+    paddingHorizontal: 16, 
+    zIndex: 5 
+  },
+  mainTabHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    borderBottomWidth: 1, 
+    borderBottomColor: '#eee' 
+  },
+  mainTabButton: { 
+    flex: 1, 
+    alignItems: 'center', 
+    paddingVertical: 16, 
+    position: 'relative' 
+  },
+  activeMainTabButton: {},
+  mainTabText: { 
+    fontSize: 16, 
+    fontWeight: '500', 
+    color: '#999' 
+  },
+  activeMainTabText: { 
+    color: '#333', 
+    fontWeight: '700' 
+  },
   mainTabIndicator: {
     position: 'absolute',
     bottom: 0,
     left: '25%',
     right: '25%',
     height: 3,
-    backgroundColor: theme.colors.textPrimary,
+    backgroundColor: '#333',
     borderTopLeftRadius: 3,
     borderTopRightRadius: 3,
   },
-  inviteBadge: { color: '#FF4B2B', fontWeight: 'bold' },
-  challengeTabsContainer: { backgroundColor: theme.colors.background, paddingHorizontal: theme.spacing.medium, marginTop: 10 },
-  challengeTabHeader: { flexDirection: 'row', justifyContent: 'space-between' },
-  challengeTabButton: { flex: 1, alignItems: 'center', paddingVertical: 12, position: 'relative' },
-  challengeTabText: { fontSize: 15, fontWeight: '500', color: '#999', fontFamily: theme.typography.body.fontFamily },
-  activeChallengeTabText: { color: theme.colors.textPrimary, fontWeight: '700' },
+  inviteBadge: { 
+    color: '#FF4B2B', 
+    fontWeight: 'bold' 
+  },
+  challengeTabsContainer: { 
+    backgroundColor: '#fff', 
+    paddingHorizontal: 16, 
+    marginTop: 10 
+  },
+  challengeTabHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between' 
+  },
+  challengeTabButton: { 
+    flex: 1, 
+    alignItems: 'center', 
+    paddingVertical: 12, 
+    position: 'relative' 
+  },
+  activeChallengeTabButton: {},
+  challengeTabText: { 
+    fontSize: 15, 
+    fontWeight: '500', 
+    color: '#999'
+  },
+  activeChallengeTabText: { 
+    color: '#333', 
+    fontWeight: '700' 
+  },
   challengeTabIndicator: {
     position: 'absolute',
     bottom: 0,
     left: '25%',
     right: '25%',
     height: 2,
-    backgroundColor: theme.colors.textPrimary,
+    backgroundColor: '#333',
     borderTopLeftRadius: 2,
     borderTopRightRadius: 2,
   },
-  scrollContent: { flex: 1 },
-  scrollContentContainer: { paddingBottom: 40 },
-  challengePagerView: { minHeight: height * 0.7 },
-  pagerPage: { flex: 1 },
-  webTabsContainer: { flex: 1, minHeight: height * 0.7 },
-  emptyState: { alignItems: 'center', paddingVertical: 40 },
-  emptyTitle: { fontSize: 20, fontWeight: 'bold', color: theme.colors.textPrimary, marginTop: theme.spacing.medium, marginBottom: 10, fontFamily: theme.typography.heading.fontFamily },
-  emptyText: { fontSize: 16, color: theme.colors.textSecondary, textAlign: 'center', marginBottom: 30, lineHeight: 22, fontFamily: theme.typography.body.fontFamily },
+  scrollContent: { 
+    flex: 1 
+  },
+  scrollContentContainer: { 
+    paddingBottom: 40 
+  },
+  challengePagerView: { 
+    minHeight: height * 0.7 
+  },
+  pagerPage: { 
+    flex: 1 
+  },
+  webTabsContainer: { 
+    flex: 1, 
+    minHeight: height * 0.7 
+  },
+  emptyState: { 
+    alignItems: 'center', 
+    paddingVertical: 40 
+  },
+  emptyTitle: { 
+    fontSize: 20, 
+    fontWeight: 'bold', 
+    color: '#333', 
+    marginTop: 16, 
+    marginBottom: 10
+  },
+  emptyText: { 
+    fontSize: 16, 
+    color: '#666', 
+    textAlign: 'center', 
+    marginBottom: 30, 
+    lineHeight: 22
+  },
   editModeHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: theme.spacing.medium,
+    padding: 16,
     backgroundColor: '#f8f9fa',
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
-  editModeButtonText: { fontSize: 16, color: theme.colors.primary, fontWeight: '600', fontFamily: theme.typography.body.fontFamily },
-  editModeCount: { fontSize: 16, color: theme.colors.textPrimary, fontWeight: '600', fontFamily: theme.typography.body.fontFamily },
-  // Challenges list card style (if used inside ChallengesList component)
-  challengeCard: { padding: theme.spacing.medium },
-  challengeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  challengeTitle: { fontSize: 16, fontWeight: '700', color: theme.colors.textPrimary, flex: 1, marginRight: 8, fontFamily: theme.typography.heading.fontFamily },
-  challengeTypeBadge: { backgroundColor: 'rgba(74,144,226,0.1)', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4 },
-  challengeTypeText: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '700', fontFamily: theme.typography.small.fontFamily },
-  challengeMeta: { fontSize: 14, color: theme.colors.textSecondary, marginBottom: 4, fontFamily: theme.typography.body.fontFamily },
+  editModeButtonText: { 
+    fontSize: 16, 
+    color: '#00000', 
+    fontWeight: '600'
+  },
+  editModeCount: { 
+    fontSize: 16, 
+    color: '#333', 
+    fontWeight: '600'
+  },
 });
-
-export {};

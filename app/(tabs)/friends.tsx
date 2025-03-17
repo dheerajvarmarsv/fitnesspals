@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 32, fontWeight: 'bold', color: '#333' },
   addButton: {
-    backgroundColor: '#4A90E2',
+    backgroundColor: '#00000',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 20,
@@ -487,7 +487,7 @@ const styles = StyleSheet.create({
   requestName: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 8 },
   requestActions: { flexDirection: 'row', gap: 10 },
   actionButton: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 15 },
-  acceptButton: { backgroundColor: '#4A90E2' },
+  acceptButton: { backgroundColor: '#00000' },
   rejectButton: { backgroundColor: '#f5f5f5' },
   actionButtonText: { color: '#fff', fontWeight: '600' },
   rejectButtonText: { color: '#666' },
@@ -528,11 +528,11 @@ const styles = StyleSheet.create({
   },
   link: { flex: 1, fontSize: 16, color: '#333', marginRight: 10 },
   copyButton: {
-    backgroundColor: '#4A90E2', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 8,
+    backgroundColor: '#00000', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 8,
   },
   copyButtonText: { color: '#fff', fontWeight: '600' },
   shareButton: {
-    backgroundColor: '#4A90E2', padding: 15, borderRadius: 10, alignItems: 'center',
+    backgroundColor: '#00000', padding: 15, borderRadius: 10, alignItems: 'center',
   },
   shareButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   searchModalContainer: { marginBottom: 20 },
@@ -547,10 +547,10 @@ const styles = StyleSheet.create({
   },
   searchResultAvatar: { width: 40, height: 40, borderRadius: 20, marginRight: 15 },
   searchResultName: { flex: 1, fontSize: 16, color: '#333' },
-  friendStatus: { color: '#4A90E2', fontWeight: '600' },
+  friendStatus: { color: '#00000', fontWeight: '600' },
   pendingStatus: { color: '#FFA500', fontWeight: '600' },
   inviteButton: {
-    backgroundColor: '#4A90E2', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 15,
+    backgroundColor: '#00000', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 15,
   },
   inviteButtonText: { color: '#fff', fontWeight: '600' },
 });

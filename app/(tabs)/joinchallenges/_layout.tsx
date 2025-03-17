@@ -1,12 +1,25 @@
 import { Stack } from 'expo-router';
 import { TouchableOpacity, Text, Image } from 'react-native';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function JoinChallengesLayout() {
   return (
-    <Stack initialRouteName="challengesettings">
+    <Stack initialRouteName="index">
+      <Stack.Screen
+        name="index"
+        options={{
+          headerShown: false,
+        }}
+      />
       <Stack.Screen
         name="challengesettings"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="joincreate"
         options={{
           headerShown: false,
         }}
@@ -20,16 +33,13 @@ export default function JoinChallengesLayout() {
               onPress={() => navigation.goBack()}
               style={{ marginLeft: 16 }}
             >
-              <Image
-                source={{ uri: 'https://cdn-icons-png.flaticon.com/128/2223/2223615.png' }}
-                style={{ width: 24, height: 24, tintColor: '#333' }}
-              />
+              <Ionicons name="arrow-back" size={24} color="#333" />
             </TouchableOpacity>
           ),
           headerRight: () => (
             <TouchableOpacity
               style={{
-                backgroundColor: '#4A90E2',
+                backgroundColor: '#00000',
                 paddingHorizontal: 16,
                 paddingVertical: 8,
                 borderRadius: 20,
@@ -52,6 +62,12 @@ export default function JoinChallengesLayout() {
           headerShown: false,
           presentation: 'fullScreenModal',
           animation: 'slide_from_bottom',
+        }}
+      />
+      <Stack.Screen
+        name="challengedetails"
+        options={{
+          headerShown: false,
         }}
       />
     </Stack>

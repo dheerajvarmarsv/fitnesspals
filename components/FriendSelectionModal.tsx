@@ -371,7 +371,7 @@ export default function FriendSelectionModal({
 
               {loading ? (
                 <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color="#4A90E2" />
+                  <ActivityIndicator size="large" color="#00000" />
                   <Text style={styles.loadingText}>Loading friends...</Text>
                 </View>
               ) : friends.length === 0 ? (
@@ -549,7 +549,7 @@ const styles = StyleSheet.create({
   friendItemSelected: {
     backgroundColor: '#EBF5FF',
     borderWidth: 1,
-    borderColor: '#4A90E2',
+    borderColor: '#00000',
   },
   friendItemDisabled: {
     opacity: 0.8,
@@ -595,8 +595,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkboxSelected: {
-    backgroundColor: '#4A90E2',
-    borderColor: '#4A90E2',
+    backgroundColor: '#00000',
+    borderColor: '#00000',
   },
   statusBadge: {
     paddingHorizontal: 10,

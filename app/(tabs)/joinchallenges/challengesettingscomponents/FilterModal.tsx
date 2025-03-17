@@ -1,209 +1,134 @@
-// // app/(tabs)/joinchallenges/challengesettingscomponents/FilterModal.tsx
-
-// import React from 'react';
-// import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-// import { Ionicons } from '@expo/vector-icons';
-
-// interface FilterModalProps {
-//   visible: boolean;
-//   onClose: () => void;
-//   filterOptions: string[];   // e.g. ['all', 'race', 'survival', 'streak', 'custom']
-//   activeFilter: string;      // e.g. 'all'
-//   onChangeFilter: (option: string) => void;
-// }
-
-// export default function FilterModal({
-//   visible,
-//   onClose,
-//   filterOptions,
-//   activeFilter,
-//   onChangeFilter,
-// }: FilterModalProps) {
-//   return (
-//     <Modal
-//       visible={visible}
-//       transparent={true}
-//       animationType="fade"
-//       onRequestClose={onClose}
-//     >
-//       <TouchableOpacity
-//         style={styles.modalOverlay}
-//         activeOpacity={1}
-//         onPress={onClose}
-//       >
-//         <View style={styles.modalContainer}>
-//           <View style={styles.modalContent}>
-//             <Text style={styles.modalTitle}>Filter Challenges</Text>
-
-//             {filterOptions.map((option) => (
-//               <TouchableOpacity
-//                 key={option}
-//                 style={[
-//                   styles.filterOption,
-//                   activeFilter === option && styles.filterOptionActive,
-//                 ]}
-//                 onPress={() => onChangeFilter(option)}
-//               >
-//                 <Text
-//                   style={[
-//                     styles.filterOptionText,
-//                     activeFilter === option && styles.filterOptionTextActive,
-//                   ]}
-//                 >
-//                   {option === 'all'
-//                     ? 'All Types'
-//                     : option.charAt(0).toUpperCase() + option.slice(1)}
-//                 </Text>
-//                 {activeFilter === option && (
-//                   <Ionicons name="checkmark" size={20} color="#4A90E2" />
-//                 )}
-//               </TouchableOpacity>
-//             ))}
-
-//             <TouchableOpacity
-//               style={styles.modalCloseButton}
-//               onPress={onClose}
-//             >
-//               <Text style={styles.modalCloseButtonText}>Close</Text>
-//             </TouchableOpacity>
-//           </View>
-//         </View>
-//       </TouchableOpacity>
-//     </Modal>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-//   modalOverlay: {
-//     flex: 1,
-//     backgroundColor: 'rgba(0,0,0,0.5)',
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//   },
-//   modalContainer: {
-//     width: '80%',
-//     maxWidth: 400,
-//   },
-//   modalContent: {
-//     backgroundColor: '#fff',
-//     borderRadius: 16,
-//     padding: 20,
-//     shadowColor: '#000',
-//     shadowOffset: { width: 0, height: 4 },
-//     shadowOpacity: 0.3,
-//     shadowRadius: 8,
-//     elevation: 8,
-//   },
-//   modalTitle: {
-//     fontSize: 18,
-//     fontWeight: 'bold',
-//     color: '#333',
-//     marginBottom: 20,
-//     textAlign: 'center',
-//   },
-//   filterOption: {
-//     flexDirection: 'row',
-//     justifyContent: 'space-between',
-//     alignItems: 'center',
-//     paddingVertical: 14,
-//     paddingHorizontal: 16,
-//     borderBottomWidth: 1,
-//     borderBottomColor: '#f0f0f0',
-//   },
-//   filterOptionActive: {
-//     backgroundColor: '#f0f8ff',
-//   },
-//   filterOptionText: {
-//     fontSize: 16,
-//     color: '#333',
-//   },
-//   filterOptionTextActive: {
-//     color: '#4A90E2',
-//     fontWeight: '600',
-//   },
-//   modalCloseButton: {
-//     backgroundColor: '#f0f0f0',
-//     paddingVertical: 12,
-//     borderRadius: 8,
-//     alignItems: 'center',
-//     marginTop: 20,
-//   },
-//   modalCloseButtonText: {
-//     color: '#333',
-//     fontSize: 16,
-//     fontWeight: '600',
-//   },
-// });
-
 import React from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { 
+  StyleSheet, 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  Modal, 
+  FlatList, 
+  TouchableWithoutFeedback 
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../../../../lib/theme'; // Adjust the path as needed
+
+interface FilterOption {
+  value: string;
+  label: string;
+  icon: string;
+}
 
 interface FilterModalProps {
   visible: boolean;
   onClose: () => void;
+  filterOptions: string[];
   activeFilter: string;
-  onChangeFilter: (option: string) => void;
+  onChangeFilter: (filter: string) => void;
 }
 
-export default function FilterModal({
+const FilterModal: React.FC<FilterModalProps> = ({
   visible,
   onClose,
+  filterOptions,
   activeFilter,
   onChangeFilter,
-}: FilterModalProps) {
-  // Only show "race" and "survival" options
-  const options = ['race', 'survival'];
+}) => {
+  // Map filter options to objects with label and icon
+  const formattedOptions: FilterOption[] = filterOptions.map(option => {
+    let label, icon;
+    
+    switch (option) {
+      case 'race':
+        label = 'Race';
+        icon = 'flag';
+        break;
+      case 'survival':
+        label = 'Survival';
+        icon = 'flame';
+        break;
+      case 'streak':
+        label = 'Streak';
+        icon = 'infinite';
+        break;
+      case 'custom':
+        label = 'Custom';
+        icon = 'create';
+        break;
+      case 'all':
+        label = 'All Types';
+        icon = 'apps';
+        break;
+      default:
+        label = option.charAt(0).toUpperCase() + option.slice(1);
+        icon = 'bookmark';
+    }
+    
+    return { value: option, label, icon };
+  });
+
+  const renderFilterOption = ({ item }: { item: FilterOption }) => {
+    const isActive = activeFilter === item.value;
+    
+    return (
+      <TouchableOpacity
+        style={[
+          styles.filterOption,
+          isActive && styles.activeFilterOption
+        ]}
+        onPress={() => onChangeFilter(item.value)}
+      >
+        <View style={[
+          styles.iconContainer,
+          isActive && styles.activeIconContainer
+        ]}>
+          <Ionicons
+            name={item.icon as any}
+            size={20}
+            color={isActive ? '#fff' : '#666'}
+          />
+        </View>
+        <Text style={[
+          styles.filterOptionText,
+          isActive && styles.activeFilterOptionText
+        ]}>
+          {item.label}
+        </Text>
+        {isActive && (
+          <Ionicons name="checkmark" size={20} color="#00000" />
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <Modal
       visible={visible}
-      transparent={true}
+      transparent
       animationType="fade"
       onRequestClose={onClose}
     >
-      <TouchableOpacity
-        style={styles.modalOverlay}
-        activeOpacity={1}
-        onPress={onClose}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Filter Challenges</Text>
-
-            {options.map((option) => (
-              <TouchableOpacity
-                key={option}
-                style={[
-                  styles.filterOption,
-                  activeFilter === option && styles.filterOptionActive,
-                ]}
-                onPress={() => onChangeFilter(option)}
-              >
-                <Text
-                  style={[
-                    styles.filterOptionText,
-                    activeFilter === option && styles.filterOptionTextActive,
-                  ]}
-                >
-                  {option.charAt(0).toUpperCase() + option.slice(1)}
-                </Text>
-                {activeFilter === option && (
-                  <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
-                )}
-              </TouchableOpacity>
-            ))}
-
-            <TouchableOpacity style={styles.modalCloseButton} onPress={onClose}>
-              <Text style={styles.modalCloseButtonText}>Close</Text>
-            </TouchableOpacity>
-          </View>
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={styles.modalOverlay}>
+          <TouchableWithoutFeedback>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Filter Challenges</Text>
+                <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                  <Ionicons name="close" size={24} color="#333" />
+                </TouchableOpacity>
+              </View>
+              
+              <FlatList
+                data={formattedOptions}
+                renderItem={renderFilterOption}
+                keyExtractor={(item) => item.value}
+                style={styles.optionsList}
+              />
+            </View>
+          </TouchableWithoutFeedback>
         </View>
-      </TouchableOpacity>
+      </TouchableWithoutFeedback>
     </Modal>
   );
-}
+};
 
 const styles = StyleSheet.create({
   modalOverlay: {
@@ -214,51 +139,59 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     width: '80%',
-    maxWidth: 400,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    maxHeight: '70%',
   },
-  modalContent: {
-    backgroundColor: theme.colors.background,
-    borderRadius: theme.radius.card,
-    padding: theme.spacing.medium,
-    ...theme.shadows.medium,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.textPrimary,
-    marginBottom: theme.spacing.medium,
-    textAlign: 'center',
-  },
-  filterOption: {
+  modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: theme.spacing.medium,
-    paddingHorizontal: theme.spacing.medium,
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  optionsList: {
+    flex: 1,
+  },
+  filterOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
-  filterOptionActive: {
-    backgroundColor: 'rgba(74,144,226,0.1)',
+  activeFilterOption: {
+    backgroundColor: '#F5F8FF',
+  },
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  activeIconContainer: {
+    backgroundColor: '#00000',
   },
   filterOptionText: {
-    fontSize: theme.typography.body.fontSize,
-    color: theme.colors.textPrimary,
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
   },
-  filterOptionTextActive: {
-    color: theme.colors.primary,
+  activeFilterOptionText: {
     fontWeight: '600',
-  },
-  modalCloseButton: {
-    backgroundColor: '#f0f0f0',
-    paddingVertical: theme.spacing.medium,
-    borderRadius: theme.radius.button,
-    alignItems: 'center',
-    marginTop: theme.spacing.medium,
-  },
-  modalCloseButtonText: {
-    color: theme.colors.textPrimary,
-    fontSize: theme.typography.body.fontSize,
-    fontWeight: '600',
+    color: '#00000',
   },
 });
+
+export default FilterModal;

@@ -208,7 +208,7 @@ export default function InvitesList({
   if (loading) {
     return (
       <View style={{ flex: 1, paddingVertical: 40, alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#4A90E2" />
+        <ActivityIndicator size="large" color="#00000" />
         <Text style={{ marginTop: 10, color: '#666', fontSize: 16 }}>Loading invitations...</Text>
       </View>
     );

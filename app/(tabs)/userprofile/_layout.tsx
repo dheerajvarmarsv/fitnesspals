@@ -18,13 +18,6 @@ export default function UserProfileLayout() {
         }}
       />
       <Stack.Screen
-        name="timezone"
-        options={{
-          title: 'Timezone',
-          headerBackTitle: 'Back',
-        }}
-      />
-      <Stack.Screen
         name="privacy"
         options={{
           title: 'Privacy Settings',
@@ -56,13 +49,6 @@ export default function UserProfileLayout() {
         name="nickname"
         options={{
           title: 'Edit Nickname',
-          headerBackTitle: 'Back',
-        }}
-      />
-      <Stack.Screen
-        name="avatar"
-        options={{
-          title: 'Choose Avatar',
           headerBackTitle: 'Back',
         }}
       />

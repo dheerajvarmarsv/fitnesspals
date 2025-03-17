@@ -183,7 +183,7 @@ export default function FeaturedChallenges({
               width: index === activeCardIndex ? 12 : 8,
               height: index === activeCardIndex ? 12 : 8,
               borderRadius: 6,
-              backgroundColor: index === activeCardIndex ? '#4A90E2' : '#ddd',
+              backgroundColor: index === activeCardIndex ? '#00000' : '#ddd',
               marginHorizontal: 4,
             }}
           />

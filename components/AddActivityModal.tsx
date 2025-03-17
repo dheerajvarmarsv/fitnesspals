@@ -555,11 +555,11 @@ export default function AddActivityModal({
               </View>
             )}
             <View style={styles.sectionHeader}>
-              <Ionicons name="trophy" size={20} color="#4A90E2" />
+              <Ionicons name="trophy" size={20} color="#00000" />
               <Text style={styles.sectionTitle}>Your Challenge Activities</Text>
             </View>
             {fetchingActivities ? (
-              <ActivityIndicator size="small" color="#4A90E2" style={styles.loader} />
+              <ActivityIndicator size="small" color="#00000" style={styles.loader} />
             ) : challengeActivities.length === 0 ? (
               <Text style={styles.emptyText}>No activities from challenges</Text>
             ) : (
@@ -718,13 +718,13 @@ const styles = StyleSheet.create({
   customFormLabel: { fontSize: 14, fontWeight: '500', color: '#333', marginTop: 8, marginBottom: 6 },
   metricsSelection: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 16 },
   metricToggle: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0f0f0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginRight: 8, marginBottom: 8 },
-  metricToggleSelected: { backgroundColor: '#4A90E2' },
+  metricToggleSelected: { backgroundColor: '#00000' },
   metricToggleText: { fontSize: 13, color: '#333', marginRight: 4 },
   metricToggleTextSelected: { color: '#fff' },
   customFormButtons: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   cancelButton: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, backgroundColor: '#f0f0f0', flex: 1, marginRight: 8, alignItems: 'center' },
   cancelButtonText: { color: '#333', fontSize: 14, fontWeight: '500' },
-  addButton: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, backgroundColor: '#4A90E2', flex: 1, alignItems: 'center' },
+  addButton: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, backgroundColor: '#00000', flex: 1, alignItems: 'center' },
   addButtonDisabled: { opacity: 0.5 },
   addButtonText: { color: '#fff', fontSize: 14, fontWeight: '500' },
   deleteButton: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: '#FFEBEE', borderRadius: 8, marginTop: 8 },

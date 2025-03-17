@@ -2,6 +2,7 @@ import { Stack } from 'expo-router/stack';
 import { useEffect } from 'react';
 import { useRouter, useSegments } from 'expo-router';
 import { UserProvider, useUser } from '../components/UserContext';
+import { ThemeProvider } from '../lib/ThemeContext';
 import { supabase } from '../lib/supabase';
 
 function RootLayoutNav() {
@@ -76,8 +77,10 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <UserProvider>
-      <RootLayoutNav />
-    </UserProvider>
+    <ThemeProvider>
+      <UserProvider>
+        <RootLayoutNav />
+      </UserProvider>
+    </ThemeProvider>
   );
 }

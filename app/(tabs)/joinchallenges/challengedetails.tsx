@@ -793,7 +793,7 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <StatusBar barStyle="dark-content" />
-        <ActivityIndicator size="large" color="#4A90E2" />
+        <ActivityIndicator size="large" color="#00000" />
         <Text style={styles.loadingText}>Loading challenge details...</Text>
       </SafeAreaView>
     );
@@ -1238,7 +1238,7 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
                     />
                     <Text style={styles.friendName}>{item.nickname || 'Unknown User'}</Text>
                     {selectedFriends.includes(item.id) && (
-                      <Ionicons name="checkmark-circle" size={24} color="#4A90E2" />
+                      <Ionicons name="checkmark-circle" size={24} color="#00000" />
                     )}
                   </TouchableOpacity>
                 )}
@@ -1422,7 +1422,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#eee',
   },
   inviteModalButton: {
-    backgroundColor: '#4A90E2',
+    backgroundColor: '#00000',
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: 'center',
@@ -1449,7 +1449,7 @@ const styles = StyleSheet.create({
   },
   errorTitle: { fontSize: 24, fontWeight: 'bold', color: '#333', marginTop: 16, marginBottom: 8 },
   errorMessage: { fontSize: 16, color: '#666', textAlign: 'center', marginBottom: 24 },
-  backButton: { backgroundColor: '#4A90E2', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
+  backButton: { backgroundColor: '#00000', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
   backButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
 
   // Gradient Container
@@ -1539,7 +1539,7 @@ const styles = StyleSheet.create({
     borderRadius: 4 
   },
   activityPoints: { alignItems: 'center' },
-  pointsValue: { fontSize: 16, fontWeight: 'bold', color: '#4A90E2' },
+  pointsValue: { fontSize: 16, fontWeight: 'bold', color: '#00000' },
   pointsLabel: { fontSize: 10, color: '#666' },
   showMoreButton: {
     alignSelf: 'center', marginTop: 6, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 6, backgroundColor: '#444',
@@ -1554,10 +1554,10 @@ const styles = StyleSheet.create({
     flex: 1, paddingVertical: 14, alignItems: 'center', backgroundColor: '#f0f0f0',
   },
   activeTabButton: {
-    backgroundColor: '#fff', borderBottomWidth: 2, borderBottomColor: '#4A90E2',
+    backgroundColor: '#fff', borderBottomWidth: 2, borderBottomColor: '#00000',
   },
   tabButtonText: { fontSize: 15, fontWeight: '500', color: '#666' },
-  activeTabText: { color: '#4A90E2', fontWeight: '600' },
+  activeTabText: { color: '#00000', fontWeight: '600' },
 
   // Map Section
   mapSection: {
@@ -1592,7 +1592,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(205, 127, 50, 0.1)', borderWidth: 1, borderColor: 'rgba(205, 127, 50, 0.3)',
   },
   currentUserRow: {
-    borderWidth: 1, borderColor: '#4A90E2',
+    borderWidth: 1, borderColor: '#00000',
   },
   rankContainer: {
     width: 34, alignItems: 'center', marginRight: 8,
@@ -1631,7 +1631,7 @@ const styles = StyleSheet.create({
     fontSize: 15, fontWeight: 'bold', color: '#333', 
   },
   modalCloseButton: {
-    backgroundColor: '#4A90E2', paddingVertical: 10, borderRadius: 8, alignItems: 'center',
+    backgroundColor: '#00000', paddingVertical: 10, borderRadius: 8, alignItems: 'center',
   },
   modalCloseButtonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
 });

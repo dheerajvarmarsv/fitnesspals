@@ -128,7 +128,7 @@ export default function DiscoverChallenges() {
     return (
       <SharedLayout style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4A90E2" />
+          <ActivityIndicator size="large" color="#00000" />
           <Text style={styles.loadingText}>Loading challenges...</Text>
         </View>
       </SharedLayout>
@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   createButton: {
-    backgroundColor: '#4A90E2',
+    backgroundColor: '#00000',
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 8,
@@ -659,7 +659,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#eee',
   },
   joinButton: {
-    backgroundColor: '#4A90E2',
+    backgroundColor: '#00000',
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',

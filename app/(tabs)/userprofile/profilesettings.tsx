@@ -1,4 +1,3 @@
-// app/(tabs)/userprofile/profilesettings.tsx
 import { useState } from 'react';
 import { 
   StyleSheet,
@@ -8,22 +7,25 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
-  Switch,
   Platform,
-  SafeAreaView
 } from 'react-native';
 import { Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import SharedLayout from '../../../components/SharedLayout';
 import { useUser } from '../../../components/UserContext';
+import { useTheme } from '../../../lib/ThemeContext';
 import { supabase } from '../../../lib/supabase';
 import DeleteAccountModal from '../../../components/DeleteAccountModal';
 import { router } from 'expo-router';
 
 export default function ProfileSettings() {
   const { settings, handleLogout } = useUser();
+  const { theme, isDark } = useTheme();
   const [loading, setLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // If needed, determine if settings are loaded
+  const isLoaded = !!settings?.nickname;
 
   const confirmLogout = () => {
     Alert.alert(
@@ -55,7 +57,7 @@ export default function ProfileSettings() {
       const { error: deleteError } = await supabase.rpc('delete_user');
       if (deleteError) throw deleteError;
       await handleLogout();
-    } catch (e) {
+    } catch (e: any) {
       Alert.alert('Error', e.message);
       setLoading(false);
     }
@@ -69,28 +71,18 @@ export default function ProfileSettings() {
         {
           id: 'nickname',
           icon: 'person',
-          iconBgColor: '#E0F2FE',
-          iconColor: '#0EA5E9',
+          iconBgColor: theme.colors.primary, 
+          iconColor: '#fff',
           title: 'Profile Name',
           description: settings.nickname || 'Set a nickname',
           path: '/nickname',
           hasChevron: true,
         },
         {
-          id: 'avatar',
-          icon: 'image',
-          iconBgColor: '#DBEAFE',
-          iconColor: '#3B82F6',
-          title: 'Avatar',
-          description: 'Change your profile picture',
-          path: '/avatar',
-          hasChevron: true,
-        },
-        {
           id: 'password',
           icon: 'key',
-          iconBgColor: '#FEF3C7',
-          iconColor: '#F59E0B',
+          iconBgColor: theme.colors.warning, 
+          iconColor: '#fff',
           title: 'Password',
           description: 'Update your password',
           path: '/password',
@@ -104,8 +96,8 @@ export default function ProfileSettings() {
         {
           id: 'fitness-connections',
           icon: 'fitness',
-          iconBgColor: '#FEF2F2',
-          iconColor: '#EF4444',
+          iconBgColor: theme.colors.success, 
+          iconColor: '#fff',
           title: 'Fitness Connections',
           description: 'Connect Apple Health, Google Fit, etc.',
           path: '/fitness-connections',
@@ -114,8 +106,8 @@ export default function ProfileSettings() {
         {
           id: 'device',
           icon: 'watch',
-          iconBgColor: '#F3F4F6',
-          iconColor: '#6B7280',
+          iconBgColor: theme.colors.info, 
+          iconColor: '#fff',
           title: 'Connect a Device',
           description: 'Sync with your fitness tracker',
           path: '/device',
@@ -127,45 +119,30 @@ export default function ProfileSettings() {
       title: "PREFERENCES",
       items: [
         {
-          id: 'language',
-          icon: 'language',
-          iconBgColor: '#FEEFE3',
-          iconColor: '#F97316',
-          title: 'Language',
-          value: 'English',
+          id: 'theme',
+          icon: isDark ? 'moon' : 'sunny',
+          iconBgColor: isDark ? '#8134AF' : '#F58529',
+          iconColor: '#fff',
+          title: 'Theme',
+          description: isDark ? 'Dark theme' : 'Light theme',
+          path: '/theme',
           hasChevron: true,
-          disabled: true,
         },
         {
           id: 'notifications',
           icon: 'notifications',
-          iconBgColor: '#E0F2FE',
-          iconColor: '#0EA5E9',
+          iconBgColor: theme.colors.primary,
+          iconColor: '#fff',
           title: 'Notifications',
           description: 'Customize your alerts',
           path: '/notifications',
           hasChevron: true,
         },
         {
-          id: 'dark-mode',
-          icon: 'moon',
-          iconBgColor: '#EDE9FE',
-          iconColor: '#8B5CF6',
-          title: 'Dark Mode',
-          component: (
-            <Switch
-              value={isDarkMode}
-              onValueChange={setIsDarkMode}
-              trackColor={{ false: '#E5E7EB', true: '#4A90E2' }}
-              thumbColor="#FFFFFF"
-            />
-          ),
-        },
-        {
           id: 'privacy',
           icon: 'shield',
-          iconBgColor: '#ECFDF5',
-          iconColor: '#10B981',
+          iconBgColor: theme.colors.success,
+          iconColor: '#fff',
           title: 'Privacy Settings',
           description: `Profile is ${settings.privacyMode}`,
           path: '/privacy',
@@ -174,63 +151,63 @@ export default function ProfileSettings() {
         {
           id: 'units',
           icon: 'speedometer',
-          iconBgColor: '#E0F2FE',
-          iconColor: '#0284C7',
+          iconBgColor: theme.colors.info,
+          iconColor: '#fff',
           title: 'Distance Display',
           description: settings.useKilometers ? 'Using kilometers' : 'Using miles',
           path: '/units',
           hasChevron: true,
         },
-      ]
-    },
-    {
-      title: "SUPPORT",
-      items: [
-        {
-          id: 'help',
-          icon: 'help-circle',
-          iconBgColor: '#FFEDD5',
-          iconColor: '#F59E0B',
-          title: 'Help',
-          hasChevron: true,
-          disabled: true,
-        },
+
       ]
     }
   ];
 
   // Render a single setting item
-  const renderSettingItem = (item) => {
+  const renderSettingItem = (item: any) => {
     const itemContent = (
-      <View style={styles.settingRow}>
-        <View style={[styles.iconContainer, { backgroundColor: item.iconBgColor }]}>
+      <View style={[
+        styles.settingRow,
+        { borderBottomColor: theme.colors.divider }
+      ]}>
+        <View style={[
+          styles.iconContainer, 
+          { backgroundColor: item.iconBgColor }
+        ]}>
           <Ionicons name={item.icon} size={22} color={item.iconColor} />
         </View>
         
         <View style={styles.settingTextContainer}>
-          <Text style={styles.settingTitle}>{item.title}</Text>
+          <Text style={[
+            styles.settingTitle,
+            { color: theme.colors.textPrimary }
+          ]}>
+            {item.title}
+          </Text>
           {item.description && (
-            <Text style={styles.settingDescription}>{item.description}</Text>
-          )}
-          {item.value && (
-            <Text style={styles.settingValue}>{item.value}</Text>
+            <Text style={[
+              styles.settingDescription,
+              { color: theme.colors.textSecondary }
+            ]}>
+              {item.description}
+            </Text>
           )}
         </View>
         
-        {item.component || (item.hasChevron && (
+        {item.hasChevron && (
           <Ionicons 
             name="chevron-forward" 
             size={20} 
-            color="#D1D5DB" 
+            color={theme.colors.textTertiary} 
             style={styles.chevron} 
           />
-        ))}
+        )}
       </View>
     );
 
     if (item.disabled) {
       return (
-        <View key={item.id} style={[styles.settingItem, { opacity: 0.8 }]}>
+        <View key={item.id} style={{ opacity: 0.8 }}>
           {itemContent}
         </View>
       );
@@ -239,7 +216,7 @@ export default function ProfileSettings() {
     if (item.path) {
       return (
         <Link key={item.id} href={`/userprofile${item.path}`} asChild>
-          <TouchableOpacity style={styles.settingItem} disabled={loading}>
+          <TouchableOpacity disabled={loading}>
             {itemContent}
           </TouchableOpacity>
         </Link>
@@ -247,18 +224,30 @@ export default function ProfileSettings() {
     }
 
     return (
-      <View key={item.id} style={styles.settingItem}>
+      <View key={item.id}>
         {itemContent}
       </View>
     );
   };
 
   // Render a section with title and items
-  const renderSection = (section, index) => {
+  const renderSection = (section: any, index: number) => {
     return (
       <View key={`section-${index}`} style={styles.section}>
-        <Text style={styles.sectionTitle}>{section.title}</Text>
-        <View style={styles.sectionContent}>
+        <Text style={[
+          styles.sectionTitle,
+          { color: theme.colors.textSecondary }
+        ]}>
+          {section.title}
+        </Text>
+        <View style={[
+          styles.sectionContent,
+          { 
+            backgroundColor: theme.colors.card,
+            borderColor: theme.colors.border,
+            ...theme.elevation.small
+          }
+        ]}>
           {section.items.map(renderSettingItem)}
         </View>
       </View>
@@ -266,7 +255,7 @@ export default function ProfileSettings() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SharedLayout style={{ backgroundColor: theme.colors.background }}>
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -275,25 +264,37 @@ export default function ProfileSettings() {
         <View style={styles.profileContainer}>
           <TouchableOpacity 
             style={styles.avatarContainer}
-            onPress={() => router.push('/userprofile/avatar')}
           >
             <Image
               source={{ uri: settings.avatarUrl }}
               style={styles.avatar}
             />
-            <View style={styles.cameraIconContainer}>
-              <Ionicons name="camera" size={16} color="#FFFFFF" />
-            </View>
           </TouchableOpacity>
           
           <TouchableOpacity
             onPress={() => router.push('/userprofile/nickname')}
+            style={styles.nameContainer}
           >
-            <Text style={styles.username}>{settings.nickname || 'Set Nickname'}</Text>
-            <Text style={styles.handle}>@{settings.nickname?.toLowerCase() || 'user'}</Text>
+            <Text style={[
+              styles.username,
+              { color: theme.colors.textPrimary }
+            ]}>
+              {settings.nickname || 'Set Nickname'}
+            </Text>
+            <Text style={[
+              styles.handle,
+              { color: theme.colors.textSecondary }
+            ]}>
+              @{settings.nickname?.toLowerCase() || 'user'}
+            </Text>
           </TouchableOpacity>
           
-          <Text style={styles.email}>{settings.email}</Text>
+          <Text style={[
+            styles.email,
+            { color: theme.colors.textTertiary }
+          ]}>
+            {settings.email}
+          </Text>
         </View>
 
         <View style={styles.settingsContainer}>
@@ -302,22 +303,52 @@ export default function ProfileSettings() {
 
         <View style={styles.actionsContainer}>
           <TouchableOpacity
-            style={[styles.signOutButton, loading && styles.buttonDisabled]}
+            style={[
+              styles.signOutButton,
+              loading && styles.buttonDisabled,
+              { backgroundColor: theme.colors.card }
+            ]}
             onPress={confirmLogout}
             disabled={loading}
           >
-            <Text style={styles.signOutText}>
+            <Text style={[
+              styles.signOutText,
+              { color: theme.colors.textPrimary }
+            ]}>
               {loading ? 'Signing out...' : 'Sign Out'}
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.deleteButton, loading && styles.buttonDisabled]}
+            style={[
+              styles.deleteButton,
+              loading && styles.buttonDisabled,
+              { backgroundColor: isDark ? 'rgba(220, 38, 38, 0.15)' : '#FEE2E2' }
+            ]}
             onPress={() => setShowDeleteModal(true)}
             disabled={loading}
           >
-            <Text style={styles.deleteText}>Delete Account</Text>
+            <Text style={[
+              styles.deleteText,
+              { color: theme.colors.danger }
+            ]}>
+              Delete Account
+            </Text>
           </TouchableOpacity>
+          
+          <View style={styles.versionContainer}>
+            <Text style={[
+              styles.versionText,
+              { color: theme.colors.textTertiary }
+            ]}>
+              Version 1.0.0
+            </Text>
+            <TouchableOpacity>
+              <Text style={{ color: theme.colors.primary }}>
+                Rate Us!
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
 
@@ -327,15 +358,11 @@ export default function ProfileSettings() {
         onConfirm={handleDeleteAccount}
         loading={loading}
       />
-    </SafeAreaView>
+    </SharedLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
   scrollView: {
     flex: 1,
   },
@@ -356,35 +383,24 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 50,
   },
-  cameraIconContainer: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: '#4A90E2',
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    justifyContent: 'center',
+
+  nameContainer: {
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
+    marginBottom: 4,
   },
   username: {
     fontSize: 24,
     fontWeight: '600',
-    color: '#111827',
     marginBottom: 4,
     textAlign: 'center',
   },
   handle: {
     fontSize: 16,
-    color: '#6B7280',
     marginBottom: 4,
     textAlign: 'center',
   },
   email: {
     fontSize: 14,
-    color: '#9CA3AF',
     marginTop: 4,
   },
   settingsContainer: {
@@ -396,38 +412,23 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
     marginBottom: 8,
     marginLeft: 16,
   },
   sectionContent: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     marginHorizontal: 16,
     overflow: 'hidden',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 1,
-      },
-      android: {
-        elevation: 1,
-      }
-    }),
-  },
-  settingItem: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderWidth: Platform.OS === 'ios' ? 0 : 1,
   },
   settingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 16,
     paddingHorizontal: 16,
+    borderBottomWidth: 1,
   },
-  iconContainer: {
+      iconContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -442,16 +443,9 @@ const styles = StyleSheet.create({
   settingTitle: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#111827',
   },
   settingDescription: {
     fontSize: 14,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  settingValue: {
-    fontSize: 14,
-    color: '#9CA3AF',
     marginTop: 2,
   },
   chevron: {
@@ -462,7 +456,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   signOutButton: {
-    backgroundColor: '#F3F4F6',
     paddingVertical: 16,
     borderRadius: 8,
     alignItems: 'center',
@@ -471,10 +464,8 @@ const styles = StyleSheet.create({
   signOutText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#374151',
   },
   deleteButton: {
-    backgroundColor: '#FEE2E2',
     paddingVertical: 16,
     borderRadius: 8,
     alignItems: 'center',
@@ -482,9 +473,17 @@ const styles = StyleSheet.create({
   deleteText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#DC2626',
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  versionContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  versionText: {
+    marginRight: 8,
   },
 });

@@ -210,7 +210,7 @@ const ActivityCardsCarousel: React.FC<ActivityCardsCarouselProps> = ({
             onPress={() => router.push('/activities')}
           >
             <View style={styles.viewAllContent}>
-              <FontAwesome5 name="list" size={24} color="#4A90E2" solid />
+              <FontAwesome5 name="list" size={24} color="#00000" solid />
               <Text style={styles.viewAllText}>View All</Text>
               <Text style={styles.viewAllCount}>{activities.length}</Text>
             </View>
@@ -311,13 +311,13 @@ const styles = StyleSheet.create({
   viewAllText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#4A90E2',
+    color: '#00000',
     marginTop: 8,
   },
   viewAllCount: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#4A90E2',
+    color: '#00000',
     marginTop: 4,
   },
 });

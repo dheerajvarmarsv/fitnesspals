@@ -12,34 +12,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import AddActivityModal from '../../components/AddActivityModal';
+import { useTheme } from '../../lib/ThemeContext';
 
-// Design tokens for consistent theming
-const TAB_DESIGN = {
-  colors: {
-    activeIcon: '#000000',    // Dark blue for active state
-    inactiveIcon: '#000000',  // Black for inactive state
-    background: '#FFFFFF',
-    border: '#E5E5EA',
-  },
-  typography: {
-    labelSize: 10,
-    labelWeight: '500',
-  },
-  spacing: {
-    horizontal: 8,
-    vertical: 3, // Reduced from 6 to 2 for less vertical padding
-  },
-  dimensions: {
-    iconSize: 24,
-    addButtonSize: 70, // Increased from 56 to 70 for a bigger plus button
-  },
-};
-
-// Get screen dimensions
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 export default function TabLayout() {
   const [showAddActivity, setShowAddActivity] = useState(false);
+  const { theme, isDark } = useTheme();
 
   // Close the modal when activity is saved
   const handleActivitySaved = () => {
@@ -78,6 +57,7 @@ export default function TabLayout() {
 }
 
 function CustomTabBar({ state, descriptors, navigation, onAddPress }) {
+  const { theme, isDark } = useTheme();
   const routes = state.routes;
   const midIndex = Math.floor(routes.length / 2);
 
@@ -96,8 +76,8 @@ function CustomTabBar({ state, descriptors, navigation, onAddPress }) {
     };
 
     const iconColor = isFocused 
-      ? TAB_DESIGN.colors.activeIcon 
-      : TAB_DESIGN.colors.inactiveIcon;
+      ? theme.iconColors.tab.active 
+      : theme.iconColors.tab.inactive;
 
     const onPress = () => {
       const event = navigation.emit({
@@ -120,7 +100,7 @@ function CustomTabBar({ state, descriptors, navigation, onAddPress }) {
       >
         <Ionicons 
           name={getIconName()} 
-          size={TAB_DESIGN.dimensions.iconSize} 
+          size={24} 
           color={iconColor} 
         />
         <Text 
@@ -128,8 +108,7 @@ function CustomTabBar({ state, descriptors, navigation, onAddPress }) {
             styles.navLabel, 
             { 
               color: iconColor,
-              fontSize: TAB_DESIGN.typography.labelSize,
-              fontWeight: TAB_DESIGN.typography.labelWeight,
+              fontFamily: theme.typography.small.fontFamily
             }
           ]}
         >
@@ -148,8 +127,9 @@ function CustomTabBar({ state, descriptors, navigation, onAddPress }) {
         styles.tabBarContainer, 
         { 
           paddingBottom: bottomPadding,
-          backgroundColor: TAB_DESIGN.colors.background,
-          borderTopColor: TAB_DESIGN.colors.border
+          backgroundColor: theme.colors.background,
+          borderTopColor: theme.colors.border,
+          ...theme.elevation.small
         }
       ]}
     >
@@ -163,14 +143,14 @@ function CustomTabBar({ state, descriptors, navigation, onAddPress }) {
           style={styles.gradientButtonWrapper}
         >
           <LinearGradient
-            colors={['#F58529', '#DD2A7B', '#8134AF', '#515BD4']}
+            colors={theme.colors.gradientButton}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.gradientButton}
           >
             <Ionicons 
               name="add" 
-              size={32} // Larger icon size for the plus button
+              size={32}
               color="#FFFFFF" 
             />
           </LinearGradient>
@@ -189,38 +169,35 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     borderTopWidth: 1,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
   tabBarInner: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    paddingHorizontal: TAB_DESIGN.spacing.horizontal,
-    paddingVertical: TAB_DESIGN.spacing.vertical,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
   navItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 5, // Reduced from 10 to 5
+    paddingVertical: 5,
     maxWidth: 100,
   },
   navLabel: {
     marginTop: 4,
     textAlign: 'center',
+    fontSize: 10,
+    fontWeight: '500',
   },
   gradientButtonWrapper: {
     marginHorizontal: 10,
-    transform: [{ translateY: -20 }], // Increased elevation for better visibility
+    transform: [{ translateY: -20 }],
   },
   gradientButton: {
-    width: TAB_DESIGN.dimensions.addButtonSize,
-    height: TAB_DESIGN.dimensions.addButtonSize,
-    borderRadius: TAB_DESIGN.dimensions.addButtonSize / 2,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     alignItems: 'center',
     justifyContent: 'center',
     ...Platform.select({

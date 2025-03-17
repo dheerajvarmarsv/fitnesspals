@@ -31,7 +31,7 @@ export default function UnitsSettings() {
           <Switch
             value={settings.useKilometers}
             onValueChange={handleToggle}
-            trackColor={{ false: '#ddd', true: '#4A90E2' }}
+            trackColor={{ false: '#ddd', true: '#00000' }}
             thumbColor="#fff"
             disabled={loading}
           />

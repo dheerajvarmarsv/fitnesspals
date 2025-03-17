@@ -482,7 +482,7 @@ export default function FitnessConnections({ onUpdate }: FitnessConnectionsProps
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4A90E2" />
+        <ActivityIndicator size="large" color="#00000" />
         <Text style={styles.loadingText}>Loading fitness connections...</Text>
       </View>
     );
@@ -645,7 +645,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: '#4A90E2',
+    backgroundColor: '#00000',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -700,7 +700,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   connectButton: {
-    backgroundColor: '#4A90E2',
+    backgroundColor: '#00000',
   },
   syncButton: {
     backgroundColor: '#4CAF50',

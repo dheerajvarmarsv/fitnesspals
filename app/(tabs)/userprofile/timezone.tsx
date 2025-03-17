@@ -102,7 +102,7 @@ export default function TimezoneSelection() {
             <View style={styles.timezoneRight}>
               <Text style={styles.timezoneOffset}>{timezone.offset}</Text>
               {settings.timezone === timezone.id && (
-                <Ionicons name="checkmark" size={24} color="#4A90E2" />
+                <Ionicons name="checkmark" size={24} color="#00000" />
               )}
             </View>
           </TouchableOpacity>
