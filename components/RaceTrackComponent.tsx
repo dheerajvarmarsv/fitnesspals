@@ -1,5 +1,3 @@
-// components/RaceTrackComponent.tsx
-
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -11,6 +9,7 @@ import {
   ScrollView,
   LayoutChangeEvent,
   Dimensions,
+  Platform,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -30,6 +29,9 @@ import Svg, {
   Rect,
   Circle,
   Text as SvgText,
+  Image as SvgImage,
+  Pattern,
+  ClipPath,
 } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -126,14 +128,10 @@ function AnimatedParticipantAvatar({
   // We only want explicit position changes from UI controls, not automatic animations
   useAnimatedReaction(
     () => stepValue.value,
-    (newStep, oldStep) => {
+    (newStep) => {
       if (participant.isCurrentUser) {
         const avatarX = newStep * SPACING + START_OFFSET;
         runOnJS(scrollToPosition)(avatarX);
-        
-        // DISABLED: Don't automatically update position when animation occurs
-        // This prevents cascading updates and duplicate position changes
-        // Position updates should only come from explicit user actions or backend
       }
     }
   );
@@ -153,7 +151,7 @@ function AnimatedParticipantAvatar({
 
     // Calculate a slight vertical offset for participants at the same position
     // Current user will be on top, others will be lower
-    const yOffset = participant.isCurrentUser ? 0 : AVATAR_SIZE * 0.3;
+    const yOffset = participant.isCurrentUser ? -5 : AVATAR_SIZE * 0.3;
 
     return {
       transform: [
@@ -165,27 +163,30 @@ function AnimatedParticipantAvatar({
     };
   });
 
-  // Gray out others by reducing opacity
+  // Styles for participants' avatars
   const containerStyle = [styles.avatar, animatedStyle];
   if (!participant.isCurrentUser) {
-    containerStyle.push({ opacity: 0.7 });
+    containerStyle.push({ opacity: 0.8 });
   }
 
   return (
     <Animated.View style={containerStyle}>
       {participant.isCurrentUser ? (
-        // Vibrant gradient border for current user
-        <LinearGradient 
-          colors={['#4CAF50', '#2196F3', '#9C27B0']} 
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.avatarGradient}
-        >
-          <Image
-            source={{ uri: participant.avatar_url }}
-            style={styles.avatarImage}
-          />
-        </LinearGradient>
+        // Enhanced avatar for current user with pulsing effect
+        <View style={styles.currentUserAvatarContainer}>
+          <LinearGradient 
+            colors={['#4CAF50', '#2196F3', '#9C27B0']} 
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.avatarGradient}
+          >
+            <Image
+              source={{ uri: participant.avatar_url }}
+              style={styles.avatarImage}
+            />
+          </LinearGradient>
+          <View style={styles.pulsingRing} />
+        </View>
       ) : (
         // Simple frame for others with reduced opacity
         <View style={styles.avatarFrame}>
@@ -196,7 +197,7 @@ function AnimatedParticipantAvatar({
         </View>
       )}
 
-      {/* Full nickname, no truncation */}
+      {/* Better nickname display with background for readability */}
       <View
         style={
           participant.isCurrentUser
@@ -236,7 +237,7 @@ export default function MultiAvatarRaceTrack({
   const [svgPath, setSvgPath] = useState('');
   const scrollViewRef = useRef<ScrollView>(null);
 
-  // Force re-render participants when their positions change
+  // For auto-scrolling
   const [, forceUpdate] = useState({});
   
   useEffect(() => {
@@ -260,9 +261,7 @@ export default function MultiAvatarRaceTrack({
     }
   }
 
-  // Find current user & sort participants with the current user at the end
-  // so they're drawn last (on top) in the case of overlapping avatars
-  const currentUser = participants.find((p) => p.isCurrentUser);
+  // Sort participants to ensure current user is drawn last (on top)
   const sortedParticipants = [...participants].sort((a, b) => {
     if (a.isCurrentUser) return 1; // current user comes last
     if (b.isCurrentUser) return -1;
@@ -276,6 +275,7 @@ export default function MultiAvatarRaceTrack({
   });
   
   const [isAtEnd, setIsAtEnd] = useState(false);
+  const currentUser = participants.find((p) => p.isCurrentUser);
 
   useEffect(() => {
     if (currentUser && currentUser.currentStep >= totalCheckpoints - 1) {
@@ -285,28 +285,17 @@ export default function MultiAvatarRaceTrack({
     }
   }, [participants, currentUser, totalCheckpoints]);
 
-  function moveToNextCheckpoint() {
-    if (!currentUser || isAtEnd) return;
-    
-    // DISABLED: We're removing manual position changes
-    // The "press to move" feature is causing position conflicts with the challenge points system
-    console.log('Manual position changes have been disabled');
-    
-    // IMPORTANT: Position updates should only come from backend activity processing
-    // This ensures consistent point calculations and prevents duplicate updates
-  }
-
-  // Calculate progress statistics for visual display
-// Calculate progress statistics for visual display
-const totalParticipants = participants.length;
-const participantsAtEnd = participants.filter(p => p.currentStep >= totalCheckpoints - 1).length;
-const completionPercentage = participants.length > 0 
-  ? Math.round(
-      (participants.reduce((sum, p) => sum + Math.min(p.currentStep, totalCheckpoints - 1), 0) / 
-       (totalParticipants * (totalCheckpoints - 1))) 
-      * 100
-    )
-  : 0;
+  // Calculate progress statistics for leaderboard
+  const totalParticipants = participants.length;
+  const participantsAtEnd = participants.filter(p => p.currentStep >= totalCheckpoints - 1).length;
+  const completionPercentage = participants.length > 0 
+    ? Math.round(
+        (participants.reduce((sum, p) => sum + Math.min(p.currentStep, totalCheckpoints - 1), 0) / 
+         (totalParticipants * (totalCheckpoints - 1))) 
+        * 100
+      )
+    : 0;
+  
   // Get leaderboard positions
   const leaderboard = [...participants]
     .sort((a, b) => b.currentStep - a.currentStep)
@@ -315,16 +304,72 @@ const completionPercentage = participants.length > 0
   // Current user's position
   const userPosition = leaderboard.find(p => p.isCurrentUser)?.position || 0;
 
+  // Flag image URLs
+  const startFlagUrl = 'https://cdn-icons-png.flaticon.com/512/4661/4661344.png'; 
+  const finishFlagUrl = 'https://cdn-icons-png.flaticon.com/512/4661/4661344.png';
+
   return (
     <View style={[styles.container, { height: containerHeight }]}>
-      {/* Background image */}
-      <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1572372896847-b1e90e88739a?auto=format&fit=crop&w=800&q=80' }}
-        style={StyleSheet.absoluteFillObject}
-        blurRadius={2}
-      />
+      {/* Enhanced Title area with stats and gradient background - NOW AT THE TOP */}
+      {showTitle && (
+        <LinearGradient
+          colors={['#1a2135', '#0f172a']}
+          style={styles.titleContainer}
+        >
+          <View style={styles.titleRow}>
+            <Text style={styles.titleText}>Race Challenge</Text>
+            <View style={styles.positionBadge}>
+              <Text style={styles.positionText}>#{userPosition}</Text>
+            </View>
+          </View>
+          
+          {currentUser && (
+            <View style={styles.statsContainer}>
+              <View style={styles.statItem}>
+                <Text style={styles.statLabel}>Position</Text>
+                <Text style={styles.statValue}>{userPosition}/{totalParticipants}</Text>
+              </View>
+              
+              <View style={styles.statDivider}></View>
+              
+              <View style={styles.statItem}>
+                <Text style={styles.statLabel}>Checkpoint</Text>
+                <Text style={styles.statValue}>{currentUser.currentStep}/{totalCheckpoints-1}</Text>
+              </View>
+              
+              <View style={styles.statDivider}></View>
+              
+              <View style={styles.statItem}>
+                <Text style={styles.statLabel}>Progress</Text>
+                <Text style={styles.statValue}>{completionPercentage}%</Text>
+              </View>
+            </View>
+          )}
+          
+          {/* Progress bar */}
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBar}>
+              <View 
+                style={[
+                  styles.progressFill,
+                  { width: `${currentUser ? (currentUser.currentStep / (totalCheckpoints-1)) * 100 : 0}%` }
+                ]}
+              />
+            </View>
+          </View>
+        </LinearGradient>
+      )}
 
-      <View style={[styles.mapContainer, { height: containerHeight * 0.75 }]}>
+      {/* Enhanced Background with racing theme */}
+      <View style={styles.mapContainer}>
+        <ImageBackground
+          source={{ uri: 'https://images.unsplash.com/photo-1493244177612-b8749762c2be?auto=format&fit=crop&w=800&q=80' }}
+          style={StyleSheet.absoluteFillObject}
+          blurRadius={4}
+        >
+          <View style={styles.backgroundOverlay} />
+        </ImageBackground>
+
         <ScrollView
           ref={scrollViewRef}
           horizontal
@@ -339,88 +384,286 @@ const completionPercentage = participants.length > 0
             {svgPath ? (
               <Svg width={contentWidth} height={containerHeight * 0.75}>
                 <Defs>
-                  <SvgLinearGradient id="roadGradient" x1="0" y1="0" x2="1" y2="0">
-                    <Stop offset="0" stopColor="#444" stopOpacity="1" />
-                    <Stop offset="1" stopColor="#222" stopOpacity="1" />
-                  </SvgLinearGradient>
                   
-                  {/* Multi-color gradient for track progress */}
-                  <SvgLinearGradient id="progressGradient" x1="0" y1="0" x2="1" y2="0">
-                    <Stop offset="0.1" stopColor="#4CAF50" stopOpacity="0.7" />
-                    <Stop offset="0.5" stopColor="#2196F3" stopOpacity="0.7" />
-                    <Stop offset="0.9" stopColor="#9C27B0" stopOpacity="0.7" />
-                  </SvgLinearGradient>
+                  {/* Clip path for the start flag */}
+                  <ClipPath id="startFlagClip">
+                    <Rect x="-30" y="-30" width="60" height="60" />
+                  </ClipPath>
+                  
+                  {/* Clip path for the finish flag */}
+                  <ClipPath id="finishFlagClip">
+                    <Rect x="-30" y="-30" width="60" height="60" />
+                  </ClipPath>
                 </Defs>
-
-                {/* Background grass */}
+                
+                {/* Background gradient */}
                 <Rect
                   x={0}
                   y={0}
                   width={contentWidth}
                   height={containerHeight * 0.75}
-                  fill="#2e7d32"
-                  opacity={0.3}
+                  fill="#0a192f"
+                  opacity={0.7}
                 />
                 
-                {/* Outer track outline */}
+                {/* Track Shadow for depth */}
                 <Path
                   d={svgPath}
                   stroke="#000"
-                  strokeWidth={40}
+                  strokeWidth={48}
                   fill="none"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  opacity={0.6}
                 />
                 
-                {/* Road gradient fill */}
+                {/* Main Track with Asphalt Texture - single solid color */}
                 <Path
                   d={svgPath}
-                  stroke="url(#roadGradient)"
-                  strokeWidth={34}
+                  stroke="#333"
+                  strokeWidth={42}
                   fill="none"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
                 
-                {/* Center dashed line */}
+                {/* Track Borders - White lines on edges */}
+                <Path
+                  d={svgPath}
+                  stroke="#fff"
+                  strokeWidth={44}
+                  strokeOpacity={0.3}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                
+                {/* Dashed center line */}
                 <Path
                   d={svgPath}
                   stroke="#fff"
                   strokeWidth={2}
-                  strokeDasharray="10,8"
+                  strokeDasharray="15,10"
                   fill="none"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
-
-                {/* START line */}
+                
+                {/* START Area with enhanced graphics */}
                 {trackPoints.length > 0 && (
-                  <G transform={`translate(${trackPoints[0].x},${trackPoints[0].y})`}>
-                    <Polygon points="-25,-8 25,-8 25,8 -25,8" fill="#fff" stroke="#000" strokeWidth={2} />
-                    <SvgText x="0" y="30" fill="#fff" fontSize="16" fontWeight="bold" textAnchor="middle">
-                      START
-                    </SvgText>
+                  <G
+                    transform={`translate(${trackPoints[0].x},${trackPoints[0].y})`}
+                  >
+                    {/* START - Checkered pattern for start/finish line */}
+                    <Rect
+                      x="-25"
+                      y="-40"
+                      width="50"
+                      height="80"
+                      fill="#000"
+                    />
+                    <Rect
+                      x="-25"
+                      y="-40"
+                      width="12.5"
+                      height="20"
+                      fill="#fff"
+                    />
+                    <Rect
+                      x="0"
+                      y="-40"
+                      width="12.5"
+                      height="20"
+                      fill="#fff"
+                    />
+                    <Rect
+                      x="-12.5"
+                      y="-20"
+                      width="12.5"
+                      height="20"
+                      fill="#fff"
+                    />
+                    <Rect
+                      x="12.5"
+                      y="-20"
+                      width="12.5"
+                      height="20"
+                      fill="#fff"
+                    />
+                    <Rect
+                      x="-25"
+                      y="0"
+                      width="12.5"
+                      height="20"
+                      fill="#fff"
+                    />
+                    <Rect
+                      x="0"
+                      y="0"
+                      width="12.5"
+                      height="20"
+                      fill="#fff"
+                    />
+                    <Rect
+                      x="-12.5"
+                      y="20"
+                      width="12.5"
+                      height="20"
+                      fill="#fff"
+                    />
+                    <Rect
+                      x="12.5"
+                      y="20"
+                      width="12.5"
+                      height="20"
+                      fill="#fff"
+                    />
+                    
+                    {/* Race flag at start */}
+                    <SvgImage
+                      href={startFlagUrl}
+                      x="-50"
+                      y="-70"
+                      width="40"
+                      height="40"
+                      clipPath="url(#startFlagClip)"
+                    />
+                    
+                    {/* Start label */}
+                    <G transform="translate(0, 50)">
+                      <Rect
+                        x="-35"
+                        y="-15"
+                        width="70"
+                        height="30"
+                        rx="5"
+                        ry="5"
+                        fill="rgba(0,0,0,0.7)"
+                      />
+                      <SvgText
+                        x="0"
+                        y="5"
+                        fill="#fff"
+                        fontSize="16"
+                        fontWeight="bold"
+                        textAnchor="middle"
+                      >
+                        START
+                      </SvgText>
+                    </G>
                   </G>
                 )}
 
-                {/* FINISH line */}
+                {/* FINISH line with enhanced graphics */}
                 {trackPoints.length > totalCheckpoints - 1 && (
                   <G
                     transform={`translate(${
                       trackPoints[totalCheckpoints - 1].x
                     },${trackPoints[totalCheckpoints - 1].y})`}
                   >
-                    <Polygon points="-25,-8 25,-8 25,8 -25,8" fill="#222" stroke="#fff" strokeWidth={2} />
-                    <SvgText x="0" y="30" fill="#fff" fontSize="16" fontWeight="bold" textAnchor="middle">
-                      FINISH
-                    </SvgText>
+                    {/* FINISH - Checkered pattern for finish line */}
+                    <Rect
+                      x="-25"
+                      y="-40"
+                      width="50"
+                      height="80"
+                      fill="#000"
+                    />
+                    <Rect
+                      x="-25"
+                      y="-40"
+                      width="12.5"
+                      height="20"
+                      fill="#fff"
+                    />
+                    <Rect
+                      x="0"
+                      y="-40"
+                      width="12.5"
+                      height="20"
+                      fill="#fff"
+                    />
+                    <Rect
+                      x="-12.5"
+                      y="-20"
+                      width="12.5"
+                      height="20"
+                      fill="#fff"
+                    />
+                    <Rect
+                      x="12.5"
+                      y="-20"
+                      width="12.5"
+                      height="20"
+                      fill="#fff"
+                    />
+                    <Rect
+                      x="-25"
+                      y="0"
+                      width="12.5"
+                      height="20"
+                      fill="#fff"
+                    />
+                    <Rect
+                      x="0"
+                      y="0"
+                      width="12.5"
+                      height="20"
+                      fill="#fff"
+                    />
+                    <Rect
+                      x="-12.5"
+                      y="20"
+                      width="12.5"
+                      height="20"
+                      fill="#fff"
+                    />
+                    <Rect
+                      x="12.5"
+                      y="20"
+                      width="12.5"
+                      height="20"
+                      fill="#fff"
+                    />
+                    
+                    {/* Race flag at finish */}
+                    <SvgImage
+                      href={finishFlagUrl}
+                      x="10"
+                      y="-70"
+                      width="40"
+                      height="40"
+                      clipPath="url(#finishFlagClip)"
+                    />
+                    
+                    {/* Finish label */}
+                    <G transform="translate(0, 50)">
+                      <Rect
+                        x="-35"
+                        y="-15"
+                        width="70"
+                        height="30"
+                        rx="5"
+                        ry="5"
+                        fill="rgba(0,0,0,0.7)"
+                      />
+                      <SvgText
+                        x="0"
+                        y="5"
+                        fill="#fff"
+                        fontSize="16"
+                        fontWeight="bold"
+                        textAnchor="middle"
+                      >
+                        FINISH
+                      </SvgText>
+                    </G>
                   </G>
                 )}
 
-                {/* Major Checkpoints - only show every interval and START/FINISH */}
+                {/* CHECKPOINTS - Enhanced with color-coding and animations */}
                 {trackPoints.map((pt, idx) => {
-                  // For challenges with fewer checkpoints, adjust label interval
-                  // to ensure we don't have too many or too few labels
+                  // Calculate checkpoint visibility rules
                   const labelInterval = totalCheckpoints <= 10 ? 1 : 
                     totalCheckpoints <= 20 ? 2 : 
                     totalCheckpoints <= 50 ? 5 : 10;
@@ -432,31 +675,69 @@ const completionPercentage = participants.length > 0
                   // Find if current user has reached this checkpoint
                   const isUserReached = currentUser && currentUser.currentStep >= idx;
                   
+                  // More vibrant colors based on progress
+                  const checkpointColor = isUserReached ? '#4ade80' : 
+                                          isReached ? '#fbbf24' : 
+                                          '#94a3b8';
+                                          
+                  const labelColor = isUserReached ? '#4ade80' : 
+                                     isReached ? '#fbbf24' : 
+                                     '#e2e8f0';
+                  
+                  // Enhanced checkpoint display
                   return (
                     <G key={idx} transform={`translate(${pt.x},${pt.y})`}>
+                      {/* Shadow for depth */}
                       <Circle
-                        r={5}
-                        fill={isUserReached ? '#4CAF50' : isReached ? '#FFD700' : '#ccc'}
+                        r={7}
+                        fill="rgba(0,0,0,0.5)"
+                        cx={2}
+                        cy={2}
+                      />
+                      
+                      {/* Main checkpoint marker */}
+                      <Circle
+                        r={6}
+                        fill={checkpointColor}
                         stroke="#000"
                         strokeWidth={1}
                       />
+                      
+                      {/* Inner highlight */}
+                      <Circle
+                        r={3}
+                        fill="#fff"
+                        opacity={0.6}
+                      />
+                      
                       {idx % labelInterval === 0 && (
-                        <SvgText
-                          x="0"
-                          y="-12"
-                          fill={isUserReached ? '#4CAF50' : isReached ? '#FFD700' : '#fff'}
-                          fontSize="12"
-                          fontWeight="bold"
-                          textAnchor="middle"
-                        >
-                          {idx === 0 ? '' : idx}
-                        </SvgText>
+                        <G transform="translate(0, -18)">
+                          <Rect
+                            x="-18"
+                            y="-12"
+                            width="36"
+                            height="24"
+                            rx="12"
+                            ry="12"
+                            fill="rgba(0,0,0,0.7)"
+                          />
+                          <SvgText
+                            x="0"
+                            y="4"
+                            fill={labelColor}
+                            fontSize="12"
+                            fontWeight="bold"
+                            textAnchor="middle"
+                          >
+                            {idx === 0 ? '' : idx}
+                          </SvgText>
+                        </G>
                       )}
                     </G>
                   );
                 })}
                 
-                {/* Minor Checkpoints - smaller markers for intermediate points */}
+                {/* Minor Checkpoints - More subtle markers for intermediate points */}
                 {trackPoints.map((pt, idx) => {
                   // Calculate minor marker interval based on total checkpoints
                   const majorInterval = totalCheckpoints <= 10 ? 1 : 
@@ -472,10 +753,11 @@ const completionPercentage = participants.length > 0
                   return (
                     <G key={`minor-${idx}`} transform={`translate(${pt.x},${pt.y})`}>
                       <Circle
-                        r={3}
-                        fill={isReached ? '#FFD700' : '#aaa'}
+                        r={4}
+                        fill={isReached ? '#fbbf24' : '#94a3b8'}
                         stroke="#000"
                         strokeWidth={0.5}
+                        opacity={0.8}
                       />
                     </G>
                   );
@@ -497,86 +779,155 @@ const completionPercentage = participants.length > 0
           </View>
         </ScrollView>
       </View>
-
-      {/* Title and statistics */}
-      {showTitle && (
-        <View style={styles.titleContainer}>
-          <Text style={styles.titleText}>Race Challenge</Text>
-          {currentUser && (
-            <Text style={styles.statsText}>
-              Position: {userPosition}/{totalParticipants} • 
-              Checkpoint: {currentUser.currentStep}/{totalCheckpoints-1} • 
-              {completionPercentage}% Finished
-            </Text>
-          )}
-        </View>
-      )}
-
-      {/* We've removed the Accelerate button as it's not needed in production 
-          since positions are now automatically updated based on points earned */}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // Container
   container: { 
     flex: 1, 
-    backgroundColor: '#101010', 
+    backgroundColor: '#0f172a', 
     overflow: 'hidden',
-    borderRadius: 12 
+    borderRadius: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
-  mapContainer: { flexGrow: 1 },
-  scrollContent: { minWidth: screenWidth, alignItems: 'center' },
-  trackContainer: { position: 'relative' },
-
-  titleContainer: {
-    backgroundColor: '#1F1F1F',
-    paddingVertical: 12,
-    marginBottom: 8,
+  backgroundOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+  },
+  mapContainer: { 
+    flexGrow: 1,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    overflow: 'hidden',
+  },
+  scrollContent: { 
+    minWidth: screenWidth, 
     alignItems: 'center',
-    justifyContent: 'center',
+  },
+  trackContainer: { 
+    position: 'relative',
+  },
+
+  // Title Area with updated styling - NOW AT THE TOP
+  titleContainer: {
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
   },
   titleText: { 
     color: '#fff', 
-    fontSize: 20, 
-    fontWeight: '700', 
-    letterSpacing: 1.1 
+    fontSize: 22, 
+    fontWeight: '800', 
+    letterSpacing: 1, 
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
   },
-  statsText: {
-    color: '#ccc',
-    fontSize: 12,
-    marginTop: 4,
-    fontWeight: '500',
-    letterSpacing: 0.5
+  positionBadge: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
-
-  buttonRow: {
-    height: 70,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#101010',
+  positionText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
   },
-  button: {
+  statsContainer: {
     flexDirection: 'row',
-    backgroundColor: '#4CAF50',
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
-  disabledButton: { backgroundColor: '#88AA88', opacity: 0.7 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600', marginLeft: 8 },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statLabel: {
+    color: '#94a3b8',
+    fontSize: 12,
+    marginBottom: 2,
+  },
+  statValue: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  statDivider: {
+    width: 1,
+    height: '100%',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  progressContainer: {
+    width: '100%',
+    height: 6,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 3,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#3b82f6',
+    borderRadius: 3,
+  },
 
-  // Avatars
+  // Enhanced Avatar Styling
   avatar: { 
     position: 'absolute', 
     width: AVATAR_SIZE, 
     height: AVATAR_SIZE,
+  },
+  currentUserAvatarContainer: {
+    position: 'relative',
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+  },
+  pulsingRing: {
+    position: 'absolute',
+    top: -4,
+    left: -4,
+    right: -4,
+    bottom: -4,
+    borderRadius: AVATAR_SIZE + 8,
+    borderWidth: 2,
+    borderColor: '#4CAF50',
+    opacity: 0.7,
   },
   avatarGradient: {
     width: AVATAR_SIZE,
@@ -598,6 +949,17 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#ccc',
     overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   avatarImage: { 
     width: '100%', 
@@ -606,7 +968,7 @@ const styles = StyleSheet.create({
   },
   currentUserLabel: {
     position: 'absolute',
-    top: -22,
+    top: -26,
     left: -10,
     right: -10,
     backgroundColor: 'rgba(0,0,0,0.8)',
@@ -616,18 +978,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#4CAF50',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 1,
-    elevation: 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.3,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   nicknameContainer: {
     position: 'absolute',
-    top: -18,
+    top: -22,
     left: -10,
     right: -10,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 10,
@@ -641,5 +1009,9 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
-  nickname: { color: '#fff', fontSize: 10, fontWeight: '500' },
+  nickname: { 
+    color: '#fff', 
+    fontSize: 10, 
+    fontWeight: '500' 
+  },
 });
