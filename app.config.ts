@@ -2,8 +2,8 @@ import { ExpoConfig, ConfigContext } from 'expo/config';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: "Strava Clone",
-  slug: "strava-clone",
+  name: "CTP",
+  slug: "ctp",
   version: "1.0.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
@@ -22,14 +22,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ],
   ios: {
     supportsTablet: true,
-    bundleIdentifier: "com.yourcompany.stravaclone"
+    bundleIdentifier: "com.yourcompany.ctp"
   },
   android: {
     adaptiveIcon: {
       foregroundImage: "./assets/images/adaptive-icon.png",
       backgroundColor: "#000000"
     },
-    package: "com.yourcompany.stravaclone"
+    package: "com.yourcompany.ctp"
   },
   web: {
     bundler: "metro",

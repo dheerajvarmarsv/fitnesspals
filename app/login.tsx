@@ -70,7 +70,7 @@ export default function Login() {
         />
       </TouchableOpacity>
 
-      <Text style={styles.title}>Log in to Strava</Text>
+      <Text style={styles.title}>Log in to CTP</Text>
 
       {error && (
         <View style={styles.errorContainer}>

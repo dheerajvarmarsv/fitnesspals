@@ -81,7 +81,7 @@ export default function SetupNickname() {
       <Text style={styles.title}>Choose your nickname</Text>
       
       <Text style={styles.description}>
-        Pick a unique nickname that will identify you on Strava. This will be permanent and cannot be changed later.
+        Pick a unique nickname that will identify you on CTP. This will be permanent and cannot be changed later.
       </Text>
 
       {error && (
