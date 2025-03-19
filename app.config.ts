@@ -17,19 +17,26 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   updates: {
     fallbackToCacheTimeout: 0
   },
-  assetBundlePatterns: [
-    "**/*"
-  ],
+  assetBundlePatterns: ["**/*"],
   ios: {
     supportsTablet: true,
-    bundleIdentifier: "com.yourcompany.ctp"
+    bundleIdentifier: "com.yourcompany.ctp",
+    infoPlist: {
+      NSHealthShareUsageDescription: "We need access to your health data to show your fitness stats.",
+      NSHealthUpdateUsageDescription: "We need to update your activity data in HealthKit."
+    }
   },
   android: {
     adaptiveIcon: {
       foregroundImage: "./assets/images/icon.png",
       backgroundColor: "#000000"
     },
-    package: "com.yourcompany.ctp"
+    package: "com.yourcompany.ctp",
+    permissions: [
+      "android.permission.health.READ_STEPS",
+      "android.permission.health.READ_DISTANCE",
+      "android.permission.health.READ_EXERCISE"
+    ]
   },
   web: {
     bundler: "metro",
@@ -48,7 +55,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-build-properties",
       {
         android: {
-          minSdkVersion: 26
+          minSdkVersion: 26,
+          compileSdkVersion: 33,
+          targetSdkVersion: 33,
+          buildToolsVersion: "33.0.0"
         }
       }
     ]

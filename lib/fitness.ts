@@ -6,8 +6,8 @@ import { supabase } from './supabase';
 // Existing Types and Interfaces
 // ---------------------
 
-// Define the supported fitness data sources
-export type FitnessDataSource = 'manual' | 'google_fit' | 'apple_health' | 'fitbit' | 'other';
+// Supported fitness data sources
+export type FitnessDataSource = 'manual' | 'google_fit' | 'apple_health' | 'fitbit' | 'health_connect' | 'other';
 
 // Connection status
 export type ConnectionStatus = 'connected' | 'disconnected' | 'pending' | 'error';
@@ -44,7 +44,7 @@ export interface FitnessActivity {
   updated_at: string;
 }
 
-// Interface for health data (Note: duration is in minutes)
+// Interface for health data (duration is in minutes)
 export interface HealthData {
   id?: string;
   user_id: string;
@@ -66,7 +66,7 @@ export interface ActivityData {
   start_time: string;
   end_time: string;
   duration: number; // minutes
-  distance?: number; // km
+  distance?: number;
   calories?: number;
   heart_rate?: number;
   steps?: number;
@@ -79,7 +79,7 @@ export interface ActivityData {
 // ---------------------
 
 /**
- * Get the user's fitness connections
+ * Get the user's fitness connections.
  */
 export async function getUserFitnessConnections(userId: string): Promise<FitnessConnection[]> {
   const { data, error } = await supabase
@@ -95,7 +95,7 @@ export async function getUserFitnessConnections(userId: string): Promise<Fitness
 }
 
 /**
- * Create or update a fitness connection
+ * Create or update a fitness connection.
  */
 export async function saveFitnessConnection(
   userId: string,
@@ -124,7 +124,7 @@ export async function saveFitnessConnection(
 }
 
 /**
- * Update a fitness connection's sync status
+ * Update a fitness connection's sync status.
  */
 export async function updateSyncStatus(
   connectionId: string,
@@ -137,13 +137,8 @@ export async function updateSyncStatus(
     last_sync_status: status,
     updated_at: new Date().toISOString(),
   };
-
-  if (error) {
-    updateData.last_sync_error = error;
-  }
-  if (count !== undefined) {
-    updateData.last_sync_count = count;
-  }
+  if (error) updateData.last_sync_error = error;
+  if (count !== undefined) updateData.last_sync_count = count;
 
   const { error: updateError } = await supabase
     .from('user_fitness_connections')
@@ -155,9 +150,20 @@ export async function updateSyncStatus(
     throw updateError;
   }
 }
-
+export async function saveHealthConnectionStatus(
+  userId: string, 
+  status: 'connected' | 'disconnected' | 'pending'
+) {
+  await supabase
+    .from('user_health_connections')
+    .upsert({
+      user_id: userId,
+      status,
+      last_updated: new Date().toISOString()
+    }, { onConflict: 'user_id' });
+}
 /**
- * Save fitness activities from external source and update challenges
+ * Save fitness activities from external source and update challenges.
  */
 export async function saveFitnessActivities(
   userId: string,
@@ -168,13 +174,9 @@ export async function saveFitnessActivities(
   let savedCount = 0;
 
   try {
-    // Process activities in small batches to prevent overloading
     for (let i = 0; i < activities.length; i += 10) {
       const batch = activities.slice(i, i + 10);
-      
-      // Convert fitness activities to our internal activities format
       const internalActivities = batch.map(activity => {
-        // Basic fields common to all activities
         const internalActivity: any = {
           user_id: userId,
           activity_type: activity.activity_type,
@@ -182,8 +184,6 @@ export async function saveFitnessActivities(
           created_at: new Date().toISOString(),
           notes: `Imported from ${source}`,
         };
-
-        // Map specific metrics based on activity type
         if (activity.distance) {
           internalActivity.metric = 'distance_km';
           internalActivity.distance = activity.distance;
@@ -198,14 +198,12 @@ export async function saveFitnessActivities(
           internalActivity.metric = 'calories';
           internalActivity.calories = activity.calories;
         } else {
-          // Default to duration/time
           internalActivity.metric = 'time';
           internalActivity.duration = activity.duration;
         }
         return internalActivity;
       });
 
-      // Save to activities table
       const { data, error } = await supabase
         .from('activities')
         .insert(internalActivities)
@@ -216,11 +214,8 @@ export async function saveFitnessActivities(
         errors.push(error);
       } else {
         savedCount += data.length;
-
-        // Process activities for challenge points
-        for (const activityId of data.map(a => a.id)) {
+        for (const activityId of data.map((a: any) => a.id)) {
           try {
-            // Import dynamically to avoid circular dependencies
             const { updateChallengesWithActivity } = await import('./challengeUtils');
             await updateChallengesWithActivity(activityId, userId);
           } catch (err) {
@@ -238,14 +233,13 @@ export async function saveFitnessActivities(
 }
 
 /**
- * Save a fitness connection token (should be encrypted in production)
+ * Save a fitness connection token (should be encrypted in production).
  */
 export async function saveFitnessToken(
   userId: string, 
   source: FitnessDataSource, 
   token: string
 ): Promise<void> {
-  // In production, you would encrypt this token before storing it
   const { error } = await supabase
     .from('user_settings')
     .upsert({
@@ -261,7 +255,7 @@ export async function saveFitnessToken(
 }
 
 /**
- * Get a fitness connection token
+ * Get a fitness connection token.
  */
 export async function getFitnessToken(
   userId: string,
@@ -277,16 +271,14 @@ export async function getFitnessToken(
     console.error('Error fetching fitness token:', error);
     return null;
   }
-  // In production, you would decrypt this token
   return data?.settings?.[`${source}_token`] || null;
 }
 
 /**
- * Generate a user-friendly description of an activity
+ * Generate a user-friendly description of an activity.
  */
 export function formatActivityDescription(activity: any): string {
   let description = activity.activity_type;
-  
   if (activity.metric === 'distance_km' && activity.distance) {
     description += `: ${activity.distance.toFixed(2)} km`;
   } else if (activity.metric === 'time' && activity.duration) {
@@ -302,7 +294,7 @@ export function formatActivityDescription(activity: any): string {
 }
 
 /**
- * Disconnect a fitness source
+ * Disconnect a fitness source.
  */
 export async function disconnectFitnessSource(
   userId: string,
@@ -349,7 +341,7 @@ const healthKitPermissions: HealthKitPermissions = {
 };
 
 let healthKitInitialized = false;
-async function initHealthKit(): Promise<boolean> {
+export async function initHealthKit(): Promise<boolean> {
   if (healthKitInitialized || Platform.OS !== 'ios') return healthKitInitialized;
   return new Promise<boolean>((resolve) => {
     AppleHealthKit.initHealthKit(healthKitPermissions, (err) => {
@@ -363,7 +355,12 @@ async function initHealthKit(): Promise<boolean> {
   });
 }
 
-async function fetchAppleHealthData(date: Date): Promise<Partial<HealthData>> {
+export async function fetchAppleHealthData(date: Date): Promise<{
+  steps: number;
+  distance: number;
+  duration: number;
+  calories: number;
+}> {
   const isInit = await initHealthKit();
   if (!isInit) return { steps: 0, distance: 0, duration: 0, calories: 0 };
 
@@ -395,24 +392,17 @@ async function fetchAppleHealthData(date: Date): Promise<Partial<HealthData>> {
       new Promise<number>((resolve) => {
         AppleHealthKit.getActiveEnergyBurned(options, (err, result) => {
           if (err || !result) return resolve(0);
-          // Apple returns Kcal
           resolve(result.value || 0);
         });
       }),
       new Promise<number>((resolve) => {
         AppleHealthKit.getAppleExerciseTime(options, (err, result) => {
           if (err || !result) return resolve(0);
-          // Apple returns exercise minutes
           resolve(result.value || 0);
         });
       }),
     ]);
-    return {
-      steps,
-      distance,
-      duration: exerciseMinutes,
-      calories,
-    };
+    return { steps, distance, duration: exerciseMinutes, calories };
   } catch (error) {
     console.error('fetchAppleHealthData error:', error);
     return { steps: 0, distance: 0, duration: 0, calories: 0 };
@@ -426,7 +416,6 @@ let readRecords: any;
 let TimeRangeFilter: any;
 
 if (Platform.OS === 'android') {
-  // Dynamically require to avoid bridging issues on iOS
   const rnhc = require('react-native-health-connect');
   initHC = rnhc.initialize;
   requestPermission = rnhc.requestPermission;
@@ -441,7 +430,7 @@ function hasAndroidPermission(recordType: string): boolean {
   return androidPermissions.some((perm) => perm.recordType === recordType);
 }
 
-async function initAndroidHealth(): Promise<boolean> {
+export async function initAndroidHealth(): Promise<boolean> {
   if (androidInitialized || Platform.OS !== 'android') return androidInitialized;
   try {
     const isInitialized = await initHC();
@@ -463,11 +452,13 @@ async function initAndroidHealth(): Promise<boolean> {
   }
 }
 
-async function fetchAndroidHealthData(date: Date): Promise<Partial<HealthData>> {
-  // Return empty if iOS or something else
-  if (Platform.OS !== 'android') {
-    return { steps: 0, distance: 0, calories: 0, duration: 0 };
-  }
+export async function fetchAndroidHealthData(date: Date): Promise<{
+  steps: number;
+  distance: number;
+  duration: number;
+  calories: number;
+}> {
+  if (Platform.OS !== 'android') return { steps: 0, distance: 0, duration: 0, calories: 0 };
 
   const isInit = await initAndroidHealth();
   if (!isInit) return { steps: 0, distance: 0, duration: 0, calories: 0 };
@@ -508,14 +499,19 @@ async function fetchAndroidHealthData(date: Date): Promise<Partial<HealthData>> 
   } catch (err) {
     console.error('fetchAndroidHealthData error:', err);
   }
-  return { steps, distance, calories, duration };
+  return { steps, distance, duration, calories };
 }
 
 // 3) Upsert Health Data into Supabase
 async function upsertHealthData(
   userId: string,
   date: string,
-  data: Partial<HealthData>,
+  data: {
+    steps?: number;
+    distance?: number;
+    duration?: number;
+    calories?: number;
+  },
   source: FitnessDataSource
 ) {
   try {
@@ -534,7 +530,6 @@ async function upsertHealthData(
         },
         { onConflict: 'user_id,date' }
       );
-
     if (error) {
       console.error('Error upserting health_data:', error);
     }
@@ -544,21 +539,17 @@ async function upsertHealthData(
 }
 
 // 4) Public Method: Fetch & Store Daily Health Data
-/**
- * Fetches the daily steps, distance, duration, and calories from either
- * Apple HealthKit (iOS) or Health Connect (Android) for the given date,
- * then upserts the data into the "health_data" table.
- */
 export async function fetchAndStoreDailyHealthData(userId: string, date: Date): Promise<void> {
   const dateStr = date.toISOString().split('T')[0];
+  let data = { steps: 0, distance: 0, duration: 0, calories: 0 };
+  let source: FitnessDataSource = 'manual';
 
   if (Platform.OS === 'ios') {
-    const iosData = await fetchAppleHealthData(date);
-    await upsertHealthData(userId, dateStr, iosData, 'apple_health');
+    data = await fetchAppleHealthData(date);
+    source = 'apple_health';
   } else if (Platform.OS === 'android') {
-    const androidData = await fetchAndroidHealthData(date);
-    await upsertHealthData(userId, dateStr, androidData, 'health_connect');
-  } else {
-    console.warn('Unsupported platform for health data');
+    data = await fetchAndroidHealthData(date);
+    source = 'health_connect';
   }
+  await upsertHealthData(userId, dateStr, data, source);
 }

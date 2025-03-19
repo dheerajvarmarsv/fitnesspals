@@ -1,3 +1,5 @@
+// app/(tabs)/userprofile/profilesettings.tsx
+
 import { useState } from 'react';
 import { 
   StyleSheet,
@@ -18,11 +20,21 @@ import { supabase } from '../../../lib/supabase';
 import DeleteAccountModal from '../../../components/DeleteAccountModal';
 import { router } from 'expo-router';
 
+// NEW IMPORTS
+import HealthPermissionsGuide from '../../../components/HealthPermissionsGuide';
+import { HealthConnectionStatus } from '../../../components/HealthConnectionStatus';
+
 export default function ProfileSettings() {
   const { settings, handleLogout } = useUser();
   const { theme, isDark } = useTheme();
   const [loading, setLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  // NEW STATES for health permissions
+  const [showHealthPermissions, setShowHealthPermissions] = useState(false);
+  const [healthConnectionStatus, setHealthConnectionStatus] = useState<
+    'connected' | 'disconnected' | 'pending'
+  >('disconnected');
 
   // If needed, determine if settings are loaded
   const isLoaded = !!settings?.nickname;
@@ -63,10 +75,11 @@ export default function ProfileSettings() {
     }
   };
 
-  // Settings sections data
+  // --- SETTINGS SECTIONS ---
+  // Notice we've inserted a "Health Permissions" item in the CONNECTIONS section
   const SETTINGS_SECTIONS = [
     {
-      title: "ACCOUNT",
+      title: 'ACCOUNT',
       items: [
         {
           id: 'nickname',
@@ -88,10 +101,10 @@ export default function ProfileSettings() {
           path: '/password',
           hasChevron: true,
         },
-      ]
+      ],
     },
     {
-      title: "CONNECTIONS",
+      title: 'CONNECTIONS',
       items: [
         {
           id: 'fitness-connections',
@@ -103,20 +116,21 @@ export default function ProfileSettings() {
           path: '/fitness-connections',
           hasChevron: true,
         },
+        // NEW ITEM for requesting HealthKit / HealthConnect permissions
         {
-          id: 'device',
-          icon: 'watch',
-          iconBgColor: theme.colors.info, 
+          id: 'health-permissions',
+          icon: 'heart',
+          iconBgColor: '#F06292', // example pinkish color
           iconColor: '#fff',
-          title: 'Connect a Device',
-          description: 'Sync with your fitness tracker',
-          path: '/device',
-          hasChevron: true,
+          title: 'Health Permissions',
+          description: 'Grant HealthKit / Health Connect access',
+          path: null, // We'll handle the press ourselves
+          hasChevron: false,
         },
-      ]
+      ],
     },
     {
-      title: "PREFERENCES",
+      title: 'PREFERENCES',
       items: [
         {
           id: 'theme',
@@ -158,53 +172,46 @@ export default function ProfileSettings() {
           path: '/units',
           hasChevron: true,
         },
-
-      ]
-    }
+      ],
+    },
   ];
 
   // Render a single setting item
   const renderSettingItem = (item: any) => {
     const itemContent = (
-      <View style={[
-        styles.settingRow,
-        { borderBottomColor: theme.colors.divider }
-      ]}>
-        <View style={[
-          styles.iconContainer, 
-          { backgroundColor: item.iconBgColor }
-        ]}>
+      <View
+        style={[
+          styles.settingRow,
+          { borderBottomColor: theme.colors.divider },
+        ]}
+      >
+        <View style={[styles.iconContainer, { backgroundColor: item.iconBgColor }]}>
           <Ionicons name={item.icon} size={22} color={item.iconColor} />
         </View>
-        
+
         <View style={styles.settingTextContainer}>
-          <Text style={[
-            styles.settingTitle,
-            { color: theme.colors.textPrimary }
-          ]}>
+          <Text style={[styles.settingTitle, { color: theme.colors.textPrimary }]}>
             {item.title}
           </Text>
           {item.description && (
-            <Text style={[
-              styles.settingDescription,
-              { color: theme.colors.textSecondary }
-            ]}>
+            <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
               {item.description}
             </Text>
           )}
         </View>
-        
+
         {item.hasChevron && (
-          <Ionicons 
-            name="chevron-forward" 
-            size={20} 
-            color={theme.colors.textTertiary} 
-            style={styles.chevron} 
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={theme.colors.textTertiary}
+            style={styles.chevron}
           />
         )}
       </View>
     );
 
+    // If item is disabled
     if (item.disabled) {
       return (
         <View key={item.id} style={{ opacity: 0.8 }}>
@@ -213,88 +220,89 @@ export default function ProfileSettings() {
       );
     }
 
-    if (item.path) {
+    // If path is null (like "health-permissions"), we handle the press ourselves
+    if (!item.path) {
       return (
-        <Link key={item.id} href={`/userprofile${item.path}`} asChild>
-          <TouchableOpacity disabled={loading}>
-            {itemContent}
-          </TouchableOpacity>
-        </Link>
+        <TouchableOpacity
+          key={item.id}
+          disabled={loading}
+          onPress={() => {
+            if (item.id === 'health-permissions') {
+              // Show the modal
+              setShowHealthPermissions(true);
+            }
+          }}
+        >
+          {itemContent}
+        </TouchableOpacity>
       );
     }
 
+    // Otherwise, if item.path is set
     return (
-      <View key={item.id}>
-        {itemContent}
-      </View>
+      <Link key={item.id} href={`/userprofile${item.path}`} asChild>
+        <TouchableOpacity disabled={loading}>{itemContent}</TouchableOpacity>
+      </Link>
     );
   };
 
   // Render a section with title and items
-  const renderSection = (section: any, index: number) => {
-    return (
-      <View key={`section-${index}`} style={styles.section}>
-        <Text style={[
-          styles.sectionTitle,
-          { color: theme.colors.textSecondary }
-        ]}>
-          {section.title}
-        </Text>
-        <View style={[
+  const renderSection = (section: any, index: number) => (
+    <View key={`section-${index}`} style={styles.section}>
+      <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
+        {section.title}
+      </Text>
+      <View
+        style={[
           styles.sectionContent,
-          { 
+          {
             backgroundColor: theme.colors.card,
             borderColor: theme.colors.border,
-            ...theme.elevation.small
-          }
-        ]}>
-          {section.items.map(renderSettingItem)}
-        </View>
+            ...theme.elevation.small,
+          },
+        ]}
+      >
+        {section.items.map(renderSettingItem)}
       </View>
-    );
-  };
+    </View>
+  );
 
   return (
     <SharedLayout style={{ backgroundColor: theme.colors.background }}>
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* Profile header */}
         <View style={styles.profileContainer}>
-          <TouchableOpacity 
-            style={styles.avatarContainer}
-          >
+          <TouchableOpacity style={styles.avatarContainer}>
             <Image
               source={{ uri: settings.avatarUrl }}
               style={styles.avatar}
             />
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             onPress={() => router.push('/userprofile/nickname')}
             style={styles.nameContainer}
           >
-            <Text style={[
-              styles.username,
-              { color: theme.colors.textPrimary }
-            ]}>
+            <Text style={[styles.username, { color: theme.colors.textPrimary }]}>
               {settings.nickname || 'Set Nickname'}
             </Text>
-            <Text style={[
-              styles.handle,
-              { color: theme.colors.textSecondary }
-            ]}>
+            <Text style={[styles.handle, { color: theme.colors.textSecondary }]}>
               @{settings.nickname?.toLowerCase() || 'user'}
             </Text>
           </TouchableOpacity>
-          
-          <Text style={[
-            styles.email,
-            { color: theme.colors.textTertiary }
-          ]}>
+
+          <Text style={[styles.email, { color: theme.colors.textTertiary }]}>
             {settings.email}
           </Text>
+        </View>
+
+        {/* Health Connection Status */}
+        <View style={styles.healthStatusContainer}>
+          <HealthConnectionStatus status={healthConnectionStatus} />
         </View>
 
         <View style={styles.settingsContainer}>
@@ -303,18 +311,11 @@ export default function ProfileSettings() {
 
         <View style={styles.actionsContainer}>
           <TouchableOpacity
-            style={[
-              styles.signOutButton,
-              loading && styles.buttonDisabled,
-              { backgroundColor: theme.colors.card }
-            ]}
+            style={[styles.signOutButton, loading && styles.buttonDisabled, { backgroundColor: theme.colors.card }]}
             onPress={confirmLogout}
             disabled={loading}
           >
-            <Text style={[
-              styles.signOutText,
-              { color: theme.colors.textPrimary }
-            ]}>
+            <Text style={[styles.signOutText, { color: theme.colors.textPrimary }]}>
               {loading ? 'Signing out...' : 'Sign Out'}
             </Text>
           </TouchableOpacity>
@@ -323,40 +324,43 @@ export default function ProfileSettings() {
             style={[
               styles.deleteButton,
               loading && styles.buttonDisabled,
-              { backgroundColor: isDark ? 'rgba(220, 38, 38, 0.15)' : '#FEE2E2' }
+              { backgroundColor: isDark ? 'rgba(220, 38, 38, 0.15)' : '#FEE2E2' },
             ]}
             onPress={() => setShowDeleteModal(true)}
             disabled={loading}
           >
-            <Text style={[
-              styles.deleteText,
-              { color: theme.colors.danger }
-            ]}>
+            <Text style={[styles.deleteText, { color: theme.colors.danger }]}>
               Delete Account
             </Text>
           </TouchableOpacity>
-          
+
           <View style={styles.versionContainer}>
-            <Text style={[
-              styles.versionText,
-              { color: theme.colors.textTertiary }
-            ]}>
+            <Text style={[styles.versionText, { color: theme.colors.textTertiary }]}>
               Version 1.0.0
             </Text>
             <TouchableOpacity>
-              <Text style={{ color: theme.colors.primary }}>
-                Rate Us!
-              </Text>
+              <Text style={{ color: theme.colors.primary }}>Rate Us!</Text>
             </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
 
+      {/* Delete Account Confirmation */}
       <DeleteAccountModal
         visible={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         onConfirm={handleDeleteAccount}
         loading={loading}
+      />
+
+      {/* NEW: Health Permissions Modal */}
+      <HealthPermissionsGuide
+        visible={showHealthPermissions}
+        onClose={() => setShowHealthPermissions(false)}
+        onPermissionsGranted={() => {
+          setHealthConnectionStatus('connected');
+          setShowHealthPermissions(false);
+        }}
       />
     </SharedLayout>
   );
@@ -383,7 +387,6 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 50,
   },
-
   nameContainer: {
     alignItems: 'center',
     marginBottom: 4,
@@ -402,6 +405,10 @@ const styles = StyleSheet.create({
   email: {
     fontSize: 14,
     marginTop: 4,
+  },
+  healthStatusContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
   },
   settingsContainer: {
     marginBottom: 24,
@@ -428,7 +435,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: 1,
   },
-      iconContainer: {
+  iconContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
