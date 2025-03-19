@@ -17,30 +17,23 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   updates: {
     fallbackToCacheTimeout: 0
   },
-  assetBundlePatterns: ["**/*"],
+  assetBundlePatterns: [
+    "**/*"
+  ],
   ios: {
     supportsTablet: true,
-    bundleIdentifier: "com.yourcompany.ctp",
-    deploymentTarget: "13.0"
+    bundleIdentifier: "com.yourcompany.ctp"
   },
   android: {
     adaptiveIcon: {
       foregroundImage: "./assets/images/icon.png",
       backgroundColor: "#000000"
     },
-    package: "com.yourcompany.ctp",
-    minSdkVersion: 26,
-    targetSdkVersion: 33,
-    compileSdkVersion: 33,
-    permissions: [
-      "android.permission.HEALTH_READ",
-      "android.permission.HEALTH_WRITE"
-    ]
+    package: "com.yourcompany.ctp"
   },
   web: {
     bundler: "metro",
-    favicon: "./assets/images/favicon.png",
-    output: "single"
+    favicon: "./assets/images/favicon.png"
   },
   extra: {
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
@@ -55,17 +48,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-build-properties",
       {
         android: {
-          minSdkVersion: 26,
-          targetSdkVersion: 33,
-          compileSdkVersion: 33
-        },
-        ios: {
-          deploymentTarget: "13.0"
+          minSdkVersion: 26
         }
       }
     ]
-  ],
-  experiments: {
-    typedRoutes: true
-  }
+  ]
 });
