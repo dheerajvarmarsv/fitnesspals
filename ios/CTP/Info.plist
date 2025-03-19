@@ -51,6 +51,10 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
+    <key>NSHealthShareUsageDescription</key>
+    <string>We need access to your health data to show your fitness stats.</string>
+    <key>NSHealthUpdateUsageDescription</key>
+    <string>We need to update your activity data in HealthKit.</string>
     <key>NSUserActivityTypes</key>
     <array>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>

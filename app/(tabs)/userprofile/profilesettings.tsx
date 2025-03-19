@@ -21,7 +21,7 @@ import DeleteAccountModal from '../../../components/DeleteAccountModal';
 import { router } from 'expo-router';
 
 // NEW IMPORTS
-import HealthPermissionsGuide from '../../../components/HealthPermissionsGuide';
+import { HealthPermissionsGuide } from '../../../components/HealthPermissionsGuide';
 import { HealthConnectionStatus } from '../../../components/HealthConnectionStatus';
 
 export default function ProfileSettings() {
