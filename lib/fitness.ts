@@ -178,7 +178,7 @@ export async function saveFitnessActivities(
         const internalActivity: any = {
           user_id: userId,
           activity_type: activity.activity_type,
-          source: source, // Use the enum type value
+          source: source,
           created_at: new Date().toISOString(),
           notes: `Imported from ${source}`,
         };
@@ -334,16 +334,15 @@ import AppleHealthKit, {
   HealthInputOptions,
 } from 'react-native-health';
 
-const { Permissions } = AppleHealthKit.Constants;
+const { Permissions: HKPermissions } = AppleHealthKit.Constants;
 
-// Define required HealthKit permissions
 const healthKitPermissions: HealthKitPermissions = {
   permissions: {
     read: [
-      Permissions.Steps,
-      Permissions.DistanceWalkingRunning,
-      Permissions.ActiveEnergyBurned,
-      Permissions.AppleExerciseTime,
+      HKPermissions.Steps,
+      HKPermissions.DistanceWalkingRunning,
+      HKPermissions.ActiveEnergyBurned,
+      HKPermissions.AppleExerciseTime,
     ],
     write: [],
   },
@@ -396,12 +395,14 @@ async function fetchAppleHealthData(date: Date): Promise<Partial<HealthData>> {
       new Promise<number>((resolve) => {
         AppleHealthKit.getActiveEnergyBurned(options, (err, result) => {
           if (err || !result) return resolve(0);
+          // Apple returns Kcal
           resolve(result.value || 0);
         });
       }),
       new Promise<number>((resolve) => {
         AppleHealthKit.getAppleExerciseTime(options, (err, result) => {
           if (err || !result) return resolve(0);
+          // Apple returns exercise minutes
           resolve(result.value || 0);
         });
       }),
@@ -419,16 +420,22 @@ async function fetchAppleHealthData(date: Date): Promise<Partial<HealthData>> {
 }
 
 // 2) Android Health Connect Integration
-import {
-  initialize as initHC,
-  requestPermission,
-  readRecords,
-  TimeRangeFilter,
-} from 'react-native-health-connect';
-import { Permission } from 'react-native-health-connect/lib/typescript/types';
+let initHC: any;
+let requestPermission: any;
+let readRecords: any;
+let TimeRangeFilter: any;
+
+if (Platform.OS === 'android') {
+  // Dynamically require to avoid bridging issues on iOS
+  const rnhc = require('react-native-health-connect');
+  initHC = rnhc.initialize;
+  requestPermission = rnhc.requestPermission;
+  readRecords = rnhc.readRecords;
+  TimeRangeFilter = rnhc.TimeRangeFilter;
+}
 
 let androidInitialized = false;
-let androidPermissions: Permission[] = [];
+let androidPermissions: any[] = [];
 
 function hasAndroidPermission(recordType: string): boolean {
   return androidPermissions.some((perm) => perm.recordType === recordType);
@@ -457,6 +464,11 @@ async function initAndroidHealth(): Promise<boolean> {
 }
 
 async function fetchAndroidHealthData(date: Date): Promise<Partial<HealthData>> {
+  // Return empty if iOS or something else
+  if (Platform.OS !== 'android') {
+    return { steps: 0, distance: 0, calories: 0, duration: 0 };
+  }
+
   const isInit = await initAndroidHealth();
   if (!isInit) return { steps: 0, distance: 0, duration: 0, calories: 0 };
 
@@ -465,7 +477,7 @@ async function fetchAndroidHealthData(date: Date): Promise<Partial<HealthData>> 
   const endOfDay = new Date(date);
   endOfDay.setHours(23, 59, 59, 999);
 
-  const timeRangeFilter: TimeRangeFilter = {
+  const timeRangeFilter = {
     operator: 'between',
     startTime: startOfDay.toISOString(),
     endTime: endOfDay.toISOString(),
@@ -475,19 +487,19 @@ async function fetchAndroidHealthData(date: Date): Promise<Partial<HealthData>> 
   try {
     if (hasAndroidPermission('Steps')) {
       const stepsData = await readRecords('Steps', { timeRangeFilter });
-      steps = stepsData.reduce((sum, record) => sum + record.count, 0);
+      steps = stepsData.reduce((sum: number, record: any) => sum + record.count, 0);
     }
     if (hasAndroidPermission('Distance')) {
       const distData = await readRecords('Distance', { timeRangeFilter });
-      distance = distData.reduce((sum, record) => sum + record.distance.inMeters, 0);
+      distance = distData.reduce((sum: number, record: any) => sum + record.distance.inMeters, 0);
     }
     if (hasAndroidPermission('ActiveCaloriesBurned')) {
       const calData = await readRecords('ActiveCaloriesBurned', { timeRangeFilter });
-      calories = calData.reduce((sum, record) => sum + record.energy.inKilocalories, 0);
+      calories = calData.reduce((sum: number, record: any) => sum + record.energy.inKilocalories, 0);
     }
     if (hasAndroidPermission('ExerciseSession')) {
       const exerciseData = await readRecords('ExerciseSession', { timeRangeFilter });
-      duration = exerciseData.reduce((sum, record) => {
+      duration = exerciseData.reduce((sum: number, record: any) => {
         const start = new Date(record.startTime).getTime();
         const end = new Date(record.endTime).getTime();
         return sum + (end - start) / (1000 * 60);
@@ -500,20 +512,28 @@ async function fetchAndroidHealthData(date: Date): Promise<Partial<HealthData>> 
 }
 
 // 3) Upsert Health Data into Supabase
-async function upsertHealthData(userId: string, date: string, data: Partial<HealthData>, source: FitnessDataSource) {
+async function upsertHealthData(
+  userId: string,
+  date: string,
+  data: Partial<HealthData>,
+  source: FitnessDataSource
+) {
   try {
     const { error } = await supabase
       .from('health_data')
-      .upsert({
-        user_id: userId,
-        date,
-        steps: data.steps ?? 0,
-        distance: data.distance ?? 0,
-        duration: data.duration ?? 0,
-        calories: data.calories ?? 0,
-        source,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id,date' });
+      .upsert(
+        {
+          user_id: userId,
+          date,
+          steps: data.steps ?? 0,
+          distance: data.distance ?? 0,
+          duration: data.duration ?? 0,
+          calories: data.calories ?? 0,
+          source,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,date' }
+      );
 
     if (error) {
       console.error('Error upserting health_data:', error);
@@ -531,6 +551,7 @@ async function upsertHealthData(userId: string, date: string, data: Partial<Heal
  */
 export async function fetchAndStoreDailyHealthData(userId: string, date: Date): Promise<void> {
   const dateStr = date.toISOString().split('T')[0];
+
   if (Platform.OS === 'ios') {
     const iosData = await fetchAppleHealthData(date);
     await upsertHealthData(userId, dateStr, iosData, 'apple_health');
