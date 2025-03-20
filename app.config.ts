@@ -31,7 +31,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       foregroundImage: "./assets/images/icon.png",
       backgroundColor: "#000000"
     },
-    package: "com.yourcompany.ctp",
+    package: "com.dheshadev.ctp",
     permissions: [
       "android.permission.health.READ_STEPS",
       "android.permission.health.READ_DISTANCE",
@@ -46,7 +46,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
     supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
     eas: {
-      projectId: "your-project-id"
+      projectId: "ace5179f-9d07-4a93-86cb-af3735bf01ef"
     }
   },
   plugins: [
