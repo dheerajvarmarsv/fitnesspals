@@ -28,7 +28,7 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>myapp</string>
-          <string>com.yourcompany.ctp</string>
+          <string>com.dheshadev.ctp</string>
         </array>
       </dict>
       <dict>
