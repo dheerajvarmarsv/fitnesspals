@@ -20,7 +20,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   assetBundlePatterns: ["**/*"],
   ios: {
     supportsTablet: true,
-    bundleIdentifier: "com.yourcompany.ctp",
+    bundleIdentifier: "com.dheshadev.ctp",
     infoPlist: {
       NSHealthShareUsageDescription: "We need access to your health data to show your fitness stats.",
       NSHealthUpdateUsageDescription: "We need to update your activity data in HealthKit."
@@ -40,7 +40,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   web: {
     bundler: "metro",
-    favicon: "./assets/images/favicon.png"
+    favicon: "./assets/images/icon.png"
   },
   extra: {
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,

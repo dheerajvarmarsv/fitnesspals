@@ -1,7 +1,7 @@
 // app/(tabs)/userprofile/profilesettings.tsx
 
 import { useState } from 'react';
-import { 
+import {
   StyleSheet,
   View,
   Text,
@@ -19,9 +19,6 @@ import { useTheme } from '../../../lib/ThemeContext';
 import { supabase } from '../../../lib/supabase';
 import DeleteAccountModal from '../../../components/DeleteAccountModal';
 import { router } from 'expo-router';
-
-// NEW IMPORTS
-import { HealthPermissionsGuide } from '../../../components/HealthPermissionsGuide';
 import { HealthConnectionStatus } from '../../../components/HealthConnectionStatus';
 
 export default function ProfileSettings() {
@@ -30,14 +27,10 @@ export default function ProfileSettings() {
   const [loading, setLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  // NEW STATES for health permissions
-  const [showHealthPermissions, setShowHealthPermissions] = useState(false);
+  // We'll still display the health connection status even though only one option is shown.
   const [healthConnectionStatus, setHealthConnectionStatus] = useState<
     'connected' | 'disconnected' | 'pending'
   >('disconnected');
-
-  // If needed, determine if settings are loaded
-  const isLoaded = !!settings?.nickname;
 
   const confirmLogout = () => {
     Alert.alert(
@@ -75,8 +68,7 @@ export default function ProfileSettings() {
     }
   };
 
-  // --- SETTINGS SECTIONS ---
-  // Notice we've inserted a "Health Permissions" item in the CONNECTIONS section
+  // SETTINGS SECTIONS (Unified health connection UI)
   const SETTINGS_SECTIONS = [
     {
       title: 'ACCOUNT',
@@ -84,7 +76,7 @@ export default function ProfileSettings() {
         {
           id: 'nickname',
           icon: 'person',
-          iconBgColor: theme.colors.primary, 
+          iconBgColor: theme.colors.primary,
           iconColor: '#fff',
           title: 'Profile Name',
           description: settings.nickname || 'Set a nickname',
@@ -94,7 +86,7 @@ export default function ProfileSettings() {
         {
           id: 'password',
           icon: 'key',
-          iconBgColor: theme.colors.warning, 
+          iconBgColor: theme.colors.warning,
           iconColor: '#fff',
           title: 'Password',
           description: 'Update your password',
@@ -107,25 +99,14 @@ export default function ProfileSettings() {
       title: 'CONNECTIONS',
       items: [
         {
-          id: 'fitness-connections',
+          id: 'health-services',
           icon: 'fitness',
-          iconBgColor: theme.colors.success, 
+          iconBgColor: theme.colors.success,
           iconColor: '#fff',
-          title: 'Fitness Connections',
-          description: 'Connect Apple Health, Google Fit, etc.',
+          title: 'Health Services',
+          description: 'Connect to Apple Health or Google Fit',
           path: '/fitness-connections',
           hasChevron: true,
-        },
-        // NEW ITEM for requesting HealthKit / HealthConnect permissions
-        {
-          id: 'health-permissions',
-          icon: 'heart',
-          iconBgColor: '#F06292', // example pinkish color
-          iconColor: '#fff',
-          title: 'Health Permissions',
-          description: 'Grant HealthKit / Health Connect access',
-          path: null, // We'll handle the press ourselves
-          hasChevron: false,
         },
       ],
     },
@@ -176,30 +157,20 @@ export default function ProfileSettings() {
     },
   ];
 
-  // Render a single setting item
   const renderSettingItem = (item: any) => {
     const itemContent = (
-      <View
-        style={[
-          styles.settingRow,
-          { borderBottomColor: theme.colors.divider },
-        ]}
-      >
+      <View style={[styles.settingRow, { borderBottomColor: theme.colors.divider }]}>
         <View style={[styles.iconContainer, { backgroundColor: item.iconBgColor }]}>
           <Ionicons name={item.icon} size={22} color={item.iconColor} />
         </View>
-
         <View style={styles.settingTextContainer}>
-          <Text style={[styles.settingTitle, { color: theme.colors.textPrimary }]}>
-            {item.title}
-          </Text>
+          <Text style={[styles.settingTitle, { color: theme.colors.textPrimary }]}>{item.title}</Text>
           {item.description && (
             <Text style={[styles.settingDescription, { color: theme.colors.textSecondary }]}>
               {item.description}
             </Text>
           )}
         </View>
-
         {item.hasChevron && (
           <Ionicons
             name="chevron-forward"
@@ -211,47 +182,31 @@ export default function ProfileSettings() {
       </View>
     );
 
-    // If item is disabled
-    if (item.disabled) {
+    // If path is provided, wrap in a Link; otherwise, use onPress
+    if (item.path) {
       return (
-        <View key={item.id} style={{ opacity: 0.8 }}>
-          {itemContent}
-        </View>
+        <Link key={item.id} href={`/userprofile${item.path}`} asChild>
+          <TouchableOpacity disabled={loading}>{itemContent}</TouchableOpacity>
+        </Link>
       );
     }
-
-    // If path is null (like "health-permissions"), we handle the press ourselves
-    if (!item.path) {
-      return (
-        <TouchableOpacity
-          key={item.id}
-          disabled={loading}
-          onPress={() => {
-            if (item.id === 'health-permissions') {
-              // Show the modal
-              setShowHealthPermissions(true);
-            }
-          }}
-        >
-          {itemContent}
-        </TouchableOpacity>
-      );
-    }
-
-    // Otherwise, if item.path is set
     return (
-      <Link key={item.id} href={`/userprofile${item.path}`} asChild>
-        <TouchableOpacity disabled={loading}>{itemContent}</TouchableOpacity>
-      </Link>
+      <TouchableOpacity
+        key={item.id}
+        disabled={loading}
+        onPress={() => {
+          // In this unified UI, all health services are accessed via the fitness-connections page.
+          router.push('/fitness-connections');
+        }}
+      >
+        {itemContent}
+      </TouchableOpacity>
     );
   };
 
-  // Render a section with title and items
   const renderSection = (section: any, index: number) => (
     <View key={`section-${index}`} style={styles.section}>
-      <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
-        {section.title}
-      </Text>
+      <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>{section.title}</Text>
       <View
         style={[
           styles.sectionContent,
@@ -269,35 +224,17 @@ export default function ProfileSettings() {
 
   return (
     <SharedLayout style={{ backgroundColor: theme.colors.background }}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Profile header */}
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Profile Header */}
         <View style={styles.profileContainer}>
           <TouchableOpacity style={styles.avatarContainer}>
-            <Image
-              source={{ uri: settings.avatarUrl }}
-              style={styles.avatar}
-            />
+            <Image source={{ uri: settings.avatarUrl }} style={styles.avatar} />
           </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => router.push('/userprofile/nickname')}
-            style={styles.nameContainer}
-          >
-            <Text style={[styles.username, { color: theme.colors.textPrimary }]}>
-              {settings.nickname || 'Set Nickname'}
-            </Text>
-            <Text style={[styles.handle, { color: theme.colors.textSecondary }]}>
-              @{settings.nickname?.toLowerCase() || 'user'}
-            </Text>
+          <TouchableOpacity onPress={() => router.push('/userprofile/nickname')} style={styles.nameContainer}>
+            <Text style={[styles.username, { color: theme.colors.textPrimary }]}>{settings.nickname || 'Set Nickname'}</Text>
+            <Text style={[styles.handle, { color: theme.colors.textSecondary }]}>{settings.nickname?.toLowerCase() || 'user'}</Text>
           </TouchableOpacity>
-
-          <Text style={[styles.email, { color: theme.colors.textTertiary }]}>
-            {settings.email}
-          </Text>
+          <Text style={[styles.email, { color: theme.colors.textTertiary }]}>{settings.email}</Text>
         </View>
 
         {/* Health Connection Status */}
@@ -305,21 +242,20 @@ export default function ProfileSettings() {
           <HealthConnectionStatus status={healthConnectionStatus} />
         </View>
 
+        {/* Settings Sections */}
         <View style={styles.settingsContainer}>
           {SETTINGS_SECTIONS.map(renderSection)}
         </View>
 
+        {/* Actions */}
         <View style={styles.actionsContainer}>
           <TouchableOpacity
             style={[styles.signOutButton, loading && styles.buttonDisabled, { backgroundColor: theme.colors.card }]}
             onPress={confirmLogout}
             disabled={loading}
           >
-            <Text style={[styles.signOutText, { color: theme.colors.textPrimary }]}>
-              {loading ? 'Signing out...' : 'Sign Out'}
-            </Text>
+            <Text style={[styles.signOutText, { color: theme.colors.textPrimary }]}>{loading ? 'Signing out...' : 'Sign Out'}</Text>
           </TouchableOpacity>
-
           <TouchableOpacity
             style={[
               styles.deleteButton,
@@ -329,15 +265,10 @@ export default function ProfileSettings() {
             onPress={() => setShowDeleteModal(true)}
             disabled={loading}
           >
-            <Text style={[styles.deleteText, { color: theme.colors.danger }]}>
-              Delete Account
-            </Text>
+            <Text style={[styles.deleteText, { color: theme.colors.danger }]}>Delete Account</Text>
           </TouchableOpacity>
-
           <View style={styles.versionContainer}>
-            <Text style={[styles.versionText, { color: theme.colors.textTertiary }]}>
-              Version 1.0.0
-            </Text>
+            <Text style={[styles.versionText, { color: theme.colors.textTertiary }]}>Version 1.0.0</Text>
             <TouchableOpacity>
               <Text style={{ color: theme.colors.primary }}>Rate Us!</Text>
             </TouchableOpacity>
@@ -345,152 +276,53 @@ export default function ProfileSettings() {
         </View>
       </ScrollView>
 
-      {/* Delete Account Confirmation */}
+      {/* Delete Account Modal */}
       <DeleteAccountModal
         visible={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         onConfirm={handleDeleteAccount}
         loading={loading}
       />
-
-      {/* NEW: Health Permissions Modal */}
-      <HealthPermissionsGuide
-        visible={showHealthPermissions}
-        onClose={() => setShowHealthPermissions(false)}
-        onPermissionsGranted={() => {
-          setHealthConnectionStatus('connected');
-          setShowHealthPermissions(false);
-        }}
-      />
     </SharedLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 32,
-  },
+  scrollView: { flex: 1 },
+  scrollContent: { paddingBottom: 32 },
   profileContainer: {
     alignItems: 'center',
     paddingVertical: 24,
     paddingHorizontal: 16,
   },
-  avatarContainer: {
-    position: 'relative',
-    marginBottom: 16,
-  },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-  },
-  nameContainer: {
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  username: {
-    fontSize: 24,
-    fontWeight: '600',
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  handle: {
-    fontSize: 16,
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  email: {
-    fontSize: 14,
-    marginTop: 4,
-  },
-  healthStatusContainer: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  settingsContainer: {
-    marginBottom: 24,
-  },
-  section: {
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
-    marginLeft: 16,
-  },
+  avatarContainer: { position: 'relative', marginBottom: 16 },
+  avatar: { width: 100, height: 100, borderRadius: 50 },
+  nameContainer: { alignItems: 'center', marginBottom: 4 },
+  username: { fontSize: 24, fontWeight: '600', marginBottom: 4, textAlign: 'center' },
+  handle: { fontSize: 16, marginBottom: 4, textAlign: 'center' },
+  email: { fontSize: 14, marginTop: 4 },
+  healthStatusContainer: { alignItems: 'center', marginBottom: 16 },
+  settingsContainer: { marginBottom: 24 },
+  section: { marginBottom: 16 },
+  sectionTitle: { fontSize: 14, fontWeight: '600', marginBottom: 8, marginLeft: 16 },
   sectionContent: {
     borderRadius: 12,
     marginHorizontal: 16,
     overflow: 'hidden',
     borderWidth: Platform.OS === 'ios' ? 0 : 1,
   },
-  settingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-  },
-  iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  settingTextContainer: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  settingTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  settingDescription: {
-    fontSize: 14,
-    marginTop: 2,
-  },
-  chevron: {
-    marginLeft: 8,
-  },
-  actionsContainer: {
-    paddingHorizontal: 16,
-    marginTop: 8,
-  },
-  signOutButton: {
-    paddingVertical: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  signOutText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  deleteButton: {
-    paddingVertical: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  deleteText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  versionContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 24,
-  },
-  versionText: {
-    marginRight: 8,
-  },
+  settingRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 16, borderBottomWidth: 1 },
+  iconContainer: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
+  settingTextContainer: { flex: 1, justifyContent: 'center' },
+  settingTitle: { fontSize: 16, fontWeight: '500' },
+  settingDescription: { fontSize: 14, marginTop: 2 },
+  chevron: { marginLeft: 8 },
+  actionsContainer: { paddingHorizontal: 16, marginTop: 8 },
+  signOutButton: { paddingVertical: 16, borderRadius: 8, alignItems: 'center', marginBottom: 12 },
+  signOutText: { fontSize: 16, fontWeight: '500' },
+  deleteButton: { paddingVertical: 16, borderRadius: 8, alignItems: 'center' },
+  deleteText: { fontSize: 16, fontWeight: '500' },
+  buttonDisabled: { opacity: 0.6 },
+  versionContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 24 },
+  versionText: { marginRight: 8 },
 });

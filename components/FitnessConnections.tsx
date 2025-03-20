@@ -46,19 +46,13 @@ export default function FitnessConnections({ onUpdate }: FitnessConnectionsProps
     });
   }, []);
 
-  /**
-   * Loads existing fitness connections from the database.
-   * If none exist, creates default placeholders for each service.
-   */
   const loadConnections = async (uid: string) => {
     try {
       setLoading(true);
-
-      // Get existing connections
       const dbConnections = await getUserFitnessConnections(uid);
       let connectionList = [...dbConnections];
 
-      // Ensure Apple Health or Health Connect placeholders are always present
+      // Ensure placeholders for Apple Health (iOS) and Health Connect (Android) exist
       const hasAppleHealth = connectionList.some((c) => c.type === 'apple_health');
       const hasHealthConnect = connectionList.some((c) => c.type === 'health_connect');
 
@@ -99,42 +93,45 @@ export default function FitnessConnections({ onUpdate }: FitnessConnectionsProps
     }
   };
 
-  /**
-   * Connects to Apple Health (on iOS) or Health Connect (on Android),
-   * then fetches today's data and updates the database.
-   */
   const handleConnect = async (source: FitnessDataSource) => {
     if (!userId) return;
-
     try {
       setLoading(true);
       let success = false;
 
-      // Only Apple Health on iOS, or Health Connect on Android
       if (source === 'apple_health' && Platform.OS === 'ios') {
+        // Connect to Apple Health
         success = await initHealthKit();
+        if (success) {
+          await saveFitnessConnection(userId, {
+            type: 'apple_health',
+            connected: true,
+            status: 'connected',
+            permissions: ['Steps', 'Distance', 'Calories'],
+          });
+        }
       } else if (source === 'health_connect' && Platform.OS === 'android') {
+        // Connect to Health Connect
         success = await initAndroidHealth();
+        if (success) {
+          await saveFitnessConnection(userId, {
+            type: 'health_connect',
+            connected: true,
+            status: 'connected',
+            permissions: ['Steps', 'Distance', 'ActiveCaloriesBurned', 'ExerciseSession'],
+          });
+        }
       } else {
         Alert.alert('Not Supported', `Connecting "${source}" is not implemented on this device.`);
         return;
       }
 
       if (success) {
-        // Mark the connection as "connected" in the DB
-        await saveFitnessConnection(userId, {
-          type: source,
-          connected: true,
-          status: 'connected',
-        });
-
         // Immediately fetch today's health data
         await fetchAndStoreDailyHealthData(userId, new Date());
-
-        // Reload and notify
+        // Reload connections and notify parent
         await loadConnections(userId);
         if (onUpdate) onUpdate();
-
         Alert.alert(
           'Success',
           `Connected to ${
@@ -157,18 +154,13 @@ export default function FitnessConnections({ onUpdate }: FitnessConnectionsProps
     }
   };
 
-  /**
-   * Disconnects from the specified health service, removing the connection from the DB.
-   */
   const handleDisconnect = async (source: FitnessDataSource) => {
     if (!userId) return;
-
     try {
       setLoading(true);
       await disconnectFitnessSource(userId, source);
       await loadConnections(userId);
       if (onUpdate) onUpdate();
-
       Alert.alert('Disconnected', `Successfully disconnected from ${source}.`);
     } catch (error) {
       console.error(`Error disconnecting from ${source}:`, error);
@@ -178,13 +170,13 @@ export default function FitnessConnections({ onUpdate }: FitnessConnectionsProps
     }
   };
 
-  // Filter out Apple Health on Android, and Google Fit on iOS, etc.
+  // Filter connections: show Apple Health on iOS, Health Connect on Android
   const filteredConnections = connections.filter((conn) => {
     if (Platform.OS === 'ios') {
-      return conn.type !== 'health_connect' || conn.type === 'apple_health';
+      return conn.type === 'apple_health';
     }
     if (Platform.OS === 'android') {
-      return conn.type !== 'apple_health' || conn.type === 'health_connect';
+      return conn.type === 'health_connect';
     }
     return false;
   });
@@ -213,8 +205,6 @@ export default function FitnessConnections({ onUpdate }: FitnessConnectionsProps
           : isHealthConnect
           ? 'Health Connect'
           : connection.type.charAt(0).toUpperCase() + connection.type.slice(1);
-
-        // Basic icon choice
         const iconName = isApple ? 'heart' : isHealthConnect ? 'fitness' : 'sync';
         const isConnected = !!connection.connected;
         const lastSynced = connection.last_synced
@@ -240,12 +230,12 @@ export default function FitnessConnections({ onUpdate }: FitnessConnectionsProps
                   </Text>
                 </View>
               </View>
-
-              {/* Only show connect/disconnect on correct platform */}
               <TouchableOpacity
                 style={[styles.actionButton, isConnected ? styles.disconnectButton : styles.connectButton]}
                 onPress={() =>
-                  isConnected ? handleDisconnect(connection.type) : handleConnect(connection.type)
+                  isConnected
+                    ? handleDisconnect(connection.type)
+                    : handleConnect(connection.type)
                 }
                 disabled={loading}
               >
@@ -254,7 +244,6 @@ export default function FitnessConnections({ onUpdate }: FitnessConnectionsProps
                 </Text>
               </TouchableOpacity>
             </View>
-
             {isConnected && (
               <View style={styles.connectionDetails}>
                 <Text style={styles.detailLabel}>Last synced:</Text>
@@ -268,9 +257,9 @@ export default function FitnessConnections({ onUpdate }: FitnessConnectionsProps
       <View style={styles.infoBox}>
         <Ionicons name="information-circle-outline" size={24} color="#4A90E2" />
         <Text style={styles.infoText}>
-          Connecting to HealthKit (on iOS) or Health Connect (on Android) lets the app read your
-          daily activity data such as steps, distance, and calories. Your data stays private and is
-          only used in this app to track progress.
+          Connecting to Apple Health (on iOS) or Health Connect (on Android) lets the app read your daily
+          activity data such as steps, distance, and calories. Your data remains private and is used solely
+          to track your progress.
         </Text>
       </View>
     </ScrollView>
@@ -410,3 +399,5 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
+
+export default FitnessConnections;
