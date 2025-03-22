@@ -30,18 +30,22 @@ export interface ActivityRule {
   isSelected: boolean;
   isCustom?: boolean;
 }
-function formatThreshold(value: number, metric: string): string {
+function formatThreshold(value: number, metric: string, useKilometers: boolean = true): string {
     switch (metric) {
       case 'steps':
         return `${value} steps`;
       case 'distance_km':
-        return `${value} km`;
+        // Input and display are both in kilometers
+        return useKilometers ? `${value} km` : `${(value * 0.621371).toFixed(2)} miles`;
       case 'distance_miles':
-        return `${value} miles`;
+        // Input is in miles, but may need to display in km
+        return useKilometers ? `${(value * 1.60934).toFixed(2)} km` : `${value} miles`;
       case 'time':
         return `${value} hours`;
       case 'calories':
         return `${value} calories`;
+      case 'count':
+        return `${value} count`;
       default:
         return `${value}`;
     }

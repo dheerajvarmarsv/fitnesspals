@@ -81,25 +81,40 @@ function getActivityColor(activityType: string): string {
 }
 
 // Format display value based on metric type
-const formatMetricValue = (activity: Activity): string => {
-  if (!activity.metric) return '';
-
-  switch (activity.metric?.toLowerCase()) {
+const formatMetricValue = (activity: any, useKilometers: boolean): string => {
+  let displayValue = '';
+  
+  switch (activity.metric) {
     case 'time':
-      return `${activity.duration || 0} min`;
+      if (activity.duration) displayValue = `${Math.round(activity.duration / 60)} min`;
+      break;
     case 'distance_km':
-      return `${(activity.distance || 0).toFixed(1)} km`;
     case 'distance_miles':
-      return `${(activity.distance || 0).toFixed(1)} mi`;
+      if (activity.distance !== null) {
+        // Distance is stored in kilometers in the database
+        if (useKilometers) {
+          displayValue = `${activity.distance.toFixed(2)} km`;
+        } else {
+          // Convert kilometers to miles
+          const miles = activity.distance * 0.621371;
+          displayValue = `${miles.toFixed(2)} mi`;
+        }
+      }
+      break;
     case 'calories':
-      return `${activity.calories || 0} cal`;
+      if (activity.calories) displayValue = `${activity.calories} cal`;
+      break;
     case 'steps':
-      return `${activity.steps || 0} steps`;
+      if (activity.steps) displayValue = `${activity.steps} steps`;
+      break;
     case 'count':
-      return `${activity.count || 0} reps`;
+      if (activity.count) displayValue = `${activity.count} count`;
+      break;
     default:
-      return '';
+      displayValue = 'No data';
+      break;
   }
+  return displayValue;
 };
 
 // Format relative time (e.g., "2h ago") without external dependencies

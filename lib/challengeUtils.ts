@@ -148,11 +148,12 @@ export async function saveUserActivity(
       insertData.duration = activityData.duration;
       break;
     case 'distance_km':
+      // Store the distance directly in kilometers
       insertData.distance = activityData.distance;
       break;
     case 'distance_miles':
-      // Convert miles to km
-      insertData.distance = activityData.distance * 1.60934;
+      // Value is already converted to kilometers in AddActivityModal
+      insertData.distance = activityData.distance;
       break;
     case 'calories':
       insertData.calories = activityData.calories;
@@ -422,8 +423,9 @@ export async function updateChallengesWithActivity(activityId: string, userId: s
         if (matchingActivity.metric === 'time') {
           thresholdValue = thresholdValue * 60; // Convert hours to minutes for internal calculations
         } else if (matchingActivity.metric === 'distance_miles') {
-          thresholdValue = thresholdValue / 0.621371; // convert miles to km
+          thresholdValue = thresholdValue * 1.60934; // Convert miles to kilometers
         }
+        // distance_km values are already in kilometers, no conversion needed
 
         console.log('Threshold check:', {
           activityType: matchingActivity.activity_type,

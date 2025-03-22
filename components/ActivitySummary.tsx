@@ -6,8 +6,8 @@ import { Ionicons } from '@expo/vector-icons';
 
 interface ActivitySummaryProps {
   steps: number;
-  distance: number;  // stored as meters in DB
-  duration: number;  // in minutes
+  distance: number;  // stored as kilometers in DB
+  duration: number;  // stored as minutes in DB
   calories: number;
   useKilometers: boolean;
 }
@@ -19,10 +19,10 @@ export default function ActivitySummary({
   calories,
   useKilometers,
 }: ActivitySummaryProps) {
-  // Convert distance from meters to kilometers or miles
+  // Convert distance based on user preference
   const displayDistance = useKilometers
-    ? `${(distance / 1000).toFixed(2)} km`
-    : `${(((distance / 1000) * 0.621371)).toFixed(2)} mi`;
+    ? `${distance.toFixed(2)} km`
+    : `${(distance * 0.621371).toFixed(2)} mi`;
 
   // Convert duration from minutes to hours with 1 decimal place
   const durationInHours = (duration / 60).toFixed(1);
@@ -61,6 +61,7 @@ export default function ActivitySummary({
 }
 
 const styles = StyleSheet.create({
+  // Styles remain unchanged
   container: {
     flexDirection: 'row',
     borderRadius: 12,

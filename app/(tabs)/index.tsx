@@ -244,11 +244,12 @@ async function fetchActivitySummaryByDate(userId: string, date: Date) {
   return { steps, distance, duration, calories };
 }
 
-function formatMetricValue(activity: any, useKilometers: boolean): string {
+const formatMetricValue = (activity: any, useKilometers: boolean): string => {
   let displayValue = '';
+  
   switch (activity.metric) {
     case 'time':
-      if (activity.duration) displayValue = `${activity.duration} min`;
+      if (activity.duration) displayValue = `${Math.round(activity.duration / 60)} min`;
       break;
     case 'distance_km':
       if (activity.distance !== null) {
@@ -262,8 +263,14 @@ function formatMetricValue(activity: any, useKilometers: boolean): string {
       break;
     case 'distance_miles':
       if (activity.distance !== null) {
-        const miles = activity.distance * 0.621371;
-        displayValue = `${miles.toFixed(2)} mi`;
+        // The distance is stored in km in the database
+        if (useKilometers) {
+          displayValue = `${activity.distance.toFixed(2)} km`;
+        } else {
+          // Convert back to miles for display
+          const miles = activity.distance * 0.621371;
+          displayValue = `${miles.toFixed(2)} mi`;
+        }
       }
       break;
     case 'calories':
@@ -280,7 +287,7 @@ function formatMetricValue(activity: any, useKilometers: boolean): string {
       break;
   }
   return displayValue;
-}
+};
 
 export default function HomeScreen() {
   const router = useRouter();

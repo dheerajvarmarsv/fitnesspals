@@ -374,49 +374,56 @@ export default function AddActivityModal({
         ...generalActivities.filter(a => Object.values(a.metrics).some(v => v && v.trim() !== '')),
         ...customActivities.filter(a => Object.values(a.metrics).some(v => v && v.trim() !== '')),
       ];
-      // For each activity and metric, use the saveUserActivity function from challengeUtils.
+      
       for (const act of activitiesToSave) {
         for (const [metricKey, rawVal] of Object.entries(act.metrics)) {
           if (!rawVal || rawVal.trim() === '') continue;
           const metric = metricKey as MetricType;
           const numericValue = Number(rawVal);
-          // Prepare values for insertion
+          
+          // Initialize values
           let duration = 0;
           let distance = 0;
           let calories = 0;
-          // For steps and count, we assume the value is provided in the field originally named duration.
+          let steps = 0;
+          let count = 0;
+    
           switch (metric) {
             case 'time':
-              duration = numericValue * 60;
+              duration = numericValue * 60; // Convert hours to minutes
               break;
             case 'distance_km':
+              // Store distance in kilometers directly
               distance = numericValue;
               break;
             case 'distance_miles':
+              // Convert miles to kilometers for storage
               distance = numericValue * 1.60934;
               break;
             case 'calories':
               calories = numericValue;
               break;
             case 'steps':
-              // For steps, pass value in duration field of saveUserActivity so that the updated function writes to steps column.
-              duration = numericValue;
+              steps = numericValue;
               break;
             case 'count':
-              // For count, similarly pass the value.
-              duration = numericValue;
+              count = numericValue;
               break;
             default:
               break;
           }
-          // Call saveUserActivity which will route values to the proper columns based on metric.
+    
+          // Save activity with the appropriate metric
+          // Store the original metric type so UI knows how to display it
           await saveUserActivity(
             {
               activityType: act.activityType,
               duration,
               distance,
               calories,
-              metric,
+              steps,
+              count,
+              metric, // This is important - store the original input metric type
             },
             userId
           ).then(async (result) => {
