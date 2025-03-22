@@ -1,6 +1,7 @@
 // app/(tabs)/joinchallenges/create.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import { Picker } from '@react-native-picker/picker';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   StyleSheet,
   SafeAreaView,
@@ -267,10 +268,13 @@ export default function CreateChallenge() {
           key={step}
           style={[
             styles.progressBar,
-            currentStep >= step && styles.activeProgressBar,
             step < 4 && styles.progressBarMargin,
           ]}
-        />
+        >
+          {currentStep >= step && (
+            <View style={styles.progressGradient} />
+          )}
+        </View>
       ))}
     </View>
   );
@@ -388,7 +392,7 @@ export default function CreateChallenge() {
       {currentStep > 1 && currentStep < 5 && (
         <View style={styles.footer}>
           <Pressable
-            style={[styles.nextButton, !isNextEnabled() && styles.nextButtonDisabled]}
+            style={[styles.nextButtonWrapper, !isNextEnabled() && styles.nextButtonDisabled]}
             onPress={handleNext}
             disabled={!isNextEnabled() || isCreating}
           >
@@ -397,7 +401,7 @@ export default function CreateChallenge() {
                 <Ionicons name="refresh" size={24} color="#fff" />
               </Animated.View>
             ) : (
-              <>
+              <View style={styles.nextButton}>
                 <Text style={styles.nextButtonText}>
                   {currentStep < 4 ? 'Continue' : 'Create Challenge'}
                 </Text>
@@ -406,7 +410,7 @@ export default function CreateChallenge() {
                   size={22}
                   color="#fff"
                 />
-              </>
+              </View>
             )}
           </Pressable>
         </View>
@@ -437,8 +441,8 @@ const styles = StyleSheet.create({
   },
   headerButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
   progressBarContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', flex: 1, paddingHorizontal: 8 },
-  progressBar: { flex: 1, height: 4, backgroundColor: '#eee', borderRadius: 2 },
-  activeProgressBar: { backgroundColor: '#00000' },
+  progressBar: { flex: 1, height: 4, backgroundColor: '#ddd', borderRadius: 2, overflow: 'hidden' },
+  progressGradient: { flex: 1, height: '100%', width: '100%', backgroundColor: '#000' },
   progressBarMargin: { marginRight: 8 },
   content: { flex: 1, backgroundColor: '#fff' },
   scrollContent: { paddingBottom: 30 },
@@ -463,16 +467,19 @@ const styles = StyleSheet.create({
   datePickerButton: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12 },
   dateText: { fontSize: 16, color: '#333' },
   toggleContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
-  toggleTrack: { width: 40, height: 24, borderRadius: 12, backgroundColor: '#ccc', paddingHorizontal: 2, justifyContent: 'center' },
-  toggleTrackActive: { backgroundColor: '#00000' },
-  toggleThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff' },
-  toggleThumbActive: { transform: [{ translateX: 16 }] },
-  toggleLabel: { marginLeft: 12, fontSize: 16, color: '#555' },
+  // Privacy Toggle Styles
+  privacyToggleContainer: { flexDirection: 'row', marginTop: 12, borderRadius: 8, overflow: 'hidden', backgroundColor: '#f0f0f0' },
+  privacyOption: { flex: 1, paddingVertical: 10, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  privacyOptionSelected: { backgroundColor: '#000' },
+  privacyIcon: { marginRight: 6 },
+  privacyText: { fontSize: 14, fontWeight: '500', color: '#555' },
+  privacyTextSelected: { color: '#fff' },
+  privacyDescription: { fontSize: 13, color: '#666', marginTop: 8 },
   globalTimeframeContainer: { marginBottom: 24, backgroundColor: '#f8f9fa', padding: 16, borderRadius: 12 },
   globalTimeframeLabel: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 12 },
   timeframeToggle: { flexDirection: 'row', borderRadius: 8, overflow: 'hidden', backgroundColor: '#ddd', alignSelf: 'flex-start' },
   timeframeOption: { paddingHorizontal: 16, paddingVertical: 8, alignItems: 'center', width: 80 },
-  timeframeSelected: { backgroundColor: '#00000' },
+  timeframeSelected: { backgroundColor: '#000' },
   timeframeText: { fontSize: 14, fontWeight: '500', color: '#555' },
   timeframeTextSelected: { color: '#fff' },
   timeframeDescription: { fontSize: 14, color: '#666', marginTop: 8, fontStyle: 'italic' },
@@ -547,7 +554,8 @@ const styles = StyleSheet.create({
   actionButtonGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16 },
   actionButtonText: { fontSize: 16, fontWeight: '600', color: '#fff', marginLeft: 10 },
   footer: { backgroundColor: '#fff', paddingHorizontal: 20, paddingVertical: 16, shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 3 },
-  nextButton: { backgroundColor: '#00000', borderRadius: 12, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
-  nextButtonDisabled: { backgroundColor: '#ccc' },
+  nextButtonWrapper: { borderRadius: 12, overflow: 'hidden' },
+  nextButton: { paddingVertical: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', width: '100%', backgroundColor: '#000' },
+  nextButtonDisabled: { opacity: 0.5 },
   nextButtonText: { color: '#fff', fontSize: 16, fontWeight: '600', marginRight: 8 },
 });

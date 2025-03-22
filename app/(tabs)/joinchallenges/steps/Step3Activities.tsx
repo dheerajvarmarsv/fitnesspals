@@ -359,34 +359,32 @@ export default function Step3Activities({
           <Pressable
             style={[
               localStyles.timeframeOption,
-              details.globalTimeframe === 'day' && localStyles.timeframeSelected,
+              details.globalTimeframe === 'day' && localStyles.timeframeOptionSelected,
             ]}
             onPress={() => handleTimeframeChange('day')}
           >
-            <Text
-              style={[
-                localStyles.timeframeText,
-                details.globalTimeframe === 'day' && localStyles.timeframeTextSelected,
-              ]}
-            >
-              Daily
-            </Text>
+            {details.globalTimeframe === 'day' ? (
+              <View style={localStyles.timeframeSelected}>
+                <Text style={localStyles.timeframeTextSelected}>Daily</Text>
+              </View>
+            ) : (
+              <Text style={localStyles.timeframeText}>Daily</Text>
+            )}
           </Pressable>
           <Pressable
             style={[
               localStyles.timeframeOption,
-              details.globalTimeframe === 'week' && localStyles.timeframeSelected,
+              details.globalTimeframe === 'week' && localStyles.timeframeOptionSelected,
             ]}
             onPress={() => handleTimeframeChange('week')}
           >
-            <Text
-              style={[
-                localStyles.timeframeText,
-                details.globalTimeframe === 'week' && localStyles.timeframeTextSelected,
-              ]}
-            >
-              Weekly
-            </Text>
+            {details.globalTimeframe === 'week' ? (
+              <View style={localStyles.timeframeSelected}>
+                <Text style={localStyles.timeframeTextSelected}>Weekly</Text>
+              </View>
+            ) : (
+              <Text style={localStyles.timeframeText}>Weekly</Text>
+            )}
           </Pressable>
         </View>
         <Text style={localStyles.timeframeDescription}>
@@ -596,18 +594,26 @@ const localStyles = StyleSheet.create({
     marginBottom: 8,
   },
   timeframeOption: {
+    width: 80,
+    overflow: 'hidden',
+  },
+  timeframeOptionSelected: {
+    overflow: 'hidden',
+  },
+  timeframeSelected: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     alignItems: 'center',
-    width: 80,
-  },
-  timeframeSelected: {
-    backgroundColor: '#00000',
+    width: '100%',
+    backgroundColor: '#000',
   },
   timeframeText: {
     fontSize: 14,
     fontWeight: '500',
     color: '#555',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    textAlign: 'center',
   },
   timeframeTextSelected: {
     color: '#fff',

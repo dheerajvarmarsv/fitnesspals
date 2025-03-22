@@ -119,30 +119,45 @@ export default function Step2ChallengeDetails({
       {/* Visibility */}
       <View style={styles.inputGroup}>
         <Text style={styles.inputLabel}>Challenge Visibility</Text>
-        <Pressable
-          style={styles.toggleContainer}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setDetails({ ...details, isPrivate: !details.isPrivate });
-          }}
-        >
-          <View
+        <View style={styles.privacyToggleContainer}>
+          <Pressable
             style={[
-              styles.toggleTrack,
-              details.isPrivate && styles.toggleTrackActive,
+              styles.privacyOption,
+              !details.isPrivate && styles.privacyOptionSelected
             ]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setDetails({ ...details, isPrivate: false });
+            }}
           >
-            <Animated.View
-              style={[
-                styles.toggleThumb,
-                details.isPrivate && styles.toggleThumbActive,
-              ]}
-            />
-          </View>
-          <Text style={styles.toggleLabel}>
-            {details.isPrivate ? 'Private - Invite Only' : 'Public - Visible to All'}
-          </Text>
-        </Pressable>
+            <Ionicons name="globe-outline" size={16} color={!details.isPrivate ? "#fff" : "#555"} style={styles.privacyIcon} />
+            <Text style={[styles.privacyText, !details.isPrivate && styles.privacyTextSelected]}>
+              Public
+            </Text>
+          </Pressable>
+          
+          <Pressable
+            style={[
+              styles.privacyOption,
+              details.isPrivate && styles.privacyOptionSelected
+            ]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setDetails({ ...details, isPrivate: true });
+            }}
+          >
+            <Ionicons name="lock-closed-outline" size={16} color={details.isPrivate ? "#fff" : "#555"} style={styles.privacyIcon} />
+            <Text style={[styles.privacyText, details.isPrivate && styles.privacyTextSelected]}>
+              Private
+            </Text>
+          </Pressable>
+        </View>
+        
+        <Text style={styles.privacyDescription}>
+          {details.isPrivate 
+            ? 'Private challenges are only visible to people you invite.' 
+            : 'Public challenges are visible to everyone and can be joined by anyone.'}
+        </Text>
       </View>
 
       {/* Start Date Picker */}
