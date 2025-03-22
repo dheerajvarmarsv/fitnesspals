@@ -18,14 +18,30 @@ const useHealthData = (date: Date = new Date()) => {
     const initializeHealthService = async () => {
       try {
         if (Platform.OS === 'ios') {
-          const { initHealthKit } = await import('../lib/fitness');
-          const success = await initHealthKit();
-          setHasPermission(success);
+          try {
+            const { initHealthKit } = await import('../lib/fitness');
+            const success = await initHealthKit();
+            console.log('HealthKit initialization result:', success);
+            setHasPermission(success);
+          } catch (error) {
+            console.error('iOS HealthKit initialization error:', error);
+            // Handle this gracefully - simulators often don't support HealthKit
+            setHasPermission(false);
+          }
         } else if (Platform.OS === 'android') {
-          const { initAndroidHealth } = await import('../lib/fitness');
-          const success = await initAndroidHealth();
-          setHasPermission(success);
+          try {
+            const { initAndroidHealth } = await import('../lib/fitness');
+            const success = await initAndroidHealth();
+            console.log('Android Health Connect initialization result:', success);
+            setHasPermission(success);
+          } catch (error) {
+            console.error('Android Health Connect initialization error:', error);
+            // Emulators often don't support Health Connect
+            setHasPermission(false);
+          }
         } else {
+          // Web or unsupported platform
+          console.log('Platform not supported for health services');
           setHasPermission(false);
         }
       } catch (e) {
@@ -39,7 +55,7 @@ const useHealthData = (date: Date = new Date()) => {
   }, []);
 
   useEffect(() => {
-    if (!hasPermissions) {
+    if (!hasPermissions && Platform.OS !== 'web') {
       setLoading(false);
       return;
     }
@@ -53,6 +69,7 @@ const useHealthData = (date: Date = new Date()) => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           setError('User not authenticated');
+          setLoading(false);
           return;
         }
 
@@ -60,7 +77,7 @@ const useHealthData = (date: Date = new Date()) => {
         const dateStr = date.toISOString().split('T')[0];
         const { data: healthData, error: dbError } = await supabase
           .from('health_data')
-          .select('steps, distance, calories, sleep_minutes')
+          .select('steps, distance, calories, sleep_minutes, duration')
           .eq('user_id', user.id)
           .eq('date', dateStr)
           .single();
@@ -78,26 +95,37 @@ const useHealthData = (date: Date = new Date()) => {
           // Use data from database
           stepsValue = healthData.steps || 0;
           distanceValue = healthData.distance || 0;
-          durationValue = healthData.duration || healthData.sleep_minutes || 0; // duration or sleep_minutes
+          durationValue = healthData.duration || 0; // Use the duration field
           caloriesValue = healthData.calories || 0;
-        } else {
-          // Fetch fresh data from device health services
-          if (Platform.OS === 'ios') {
-            const { fetchAppleHealthData } = await import('../lib/fitness');
-            const iosData = await fetchAppleHealthData(date);
-            stepsValue = iosData.steps || 0;
-            distanceValue = iosData.distance || 0;
-            durationValue = iosData.duration || 0;
-            caloriesValue = iosData.calories || 0;
-          } else if (Platform.OS === 'android') {
-            const { fetchAndroidHealthData } = await import('../lib/fitness');
-            const androidData = await fetchAndroidHealthData(date);
-            stepsValue = androidData.steps || 0;
-            distanceValue = androidData.distance || 0;
-            durationValue = androidData.duration || 0;
-            caloriesValue = androidData.calories || 0;
-          }
+          
+          // No need to fetch from device if we have data
+          setSteps(stepsValue);
+          setDistance(distanceValue);
+          setDuration(durationValue);
+          setCalories(caloriesValue);
+          setLoading(false);
+          return;
+        }
 
+        // Only fetch from device services if we're on a supported platform
+        if (Platform.OS === 'ios') {
+          const { fetchAppleHealthData } = await import('../lib/fitness');
+          const iosData = await fetchAppleHealthData(date);
+          stepsValue = iosData.steps || 0;
+          distanceValue = iosData.distance || 0;
+          durationValue = iosData.duration || 0;
+          caloriesValue = iosData.calories || 0;
+          
+          // Store data in the database for future use
+          await fetchAndStoreDailyHealthData(user.id, date);
+        } else if (Platform.OS === 'android') {
+          const { fetchAndroidHealthData } = await import('../lib/fitness');
+          const androidData = await fetchAndroidHealthData(date);
+          stepsValue = androidData.steps || 0;
+          distanceValue = androidData.distance || 0;
+          durationValue = androidData.duration || 0;
+          caloriesValue = androidData.calories || 0;
+          
           // Store data in the database for future use
           await fetchAndStoreDailyHealthData(user.id, date);
         }
@@ -118,6 +146,68 @@ const useHealthData = (date: Date = new Date()) => {
     fetchHealthData();
   }, [hasPermissions, date]);
 
+  // Function to refresh data on demand
+  const refreshData = async () => {
+    // Only attempt refresh if on a supported platform
+    if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+      return { success: false, message: 'Platform not supported' };
+    }
+    
+    // Check if user has permissions
+    if (!hasPermissions) {
+      return { success: false, message: 'No health permissions' };
+    }
+    
+    try {
+      setLoading(true);
+      
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+      
+      // Force fetch from health services
+      let stepsValue = 0;
+      let distanceValue = 0;
+      let durationValue = 0;
+      let caloriesValue = 0;
+      
+      if (Platform.OS === 'ios') {
+        const { fetchAppleHealthData } = await import('../lib/fitness');
+        const iosData = await fetchAppleHealthData(date);
+        stepsValue = iosData.steps || 0;
+        distanceValue = iosData.distance || 0;
+        durationValue = iosData.duration || 0;
+        caloriesValue = iosData.calories || 0;
+      } else if (Platform.OS === 'android') {
+        const { fetchAndroidHealthData } = await import('../lib/fitness');
+        const androidData = await fetchAndroidHealthData(date);
+        stepsValue = androidData.steps || 0;
+        distanceValue = androidData.distance || 0;
+        durationValue = androidData.duration || 0;
+        caloriesValue = androidData.calories || 0;
+      }
+      
+      // Store data in the database
+      await fetchAndStoreDailyHealthData(user.id, date);
+      
+      // Update state
+      setSteps(stepsValue);
+      setDistance(distanceValue);
+      setDuration(durationValue);
+      setCalories(caloriesValue);
+      
+      return { success: true };
+    } catch (e) {
+      console.error('Error refreshing health data:', e);
+      setError('Failed to refresh health data');
+      return { success: false, message: 'Error refreshing data' };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return { 
     steps, 
     distance, 
@@ -125,7 +215,8 @@ const useHealthData = (date: Date = new Date()) => {
     calories,
     loading,
     error,
-    hasPermissions
+    hasPermissions,
+    refreshData
   };
 };
 

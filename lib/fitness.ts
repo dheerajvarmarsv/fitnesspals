@@ -56,6 +56,7 @@ export interface HealthData {
   calories: number | null;
   heart_rate: number | null;
   sleep_minutes: number | null;
+  duration?: number | null; // Add duration to match schema
   created_at?: string;
   updated_at?: string;
 }
@@ -274,39 +275,78 @@ export async function disconnectFitnessSource(
 // Health Data Integration (Apple HealthKit & Android Health Connect)
 // ------------------------------------------------------------------------
 
-// 1) iOS HealthKit Integration
+// Platform-specific imports to handle web bundling issues for iOS
+let AppleHealthKit: any = null;
+let HKPermissions: any = null;
+let healthKitPermissions: any = null;
 
-import AppleHealthKit from 'react-native-health'; // Correct import
-
-import { HealthKitPermissions, HealthInputOptions } from 'react-native-health';
-
-const { Permissions: HKPermissions } = AppleHealthKit.Constants;
-
-const healthKitPermissions: HealthKitPermissions = {
-  permissions: {
-    read: [
-      HKPermissions.Steps,
-      HKPermissions.DistanceWalkingRunning,
-      HKPermissions.ActiveEnergyBurned,
-      HKPermissions.AppleExerciseTime,
-    ],
-    write: [],
-  },
-};
-
+// We'll initialize these only when the initHealthKit function is called
 let healthKitInitialized = false;
 export async function initHealthKit(): Promise<boolean> {
-  if (healthKitInitialized || Platform.OS !== 'ios') return healthKitInitialized;
-  return new Promise<boolean>((resolve) => {
-    // Correct: Call initHealthKit directly without .default
-    AppleHealthKit.initHealthKit(healthKitPermissions, (err) => {
-      if (err) {
-        console.error('Error initializing HealthKit:', err);
-        return resolve(false);
+  // Early return if already initialized or not on iOS
+  if (healthKitInitialized || Platform.OS !== 'ios') {
+    return healthKitInitialized;
+  }
+  
+  // Try to load the module only when needed
+  if (!AppleHealthKit) {
+    try {
+      // Import the module
+      const HealthKit = require('react-native-health');
+      
+      // Check if it's properly loaded and has the expected functions
+      if (!HealthKit || typeof HealthKit.initHealthKit !== 'function') {
+        console.error('HealthKit module loaded but missing expected functions');
+        return false;
       }
-      healthKitInitialized = true;
-      resolve(true);
-    });
+      
+      AppleHealthKit = HealthKit;
+      
+      // Set up permissions only after we know the module is properly loaded
+      if (AppleHealthKit.Constants && AppleHealthKit.Constants.Permissions) {
+        HKPermissions = AppleHealthKit.Constants.Permissions;
+        healthKitPermissions = {
+          permissions: {
+            read: [
+              HKPermissions.Steps,
+              HKPermissions.DistanceWalkingRunning,
+              HKPermissions.ActiveEnergyBurned,
+              HKPermissions.AppleExerciseTime,
+            ],
+            write: [],
+          },
+        };
+      } else {
+        console.error('HealthKit module loaded but missing Constants.Permissions');
+        return false;
+      }
+    } catch (e) {
+      console.error('Failed to load Apple HealthKit:', e);
+      return false;
+    }
+  }
+  
+  // If we got this far and still don't have the module or permissions, abort
+  if (!AppleHealthKit || !healthKitPermissions) {
+    console.error('Failed to initialize HealthKit: Module or permissions missing');
+    return false;
+  }
+  
+  // Initialize HealthKit
+  return new Promise<boolean>((resolve) => {
+    try {
+      AppleHealthKit.initHealthKit(healthKitPermissions, (err: any) => {
+        if (err) {
+          console.error('Error initializing HealthKit:', err);
+          return resolve(false);
+        }
+        healthKitInitialized = true;
+        resolve(true);
+      });
+    } catch (error) {
+      console.error('Exception initializing HealthKit:', error);
+      resolve(false);
+    }
   });
 }
 
@@ -316,6 +356,11 @@ export async function fetchAppleHealthData(date: Date): Promise<{
   duration: number;
   calories: number;
 }> {
+  // Return defaults for non-iOS platforms
+  if (Platform.OS !== 'ios' || !AppleHealthKit) {
+    return { steps: 0, distance: 0, duration: 0, calories: 0 };
+  }
+
   const isInit = await initHealthKit();
   if (!isInit) return { steps: 0, distance: 0, duration: 0, calories: 0 };
 
@@ -324,7 +369,7 @@ export async function fetchAppleHealthData(date: Date): Promise<{
   const endOfDay = new Date(date);
   endOfDay.setHours(23, 59, 59, 999);
 
-  const options: HealthInputOptions = {
+  const options = {
     startDate: startOfDay.toISOString(),
     endDate: endOfDay.toISOString(),
     includeManuallyAdded: true,
@@ -333,25 +378,25 @@ export async function fetchAppleHealthData(date: Date): Promise<{
   try {
     const [steps, distance, calories, exerciseMinutes] = await Promise.all([
       new Promise<number>((resolve) => {
-        AppleHealthKit.getStepCount(options, (err, result) => {
+        AppleHealthKit.getStepCount(options, (err: any, result: any) => {
           if (err || !result) return resolve(0);
           resolve(result.value || 0);
         });
       }),
       new Promise<number>((resolve) => {
-        AppleHealthKit.getDistanceWalkingRunning(options, (err, result) => {
+        AppleHealthKit.getDistanceWalkingRunning(options, (err: any, result: any) => {
           if (err || !result) return resolve(0);
           resolve(result.value || 0);
         });
       }),
       new Promise<number>((resolve) => {
-        AppleHealthKit.getActiveEnergyBurned(options, (err, result) => {
+        AppleHealthKit.getActiveEnergyBurned(options, (err: any, result: any) => {
           if (err || !result) return resolve(0);
           resolve(result.value || 0);
         });
       }),
       new Promise<number>((resolve) => {
-        AppleHealthKit.getAppleExerciseTime(options, (err, result) => {
+        AppleHealthKit.getAppleExerciseTime(options, (err: any, result: any) => {
           if (err || !result) return resolve(0);
           resolve(result.value || 0);
         });
@@ -364,19 +409,23 @@ export async function fetchAppleHealthData(date: Date): Promise<{
   }
 }
 
-// 2) Android Health Connect Integration
-
+// Android Health Connect Integration - variables initialized only on Android
 let initHC: any;
 let requestPermission: any;
 let readRecords: any;
 let TimeRangeFilter: any;
 
+// Only load Android modules on Android platform
 if (Platform.OS === 'android') {
-  const rnhc = require('react-native-health-connect');
-  initHC = rnhc.initialize;
-  requestPermission = rnhc.requestPermission;
-  readRecords = rnhc.readRecords;
-  TimeRangeFilter = rnhc.TimeRangeFilter;
+  try {
+    const rnhc = require('react-native-health-connect');
+    initHC = rnhc.initialize;
+    requestPermission = rnhc.requestPermission;
+    readRecords = rnhc.readRecords;
+    TimeRangeFilter = rnhc.TimeRangeFilter;
+  } catch (e) {
+    console.error('Failed to load Health Connect:', e);
+  }
 }
 
 let androidInitialized = false;
@@ -387,19 +436,25 @@ function hasAndroidPermission(recordType: string): boolean {
 }
 
 export async function initAndroidHealth(): Promise<boolean> {
-  if (androidInitialized || Platform.OS !== 'android') return androidInitialized;
+  // Early return for non-Android platforms or if already initialized
+  if (androidInitialized || Platform.OS !== 'android' || !initHC) {
+    return androidInitialized;
+  }
+  
   try {
     const isInitialized = await initHC();
     if (!isInitialized) {
       console.error('Failed to initialize Health Connect');
       return false;
     }
+    
     androidPermissions = await requestPermission([
       { accessType: 'read', recordType: 'Steps' },
       { accessType: 'read', recordType: 'Distance' },
       { accessType: 'read', recordType: 'ActiveCaloriesBurned' },
       { accessType: 'read', recordType: 'ExerciseSession' },
     ]);
+    
     androidInitialized = true;
     return true;
   } catch (error) {
@@ -414,7 +469,11 @@ export async function fetchAndroidHealthData(date: Date): Promise<{
   duration: number;
   calories: number;
 }> {
-  if (Platform.OS !== 'android') return { steps: 0, distance: 0, duration: 0, calories: 0 };
+  // Return defaults for non-Android platforms
+  if (Platform.OS !== 'android' || !readRecords) {
+    return { steps: 0, distance: 0, duration: 0, calories: 0 };
+  }
+  
   const isInit = await initAndroidHealth();
   if (!isInit) return { steps: 0, distance: 0, duration: 0, calories: 0 };
 
@@ -479,8 +538,8 @@ async function upsertHealthData(
           date,
           steps: data.steps ?? 0,
           distance: data.distance ?? 0,
-          duration: data.duration ?? 0,
           calories: data.calories ?? 0,
+          duration: data.duration ?? 0, // Add duration field here
           source,
           updated_at: new Date().toISOString(),
         },
