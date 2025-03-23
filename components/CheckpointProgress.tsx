@@ -58,7 +58,7 @@ const CheckpointProgress: React.FC<CheckpointProgressProps> = ({
 
       <View style={[styles.progressBarContainer, isDark && styles.progressBarContainerDark]}>
         <LinearGradient
-          colors={['#4c669f', '#3b5998', '#192f6a']}
+          colors={['#5d77b0', '#4c669f', '#3b5998']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={[styles.progressBar, { width: `${progressWidth}%` }]}
@@ -103,11 +103,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
     marginVertical: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 4,
     width: '100%',
+    borderWidth: 1,
+    borderColor: '#ddd',
   },
   headerContainer: {
     flexDirection: 'row',
@@ -123,7 +125,7 @@ const styles = StyleSheet.create({
   totalPoints: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#555',
+    color: '#333',
   },
   checkpointInfoContainer: {
     flexDirection: 'row',
@@ -137,11 +139,12 @@ const styles = StyleSheet.create({
   },
   pointsInfo: {
     fontSize: 16,
-    color: '#555',
+    color: '#333',
+    fontWeight: '500',
   },
   progressBarContainer: {
     height: 12,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: '#c0c0c0',
     borderRadius: 6,
     overflow: 'hidden',
     marginBottom: 8,
@@ -166,14 +169,14 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: '#c0c0c0',
     borderWidth: 2,
-    borderColor: '#bbb',
+    borderColor: '#888',
     marginBottom: 4,
   },
   checkpointPassed: {
-    backgroundColor: '#4c669f',
-    borderColor: '#3b5998',
+    backgroundColor: '#5d77b0',
+    borderColor: '#4c669f',
   },
   checkpointPassedDark: {
     backgroundColor: '#5d77b0',
@@ -185,18 +188,19 @@ const styles = StyleSheet.create({
   },
   checkpointText: {
     fontSize: 12,
-    color: '#555',
+    color: '#333',
+    fontWeight: '500',
   },
   surplusContainer: {
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: '#b0b0b0',
   },
   surplusText: {
     fontSize: 14,
-    color: '#4c669f',
-    fontWeight: '500',
+    color: '#3b5998',
+    fontWeight: '600',
     textAlign: 'center',
   },
   textDark: {

@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
+import { LinearGradient } from 'expo-linear-gradient';
 import SharedLayout from '../../components/SharedLayout';
 import { useUser, generateAvatarUrl } from '../../components/UserContext';
 import {
@@ -187,7 +188,13 @@ export default function Friends() {
           style={styles.addButton}
           onPress={() => setShowShareModal(true)}
         >
-          <Text style={styles.addButtonText}>+ Add</Text>
+          {/* Make button more visible with gradient background */}
+          <LinearGradient
+            colors={['#4776E6', '#8E54E9']}
+            style={styles.gradientButton}
+          >
+            <Text style={styles.addButtonText}>+ Add</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
 
@@ -245,16 +252,26 @@ export default function Friends() {
                       onPress={() => handleRequestResponse(req.id, 'accepted')}
                       disabled={loading}
                     >
-                      <Text style={styles.actionButtonText}>Accept</Text>
+                      <LinearGradient
+                        colors={['#4CAF50', '#2E7D32']}
+                        style={styles.actionButtonGradient}
+                      >
+                        <Ionicons name="checkmark" size={16} color="#fff" style={{ marginRight: 4 }} />
+                        <Text style={styles.actionButtonText}>Accept</Text>
+                      </LinearGradient>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.actionButton, styles.rejectButton]}
                       onPress={() => handleRequestResponse(req.id, 'rejected')}
                       disabled={loading}
                     >
-                      <Text style={[styles.actionButtonText, styles.rejectButtonText]}>
-                        Reject
-                      </Text>
+                      <LinearGradient
+                        colors={['#F44336', '#C62828']}
+                        style={styles.actionButtonGradient}
+                      >
+                        <Ionicons name="close" size={16} color="#fff" style={{ marginRight: 4 }} />
+                        <Text style={styles.actionButtonText}>Reject</Text>
+                      </LinearGradient>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -320,7 +337,12 @@ export default function Friends() {
       </ScrollView>
 
       {/* SHARE MODAL */}
-      {showShareModal && (
+      <Modal
+        visible={showShareModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowShareModal(false)}
+      >
         <TouchableWithoutFeedback onPress={() => setShowShareModal(false)}>
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback>
@@ -335,24 +357,40 @@ export default function Friends() {
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.modalText}>
-                  Share this unique link with friends to connect on Stridekick:
+                  Share this unique link with friends to connect on CTP:
                 </Text>
                 <View style={styles.linkContainer}>
                   <Text style={styles.link} numberOfLines={1}>
                     {uniqueProfileLink}
                   </Text>
-                  <TouchableOpacity style={styles.copyButton} onPress={copyToClipboard}>
-                    <Text style={styles.copyButtonText}>Copy</Text>
+                  <TouchableOpacity 
+                    style={styles.copyButton} 
+                    onPress={copyToClipboard}
+                  >
+                    <LinearGradient
+                      colors={['#4776E6', '#8E54E9']}
+                      style={styles.copyButtonGradient}
+                    >
+                      <Text style={styles.copyButtonText}>Copy</Text>
+                    </LinearGradient>
                   </TouchableOpacity>
                 </View>
                 <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
-                  <Text style={styles.shareButtonText}>Share Link</Text>
+                  <LinearGradient
+                    colors={['#4776E6', '#8E54E9']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.shareButtonGradient}
+                  >
+                    <Ionicons name="share-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
+                    <Text style={styles.shareButtonText}>Share Link</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               </View>
             </TouchableWithoutFeedback>
           </View>
         </TouchableWithoutFeedback>
-      )}
+      </Modal>
 
       {/* SEARCH MODAL */}
       {showSearchModal && (
@@ -421,7 +459,29 @@ export default function Friends() {
                             style={styles.searchResultAvatar}
                           />
                           <Text style={styles.searchResultName}>{user.nickname}</Text>
-                          {actionComponent}
+                          {isFriend ? (
+                            <View style={styles.friendBadge}>
+                              <Text style={styles.friendStatus}>Friends</Text>
+                            </View>
+                          ) : isPending ? (
+                            <View style={styles.pendingBadge}>
+                              <Text style={styles.pendingStatus}>Pending</Text>
+                            </View>
+                          ) : (
+                            <TouchableOpacity
+                              style={styles.inviteButton}
+                              onPress={() => handleSendRequest(user.nickname)}
+                              disabled={loading}
+                            >
+                              <LinearGradient
+                                colors={['#4776E6', '#8E54E9']}
+                                style={styles.inviteButtonGradient}
+                              >
+                                <Ionicons name="person-add" size={16} color="#fff" style={{ marginRight: 4 }} />
+                                <Text style={styles.inviteButtonText}>Add Friend</Text>
+                              </LinearGradient>
+                            </TouchableOpacity>
+                          )}
                         </View>
                       );
                     })
@@ -448,10 +508,19 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 32, fontWeight: 'bold', color: '#333' },
   addButton: {
-    backgroundColor: '#00000',
-    paddingHorizontal: 20,
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  gradientButton: {
     paddingVertical: 10,
-    borderRadius: 20,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   addButtonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
   tabContainer: {
@@ -486,11 +555,37 @@ const styles = StyleSheet.create({
   requestInfo: { flex: 1, marginLeft: 15 },
   requestName: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 8 },
   requestActions: { flexDirection: 'row', gap: 10 },
-  actionButton: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 15 },
-  acceptButton: { backgroundColor: '#00000' },
-  rejectButton: { backgroundColor: '#f5f5f5' },
-  actionButtonText: { color: '#fff', fontWeight: '600' },
-  rejectButtonText: { color: '#666' },
+  actionButton: { 
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginRight: 8,
+  },
+  actionButtonGradient: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionButtonText: { 
+    color: '#fff', 
+    fontSize: 14,
+    fontWeight: '600' 
+  },
+  acceptButton: {
+    shadowColor: 'rgba(76, 175, 80, 0.5)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  rejectButton: {
+    shadowColor: 'rgba(244, 67, 54, 0.5)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 3,
+    elevation: 3,
+  },
   friendItem: {
     flexDirection: 'row', alignItems: 'center',
     padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee',
@@ -514,25 +609,56 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff', borderRadius: 20, padding: 20, width: '90%', maxWidth: 400,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    width: '90%',
+    maxWidth: 400,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 15,
+    elevation: 10,
   },
   modalHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
   },
   modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
   closeButton: { padding: 5 },
   modalText: { fontSize: 16, color: '#666', marginBottom: 20 },
   linkContainer: {
-    flexDirection: 'row', backgroundColor: '#f5f5f5', borderRadius: 10,
-    padding: 15, marginBottom: 20,
+    flexDirection: 'row',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    marginVertical: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
   },
   link: { flex: 1, fontSize: 16, color: '#333', marginRight: 10 },
   copyButton: {
-    backgroundColor: '#00000', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 8,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  copyButtonGradient: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
   copyButtonText: { color: '#fff', fontWeight: '600' },
   shareButton: {
-    backgroundColor: '#00000', padding: 15, borderRadius: 10, alignItems: 'center',
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginTop: 10,
+  },
+  shareButtonGradient: {
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
   },
   shareButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   searchModalContainer: { marginBottom: 20 },
@@ -542,15 +668,59 @@ const styles = StyleSheet.create({
   searchResults: { maxHeight: 300 },
   searchMessage: { textAlign: 'center', color: '#666', padding: 20 },
   searchResultItem: {
-    flexDirection: 'row', alignItems: 'center',
-    padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee',
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
-  searchResultAvatar: { width: 40, height: 40, borderRadius: 20, marginRight: 15 },
-  searchResultName: { flex: 1, fontSize: 16, color: '#333' },
-  friendStatus: { color: '#00000', fontWeight: '600' },
-  pendingStatus: { color: '#FFA500', fontWeight: '600' },
+  searchResultAvatar: { 
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 16,
+  },
+  searchResultName: { 
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+  },
+  friendBadge: {
+    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  friendStatus: { 
+    color: '#4CAF50',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  pendingBadge: {
+    backgroundColor: 'rgba(255, 152, 0, 0.1)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  pendingStatus: { 
+    color: '#FF9800',
+    fontWeight: '600',
+    fontSize: 14,
+  },
   inviteButton: {
-    backgroundColor: '#00000', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 15,
+    borderRadius: 8,
+    overflow: 'hidden',
   },
-  inviteButtonText: { color: '#fff', fontWeight: '600' },
+  inviteButtonGradient: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  inviteButtonText: { 
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
 });

@@ -3,6 +3,7 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import { supabase } from './supabase';
+import * as NotificationServer from './notificationServer';
 
 // Configure notifications to show alerts, play sounds, and set badges
 Notifications.setNotificationHandler({
@@ -175,3 +176,40 @@ export async function scheduleTestNotification(title: string, body: string) {
     trigger: { seconds: 2 },
   });
 }
+
+/**
+ * Set up notification listeners
+ * @param onNotificationReceived Callback for when notification is received
+ * @param onNotificationResponseReceived Callback for when notification is tapped
+ * @returns Cleanup function to remove listeners
+ */
+export function setupNotificationListeners(
+  onNotificationReceived?: (notification: Notifications.Notification) => void,
+  onNotificationResponseReceived?: (response: Notifications.NotificationResponse) => void
+) {
+  // Setup notification received listener
+  const notificationReceivedListener = onNotificationReceived 
+    ? Notifications.addNotificationReceivedListener(onNotificationReceived)
+    : null;
+
+  // Setup notification response listener (when user taps notification)
+  const notificationResponseListener = onNotificationResponseReceived
+    ? Notifications.addNotificationResponseReceivedListener(onNotificationResponseReceived)
+    : null;
+
+  // Return cleanup function
+  return () => {
+    if (notificationReceivedListener) {
+      Notifications.removeNotificationSubscription(notificationReceivedListener);
+    }
+    if (notificationResponseListener) {
+      Notifications.removeNotificationSubscription(notificationResponseListener);
+    }
+  };
+}
+
+// Re-export notification server functions for convenience
+export const sendFriendRequestNotification = NotificationServer.sendFriendRequestNotification;
+export const sendChallengeInviteNotification = NotificationServer.sendChallengeInviteNotification;
+export const sendChallengeActivityNotification = NotificationServer.sendChallengeActivityNotification;
+export const sendChallengeReminderNotification = NotificationServer.sendChallengeReminderNotification;

@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { sendFriendRequestNotification } from './notificationService';
 
 /**
  * friend_requests table
@@ -144,13 +145,35 @@ export const sendFriendRequest = async (receiverNickname: string): Promise<void>
   }
 
   // Insert new request
-  const { error } = await supabase
+  const { error, data: newRequest } = await supabase
     .from('friend_requests')
     .insert({
       sender_id: user.id,
       receiver_id: receiver.id,
-    });
+    })
+    .select('id')
+    .single();
   if (error) throw error;
+  
+  // Get sender's profile for the notification
+  const { data: senderProfile } = await supabase
+    .from('profiles')
+    .select('nickname')
+    .eq('id', user.id)
+    .single();
+    
+  if (senderProfile) {
+    // Send push notification
+    try {
+      await sendFriendRequestNotification(
+        receiver.id, 
+        senderProfile.nickname || 'Someone'
+      );
+    } catch (notifyError) {
+      console.error('Failed to send notification:', notifyError);
+      // Don't throw here, the friend request was created successfully
+    }
+  }
 };
 
 /**

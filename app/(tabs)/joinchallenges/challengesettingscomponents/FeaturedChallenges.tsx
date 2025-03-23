@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { generateAvatarUrl } from '../../../../components/UserContext';
 
 const { width, height } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.85;
@@ -122,7 +123,7 @@ export default function FeaturedChallenges({
             {item.creator && (
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
                 <Image
-                  source={{ uri: item.creator.avatar_url || 'https://via.placeholder.com/40' }}
+                  source={{ uri: generateAvatarUrl(item.creator.nickname || 'User') }}
                   style={{
                     width: 24,
                     height: 24,
@@ -175,19 +176,30 @@ export default function FeaturedChallenges({
 
   const renderPaginationDots = () => {
     return (
-      <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 10 }}>
-        {featuredChallenges.map((_, index) => (
-          <View
-            key={index}
-            style={{
-              width: index === activeCardIndex ? 12 : 8,
-              height: index === activeCardIndex ? 12 : 8,
-              borderRadius: 6,
-              backgroundColor: index === activeCardIndex ? '#00000' : '#ddd',
-              marginHorizontal: 4,
-            }}
-          />
-        ))}
+      <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', height: 24, marginTop: 16 }}>
+        {featuredChallenges.map((_, index) => {
+          const isActive = index === activeCardIndex;
+          return (
+            <View
+              key={index}
+              style={{
+                width: isActive ? 16 : 8,
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: isActive 
+                  ? index % 2 === 0 ? '#4776E6' : '#8E54E9'
+                  : '#d1d1d1',
+                marginHorizontal: 4,
+                opacity: isActive ? 1 : 0.5,
+                shadowColor: isActive ? '#4776E6' : 'transparent',
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.5,
+                shadowRadius: 2,
+                elevation: isActive ? 2 : 0,
+              }}
+            />
+          );
+        })}
       </View>
     );
   };

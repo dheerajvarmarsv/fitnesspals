@@ -4,6 +4,7 @@ import SharedLayout from '../../../components/SharedLayout';
 import { useUser } from '../../../components/UserContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../../lib/ThemeContext';
+import { supabase } from '../../../lib/supabase';
 export default function NotificationSettings() {
   const { settings, updateSettings } = useUser();
   const { theme } = useTheme();
@@ -53,6 +54,12 @@ export default function NotificationSettings() {
       await updateSettings({
         notificationSettings: newNotificationSettings,
       });
+      
+      // Also update the notifications_enabled flag in the database
+      await supabase
+        .from('profile_settings')
+        .update({ notifications_enabled: enabled })
+        .eq('id', (await supabase.auth.getUser()).data.user?.id);
       
       // Show confirmation
       if (Platform.OS !== 'web') {
@@ -145,27 +152,65 @@ export default function NotificationSettings() {
           </View>
         )}
         
-        {/* Privacy note */}
-        {/* Testing button (visible only in development mode) */}
+        {/* Testing buttons (visible only in development mode) */}
         {__DEV__ && allNotificationsEnabled && Platform.OS !== 'web' && (
-          <TouchableOpacity
-            style={[styles.testButton, { backgroundColor: theme.colors.info }]}
-            onPress={async () => {
-              try {
-                const { scheduleTestNotification } = await import('../../../lib/notificationService');
-                await scheduleTestNotification(
-                  'Test Notification',
-                  'This is a test notification from the app'
-                );
-                Alert.alert('Test Notification', 'Sent a test notification');
-              } catch (e) {
-                console.error('Error sending test notification:', e);
-                Alert.alert('Error', 'Failed to send test notification');
-              }
-            }}
-          >
-            <Text style={styles.testButtonText}>Test Notification</Text>
-          </TouchableOpacity>
+          <View style={styles.testButtonsContainer}>
+            <Text style={[styles.testTitle, { color: theme.colors.textPrimary }]}>
+              Testing Options (Development Only)
+            </Text>
+            
+            <TouchableOpacity
+              style={[styles.testButton, { backgroundColor: theme.colors.info }]}
+              onPress={async () => {
+                try {
+                  const { scheduleTestNotification } = await import('../../../lib/notificationService');
+                  await scheduleTestNotification(
+                    'Test Notification',
+                    'This is a test notification from the app'
+                  );
+                  Alert.alert('Test Notification', 'Sent a local test notification');
+                } catch (e) {
+                  console.error('Error sending test notification:', e);
+                  Alert.alert('Error', 'Failed to send test notification');
+                }
+              }}
+            >
+              <Text style={styles.testButtonText}>Test Local Notification</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.testButton, { backgroundColor: theme.colors.primary }]}
+              onPress={async () => {
+                try {
+                  const userId = (await supabase.auth.getUser()).data.user?.id;
+                  if (!userId) throw new Error('User not logged in');
+                  
+                  const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('nickname')
+                    .eq('id', userId)
+                    .single();
+                  
+                  const { sendFriendRequestNotification } = await import('../../../lib/notificationServer');
+                  const result = await sendFriendRequestNotification(
+                    userId,
+                    profile?.nickname || 'User'
+                  );
+                  
+                  if (result) {
+                    Alert.alert('Success', 'Sent a test push notification to your device');
+                  } else {
+                    Alert.alert('Failed', 'Could not send push notification, check console for details');
+                  }
+                } catch (e) {
+                  console.error('Error sending remote test notification:', e);
+                  Alert.alert('Error', 'Failed to send remote notification');
+                }
+              }}
+            >
+              <Text style={styles.testButtonText}>Test Push Notification</Text>
+            </TouchableOpacity>
+          </View>
         )}
 
         <View style={styles.privacyNote}>
@@ -255,8 +300,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
   },
+  testButtonsContainer: {
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  testTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
   testButton: {
-    marginVertical: 16,
+    marginVertical: 8,
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',

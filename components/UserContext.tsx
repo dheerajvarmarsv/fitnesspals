@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { supabase, clearAuthStorage } from '../lib/supabase';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 
 export interface UserSettings {
   email: string;
@@ -68,6 +69,31 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<UserSettings>(defaultSettings);
   const [isOnline, setIsOnline] = useState(true);
   const [hasLoadedInitialSettings, setHasLoadedInitialSettings] = useState(false);
+  
+  // Set up notification handler for when notifications are tapped
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      // Handle notification taps (navigation)
+      const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+        const data = response.notification.request.content.data;
+        console.log('Notification tapped:', data);
+        
+        // Navigate to the appropriate screen if provided
+        if (data?.screen) {
+          try {
+            router.push({
+              pathname: data.screen as string,
+              params: data.params || {}
+            });
+          } catch (error) {
+            console.error('Error navigating to screen from notification:', error);
+          }
+        }
+      });
+      
+      return () => subscription.remove();
+    }
+  }, []);
 
   useEffect(() => {
     // For web: track offline/online status
