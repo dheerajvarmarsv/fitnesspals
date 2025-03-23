@@ -186,6 +186,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
    * Clears settings in memory (used on sign-out).
    */
   const clearSettings = async () => {
+    // If user had notifications enabled, unregister from push notifications when logging out
+    if (settings.notificationSettings.challenges || settings.notificationSettings.friends) {
+      try {
+        // Dynamically import to prevent issues on web
+        const { unregisterFromPushNotifications } = await import('../lib/notificationService');
+        await unregisterFromPushNotifications();
+      } catch (error) {
+        console.error('Error unregistering from push notifications during logout:', error);
+      }
+    }
+    
     setSettings(defaultSettings);
     setHasLoadedInitialSettings(false);
   };

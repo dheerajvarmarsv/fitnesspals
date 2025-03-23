@@ -19,7 +19,6 @@ import { useTheme } from '../../../lib/ThemeContext';
 import { supabase } from '../../../lib/supabase';
 import DeleteAccountModal from '../../../components/DeleteAccountModal';
 import { router } from 'expo-router';
-import { HealthConnectionStatus } from '../../../components/HealthConnectionStatus';
 
 export default function ProfileSettings() {
   const { settings, handleLogout } = useUser();
@@ -27,10 +26,7 @@ export default function ProfileSettings() {
   const [loading, setLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  // We'll still display the health connection status even though only one option is shown.
-  const [healthConnectionStatus, setHealthConnectionStatus] = useState<
-    'connected' | 'disconnected' | 'pending'
-  >('disconnected');
+  // Removed health connection status
 
   const confirmLogout = () => {
     Alert.alert(
@@ -91,21 +87,6 @@ export default function ProfileSettings() {
           title: 'Password',
           description: 'Update your password',
           path: '/password',
-          hasChevron: true,
-        },
-      ],
-    },
-    {
-      title: 'CONNECTIONS',
-      items: [
-        {
-          id: 'health-services',
-          icon: 'fitness',
-          iconBgColor: theme.colors.success,
-          iconColor: '#fff',
-          title: 'Health Services',
-          description: 'Connect to Apple Health or Google Fit',
-          path: '/fitness-connections',
           hasChevron: true,
         },
       ],
@@ -195,8 +176,7 @@ export default function ProfileSettings() {
         key={item.id}
         disabled={loading}
         onPress={() => {
-          // In this unified UI, all health services are accessed via the fitness-connections page.
-          router.push('/fitness-connections');
+          // Handle any non-link item actions here
         }}
       >
         {itemContent}
@@ -237,10 +217,6 @@ export default function ProfileSettings() {
           <Text style={[styles.email, { color: theme.colors.textTertiary }]}>{settings.email}</Text>
         </View>
 
-        {/* Health Connection Status */}
-        <View style={styles.healthStatusContainer}>
-          <HealthConnectionStatus status={healthConnectionStatus} />
-        </View>
 
         {/* Settings Sections */}
         <View style={styles.settingsContainer}>
@@ -301,7 +277,6 @@ const styles = StyleSheet.create({
   username: { fontSize: 24, fontWeight: '600', marginBottom: 4, textAlign: 'center' },
   handle: { fontSize: 16, marginBottom: 4, textAlign: 'center' },
   email: { fontSize: 14, marginTop: 4 },
-  healthStatusContainer: { alignItems: 'center', marginBottom: 16 },
   settingsContainer: { marginBottom: 24 },
   section: { marginBottom: 16 },
   sectionTitle: { fontSize: 14, fontWeight: '600', marginBottom: 8, marginLeft: 16 },

@@ -22,8 +22,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supportsTablet: true,
     bundleIdentifier: "com.dheshadev.ctp",
     infoPlist: {
-      NSHealthShareUsageDescription: "We need access to your health data to show your fitness stats.",
-      NSHealthUpdateUsageDescription: "We need to update your activity data in HealthKit."
+      UIBackgroundModes: ["remote-notification"]
     }
   },
   android: {
@@ -33,9 +32,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     package: "com.dheshadev.ctp",
     permissions: [
-      "android.permission.health.READ_STEPS",
-      "android.permission.health.READ_DISTANCE",
-      "android.permission.health.READ_EXERCISE"
+      "android.permission.RECEIVE_BOOT_COMPLETED",
+      "android.permission.VIBRATE",
+      "android.permission.SCHEDULE_EXACT_ALARM"
     ]
   },
   web: {
@@ -61,6 +60,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           buildToolsVersion: "33.0.0"
         }
       }
-    ]
+    ],
+    "expo-notifications"
   ]
 });
