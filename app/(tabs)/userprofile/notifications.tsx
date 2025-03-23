@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, Switch, Alert, Platform, TouchableOpacity } from 'react-native';
 import SharedLayout from '../../../components/SharedLayout';
 import { useUser } from '../../../components/UserContext';
@@ -9,7 +9,7 @@ export default function NotificationSettings() {
   const { settings, updateSettings } = useUser();
   const { theme } = useTheme();
   const [loading, setLoading] = useState(false);
-
+  
   // Check notification enabled status
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   
