@@ -1,10 +1,14 @@
 PODS:
   - boost (1.84.0)
   - DoubleConversion (1.1.6)
+  - EXApplication (5.9.1):
+    - ExpoModulesCore
   - EXConstants (17.0.8):
     - ExpoModulesCore
   - EXJSONUtils (0.14.0)
   - EXManifests (0.15.7):
+    - ExpoModulesCore
+  - EXNotifications (0.28.19):
     - ExpoModulesCore
   - Expo (52.0.39):
     - ExpoModulesCore
@@ -220,6 +224,8 @@ PODS:
   - ExpoBlur (14.0.3):
     - ExpoModulesCore
   - ExpoClipboard (7.0.1):
+    - ExpoModulesCore
+  - ExpoDevice (5.9.4):
     - ExpoModulesCore
   - ExpoFileSystem (18.0.11):
     - ExpoModulesCore
@@ -1910,8 +1916,6 @@ PODS:
     - React-logger (= 0.76.7)
     - React-perflogger (= 0.76.7)
     - React-utils (= 0.76.7)
-  - RNAppleHealthKit (1.7.0):
-    - React
   - RNCAsyncStorage (1.23.1):
     - DoubleConversion
     - glog
@@ -2177,9 +2181,11 @@ PODS:
 DEPENDENCIES:
   - boost (from `../node_modules/react-native/third-party-podspecs/boost.podspec`)
   - DoubleConversion (from `../node_modules/react-native/third-party-podspecs/DoubleConversion.podspec`)
+  - EXApplication (from `../node_modules/expo-application/ios`)
   - EXConstants (from `../node_modules/expo-constants/ios`)
   - EXJSONUtils (from `../node_modules/expo-json-utils/ios`)
   - EXManifests (from `../node_modules/expo-manifests/ios`)
+  - EXNotifications (from `../node_modules/expo-notifications/ios`)
   - Expo (from `../node_modules/expo`)
   - expo-dev-client (from `../node_modules/expo-dev-client/ios`)
   - expo-dev-launcher (from `../node_modules/expo-dev-launcher`)
@@ -2188,6 +2194,7 @@ DEPENDENCIES:
   - ExpoAsset (from `../node_modules/expo-asset/ios`)
   - ExpoBlur (from `../node_modules/expo-blur/ios`)
   - ExpoClipboard (from `../node_modules/expo-clipboard/ios`)
+  - ExpoDevice (from `../node_modules/expo-device/ios`)
   - ExpoFileSystem (from `../node_modules/expo-file-system/ios`)
   - ExpoFont (from `../node_modules/expo-font/ios`)
   - ExpoHaptics (from `../node_modules/expo-haptics/ios`)
@@ -2268,7 +2275,6 @@ DEPENDENCIES:
   - React-utils (from `../node_modules/react-native/ReactCommon/react/utils`)
   - ReactCodegen (from `build/generated/ios`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
-  - RNAppleHealthKit (from `../node_modules/react-native-health`)
   - "RNCAsyncStorage (from `../node_modules/@react-native-async-storage/async-storage`)"
   - "RNCPicker (from `../node_modules/@react-native-picker/picker`)"
   - "RNDateTimePicker (from `../node_modules/@react-native-community/datetimepicker`)"
@@ -2287,12 +2293,16 @@ EXTERNAL SOURCES:
     :podspec: "../node_modules/react-native/third-party-podspecs/boost.podspec"
   DoubleConversion:
     :podspec: "../node_modules/react-native/third-party-podspecs/DoubleConversion.podspec"
+  EXApplication:
+    :path: "../node_modules/expo-application/ios"
   EXConstants:
     :path: "../node_modules/expo-constants/ios"
   EXJSONUtils:
     :path: "../node_modules/expo-json-utils/ios"
   EXManifests:
     :path: "../node_modules/expo-manifests/ios"
+  EXNotifications:
+    :path: "../node_modules/expo-notifications/ios"
   Expo:
     :path: "../node_modules/expo"
   expo-dev-client:
@@ -2309,6 +2319,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-blur/ios"
   ExpoClipboard:
     :path: "../node_modules/expo-clipboard/ios"
+  ExpoDevice:
+    :path: "../node_modules/expo-device/ios"
   ExpoFileSystem:
     :path: "../node_modules/expo-file-system/ios"
   ExpoFont:
@@ -2466,8 +2478,6 @@ EXTERNAL SOURCES:
     :path: build/generated/ios
   ReactCommon:
     :path: "../node_modules/react-native/ReactCommon"
-  RNAppleHealthKit:
-    :path: "../node_modules/react-native-health"
   RNCAsyncStorage:
     :path: "../node_modules/@react-native-async-storage/async-storage"
   RNCPicker:
@@ -2488,9 +2498,11 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   boost: 1dca942403ed9342f98334bf4c3621f011aa7946
   DoubleConversion: f16ae600a246532c4020132d54af21d0ddb2a385
+  EXApplication: c08200c34daca7af7fd76ac4b9d606077410e8ad
   EXConstants: a1f35b9aabbb3c6791f8e67722579b1ffcdd3f18
   EXJSONUtils: 01fc7492b66c234e395dcffdd5f53439c5c29c93
   EXManifests: 4e8c6aa537f44e72c2b4e2b71698234b623007da
+  EXNotifications: 85496c9fab09d759d0e4ff594bca078ab817c40c
   Expo: d01030025d6965c98bd968ea9b71ae5bb9727cb8
   expo-dev-client: 9783aebb7c93d68bcf6b614eb8240504c389a638
   expo-dev-launcher: efb168d6e52c4cafa1b2a5f93d594754ed811a95
@@ -2499,6 +2511,7 @@ SPEC CHECKSUMS:
   ExpoAsset: a4cbc27a7cd24a6e87eb719603790b2cfa8dd326
   ExpoBlur: 567af66164e3043a9a30069594aed1ddf0a88d97
   ExpoClipboard: 5250b207b6d545f4e9aac5ea3c6e61c4f16d0aed
+  ExpoDevice: 97307196d8cab694e245752b8a7afacc35c14e03
   ExpoFileSystem: 4d2e7f77a41cfde8c3ae98580d872cd49437f993
   ExpoFont: 773955186469acc5108ff569712a2d243857475f
   ExpoHaptics: e01cce0741d68c281853118eb0267f88d42c6b7a
@@ -2577,7 +2590,6 @@ SPEC CHECKSUMS:
   React-utils: 9f9a6a31d703b136eb1614d914c10a3c96b1e6dd
   ReactCodegen: 9a99ced51aab02909c7ab5056f33dff7054305bb
   ReactCommon: 04292c6f596181ebf755e7929d96d2148542b0e8
-  RNAppleHealthKit: 60a6beefdd89a75811e9a8873a5e24f351dee681
   RNCAsyncStorage: a927b768986f83467b635cf6d7559e6edb46db7a
   RNCPicker: b978067931744f5a7316b48b8dcf145d4d722672
   RNDateTimePicker: 6008d74df8122d6af6d9d08096bff19a8c6ba647
