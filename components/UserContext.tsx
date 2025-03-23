@@ -61,32 +61,54 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [isOnline, setIsOnline] = useState(true);
   const [hasLoadedInitialSettings, setHasLoadedInitialSettings] = useState(false);
   
+  // Set up notification handling
   useEffect(() => {
     if (Platform.OS !== 'web') {
-      // Set up notification for when app is in foreground
-      const foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
-        console.log('Notification received in foreground:', notification.request.content);
-      });
-      
-      // Set up notification for when notification is tapped
-      const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
-        const data = response.notification.request.content.data;
-        console.log('Notification tapped:', data);
-        if (data?.screen) {
-          try {
-            router.push({
-              pathname: data.screen as string,
-              params: data.params || {}
-            });
-          } catch (error) {
-            console.error('Error navigating to screen from notification:', error);
-          }
+      // Dynamically import to prevent issues on web
+      const importNotificationService = async () => {
+        try {
+          const { setupNotificationListeners } = await import('../lib/notificationService');
+        
+          // Handle received notifications in foreground
+          const handleNotification = (notification: Notifications.Notification) => {
+            console.log('Notification received in foreground:', notification.request.content);
+          };
+        
+          // Handle notification responses (when tapped)
+          const handleNotificationResponse = (response: Notifications.NotificationResponse) => {
+            const data = response.notification.request.content.data;
+            console.log('Notification tapped:', data);
+            
+            // Navigate to the appropriate screen
+            if (data?.screen) {
+              try {
+                router.push({
+                  pathname: data.screen as string,
+                  params: data.params || {}
+                });
+              } catch (error) {
+                console.error('Error navigating from notification:', error);
+              }
+            }
+          };
+        
+          // Set up notification listeners with our handler functions
+          return setupNotificationListeners(
+            handleNotification,
+            handleNotificationResponse
+          );
+        } catch (error) {
+          console.error('Error setting up notification listeners:', error);
+          return () => {};
         }
-      });
+      };
       
+      // Initialize the listeners
+      const cleanupPromise = importNotificationService();
+      
+      // Return cleanup function
       return () => {
-        foregroundSubscription.remove();
-        responseSubscription.remove();
+        cleanupPromise.then(cleanup => cleanup());
       };
     }
   }, []);

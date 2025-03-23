@@ -10,21 +10,31 @@ export default function NotificationSettings() {
   const { theme } = useTheme();
   const [loading, setLoading] = useState(false);
 
-  // Derive a single "enabled" state from the notification settings
-  const allNotificationsEnabled = Object.values(settings.notificationSettings).some(value => value);
+  // Check notification enabled status
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  
+  // Get actual enabled status from database on load
+  useEffect(() => {
+    const checkNotificationStatus = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase
+          .from('profile_settings')
+          .select('notifications_enabled')
+          .eq('id', user.id)
+          .single();
+        
+        setNotificationsEnabled(data?.notifications_enabled || false);
+      }
+    };
+    
+    checkNotificationStatus();
+  }, []);
 
   const toggleAllNotifications = async (enabled: boolean) => {
     try {
       setLoading(true);
-      
-      // Create a new notification settings object
-      const newNotificationSettings = {
-        challenges: enabled,
-        friends: enabled,
-        badges: false, // Always disable badges as per requirement
-        chat: false,   // Always disable chat as per requirement
-        sync: false,   // Always disable sync as per requirement
-      };
+      setNotificationsEnabled(enabled);
       
       // Only try to register for push notifications on native platforms
       if (Platform.OS !== 'web') {
@@ -33,23 +43,32 @@ export default function NotificationSettings() {
           const notificationService = await import('../../../lib/notificationService');
           
           if (enabled) {
-            // Register for push notifications - this automatically updates the database
+            // Register for push notifications (which also updates the database)
             const token = await notificationService.registerForPushNotifications();
             if (token) {
               console.log('Push notification token registered successfully:', token);
             } else {
               console.log('Failed to get push notification token');
+              // Reset UI state if registration failed
+              setNotificationsEnabled(false);
+              throw new Error('Could not register for push notifications');
             }
           } else {
-            // Unregister from push notifications - this automatically updates the database
+            // Unregister from push notifications (which also updates the database)
             await notificationService.unregisterFromPushNotifications();
           }
         } catch (error) {
           console.error('Error with push notification registration:', error);
-          // Continue with saving settings even if notification registration fails
+          // Reset UI state
+          setNotificationsEnabled(!enabled);
+          Alert.alert(
+            'Notification Error', 
+            'Could not register for push notifications. Please check your device settings.'
+          );
+          return; // Exit early on error
         }
       } else {
-        // On web, just update the database directly since push notifications aren't supported
+        // On web, just update the database directly
         try {
           const userId = (await supabase.auth.getUser()).data.user?.id;
           if (userId) {
@@ -60,12 +79,20 @@ export default function NotificationSettings() {
           }
         } catch (error) {
           console.error('Error updating notifications_enabled in database:', error);
+          setNotificationsEnabled(!enabled); // Reset UI state
+          return; // Exit early
         }
       }
       
-      // Update user settings in the database
+      // Update settings in UserContext (for UI consistency)
       await updateSettings({
-        notificationSettings: newNotificationSettings,
+        notificationSettings: {
+          challenges: enabled,
+          friends: enabled,
+          badges: false, // Always disable badges as per requirement
+          chat: false,   // Always disable chat as per requirement
+          sync: false,   // Always disable sync as per requirement
+        },
       });
       
       // Show confirmation
@@ -99,24 +126,24 @@ export default function NotificationSettings() {
         <View style={[styles.mainToggleContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
           <View style={styles.mainToggleContent}>
             <Ionicons 
-              name={allNotificationsEnabled ? "notifications" : "notifications-off"} 
+              name={notificationsEnabled ? "notifications" : "notifications-off"} 
               size={32} 
-              color={allNotificationsEnabled ? theme.colors.primary : theme.colors.textTertiary} 
+              color={notificationsEnabled ? theme.colors.primary : theme.colors.textTertiary} 
               style={styles.icon}
             />
             <View style={styles.toggleTextContainer}>
               <Text style={[styles.toggleTitle, { color: theme.colors.textPrimary }]}>
-                {allNotificationsEnabled ? "Notifications Enabled" : "Notifications Disabled"}
+                {notificationsEnabled ? "Notifications Enabled" : "Notifications Disabled"}
               </Text>
               <Text style={[styles.toggleDescription, { color: theme.colors.textSecondary }]}>
-                {allNotificationsEnabled 
+                {notificationsEnabled 
                   ? "You will receive important notifications" 
                   : "You won't receive any notifications"}
               </Text>
             </View>
           </View>
           <Switch
-            value={allNotificationsEnabled}
+            value={notificationsEnabled}
             onValueChange={toggleAllNotifications}
             trackColor={{ false: '#ddd', true: theme.colors.primary }}
             thumbColor="#fff"
@@ -125,7 +152,7 @@ export default function NotificationSettings() {
         </View>
 
         {/* Info about what notifications you'll get when enabled */}
-        {allNotificationsEnabled && (
+        {notificationsEnabled && (
           <View style={[styles.infoContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <Text style={[styles.infoTitle, { color: theme.colors.textPrimary }]}>When Enabled, You'll Receive:</Text>
             
@@ -160,7 +187,7 @@ export default function NotificationSettings() {
         )}
         
         {/* Testing buttons (visible only in development mode) */}
-        {__DEV__ && allNotificationsEnabled && Platform.OS !== 'web' && (
+        {__DEV__ && notificationsEnabled && Platform.OS !== 'web' && (
           <View style={styles.testButtonsContainer}>
             <Text style={[styles.testTitle, { color: theme.colors.textPrimary }]}>
               Testing Options (Development Only)
@@ -170,8 +197,8 @@ export default function NotificationSettings() {
               style={[styles.testButton, { backgroundColor: theme.colors.info }]}
               onPress={async () => {
                 try {
-                  const { sendLocalTestNotification } = await import('../../../lib/notificationService');
-                  await sendLocalTestNotification();
+                  const { sendTestNotification } = await import('../../../lib/notificationService');
+                  await sendTestNotification();
                   Alert.alert('Test Notification', 'Sent a local test notification');
                 } catch (e) {
                   console.error('Error sending test notification:', e);
