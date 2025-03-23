@@ -63,7 +63,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
   
   useEffect(() => {
     if (Platform.OS !== 'web') {
-      const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+      // Set up notification for when app is in foreground
+      const foregroundSubscription = Notifications.addNotificationReceivedListener(notification => {
+        console.log('Notification received in foreground:', notification.request.content);
+      });
+      
+      // Set up notification for when notification is tapped
+      const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
         const data = response.notification.request.content.data;
         console.log('Notification tapped:', data);
         if (data?.screen) {
@@ -77,7 +83,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
           }
         }
       });
-      return () => subscription.remove();
+      
+      return () => {
+        foregroundSubscription.remove();
+        responseSubscription.remove();
+      };
     }
   }, []);
 

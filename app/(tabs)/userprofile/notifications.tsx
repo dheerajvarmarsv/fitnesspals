@@ -33,20 +33,33 @@ export default function NotificationSettings() {
           const notificationService = await import('../../../lib/notificationService');
           
           if (enabled) {
-            // Register for push notifications
+            // Register for push notifications - this automatically updates the database
             const token = await notificationService.registerForPushNotifications();
             if (token) {
-              console.log('Push notification token:', token);
+              console.log('Push notification token registered successfully:', token);
             } else {
               console.log('Failed to get push notification token');
             }
           } else {
-            // Unregister from push notifications
+            // Unregister from push notifications - this automatically updates the database
             await notificationService.unregisterFromPushNotifications();
           }
         } catch (error) {
           console.error('Error with push notification registration:', error);
           // Continue with saving settings even if notification registration fails
+        }
+      } else {
+        // On web, just update the database directly since push notifications aren't supported
+        try {
+          const userId = (await supabase.auth.getUser()).data.user?.id;
+          if (userId) {
+            await supabase
+              .from('profile_settings')
+              .update({ notifications_enabled: enabled })
+              .eq('id', userId);
+          }
+        } catch (error) {
+          console.error('Error updating notifications_enabled in database:', error);
         }
       }
       
@@ -54,12 +67,6 @@ export default function NotificationSettings() {
       await updateSettings({
         notificationSettings: newNotificationSettings,
       });
-      
-      // Also update the notifications_enabled flag in the database
-      await supabase
-        .from('profile_settings')
-        .update({ notifications_enabled: enabled })
-        .eq('id', (await supabase.auth.getUser()).data.user?.id);
       
       // Show confirmation
       if (Platform.OS !== 'web') {
@@ -163,11 +170,8 @@ export default function NotificationSettings() {
               style={[styles.testButton, { backgroundColor: theme.colors.info }]}
               onPress={async () => {
                 try {
-                  const { scheduleTestNotification } = await import('../../../lib/notificationService');
-                  await scheduleTestNotification(
-                    'Test Notification',
-                    'This is a test notification from the app'
-                  );
+                  const { sendLocalTestNotification } = await import('../../../lib/notificationService');
+                  await sendLocalTestNotification();
                   Alert.alert('Test Notification', 'Sent a local test notification');
                 } catch (e) {
                   console.error('Error sending test notification:', e);
@@ -191,7 +195,7 @@ export default function NotificationSettings() {
                     .eq('id', userId)
                     .single();
                   
-                  const { sendFriendRequestNotification } = await import('../../../lib/notificationServer');
+                  const { sendFriendRequestNotification } = await import('../../../lib/notificationService');
                   const result = await sendFriendRequestNotification(
                     userId,
                     profile?.nickname || 'User'

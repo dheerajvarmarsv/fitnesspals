@@ -1,218 +1,241 @@
+// lib/notificationService.ts
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
-import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 import { supabase } from './supabase';
-import * as NotificationServer from './notificationServer';
 
-// Configure notifications to show alerts, play sounds, and set badges
+// Configure notifications
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
-    shouldSetBadge: true,
+    shouldSetBadge: false,
   }),
 });
 
-/**
- * Check if device is eligible for push notifications
- */
-export async function isPushNotificationsAvailable() {
-  if (!Device.isDevice) {
-    console.log('Push notifications not available on simulator/emulator');
-    return false;
-  }
-  if (Platform.OS === 'web') {
-    console.log('Push notifications not available on web');
-    return false;
-  }
-  return true;
-}
-
-/**
- * Request permission to send notifications
- * @returns boolean indicating if permission was granted
- */
-export async function requestNotificationPermissions() {
-  if (!await isPushNotificationsAvailable()) {
-    return false;
-  }
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
-  if (existingStatus !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-  return finalStatus === 'granted';
-}
-
-/**
- * Set up Android notification channels
- */
-export async function setupAndroidChannels() {
+// Set up Android channels for our notification types
+async function setupAndroidChannels() {
   if (Platform.OS === 'android') {
-    // Friend requests channel
     await Notifications.setNotificationChannelAsync('friend-requests', {
       name: 'Friend Requests',
       importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#FF231F7C',
     });
-    // Challenge invites channel
+
     await Notifications.setNotificationChannelAsync('challenge-invites', {
       name: 'Challenge Invites',
       importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
-    });
-    // Challenge activity channel
-    await Notifications.setNotificationChannelAsync('challenge-activity', {
-      name: 'Challenge Activity',
-      importance: Notifications.AndroidImportance.DEFAULT,
-      vibrationPattern: [0, 250, 250, 250],
-    });
-    // Daily reminders channel
-    await Notifications.setNotificationChannelAsync('reminders', {
-      name: 'Daily Reminders',
-      importance: Notifications.AndroidImportance.DEFAULT,
+      lightColor: '#FF231F7C',
     });
   }
 }
 
-/**
- * Register for push notifications
- * @returns token if successful, null otherwise
- */
+// Check if push notifications are available on this device
+export async function isPushNotificationsAvailable() {
+  // 1. Check if running on a physical device
+  if (!Device.isDevice) {
+    console.log('Push notifications not available on simulator/emulator');
+    return false;
+  }
+
+  // 2. Check if on a supported platform
+  if (Platform.OS === 'web') {
+    console.log('Push notifications not available on web');
+    return false;
+  }
+
+  // 3. Make sure the Expo project is configured
+  if (!Constants.expoConfig?.extra?.eas?.projectId) {
+    console.log('Push notifications require EAS project ID');
+    return false;
+  }
+
+  return true;
+}
+
+// Request permission for push notifications
+export async function requestNotificationPermissions() {
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  
+  if (existingStatus !== 'granted') {
+    const { status } = await Notifications.requestPermissionsAsync();
+    return status === 'granted';
+  }
+  
+  return true;
+}
+
+// Register for push notifications
 export async function registerForPushNotifications() {
+  console.log('Registering for push notifications...');
+  
   try {
-    // Check availability and request permissions
+    // Check device compatibility
     if (!await isPushNotificationsAvailable()) {
-      console.log('Push notifications not available on this device');
       return null;
     }
+
+    // Request permissions
     const hasPermission = await requestNotificationPermissions();
     if (!hasPermission) {
-      console.log('Notification permission not granted by user');
+      console.log('Notification permission denied');
       return null;
     }
 
     // Set up Android channels
     await setupAndroidChannels();
 
-    // Get push token with improved error handling
-    let token;
-    try {
-      const tokenData = await Notifications.getExpoPushTokenAsync({
-        projectId: Constants.expoConfig?.extra?.eas?.projectId,
-      });
-      token = tokenData.data;
-      console.log('Successfully obtained push token:', token);
-    } catch (tokenError) {
-      console.error('Error getting push token:', tokenError);
-      return null;
-    }
+    // Get the token
+    const expoPushToken = await Notifications.getExpoPushTokenAsync({
+      projectId: Constants.expoConfig?.extra?.eas?.projectId,
+    });
 
-    // Save token and enable notifications in database
+    console.log('Expo push token:', expoPushToken.data);
+
+    // Save token to database
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      const success = await saveTokenToDatabase(user.id, token);
-      if (!success) {
-        console.error('Failed to save token to database');
-      } else {
-        console.log('Successfully saved token to database');
-      }
+      await supabase
+        .from('profile_settings')
+        .update({ 
+          push_token: expoPushToken.data,
+          notifications_enabled: true
+        })
+        .eq('id', user.id);
     }
 
-    return token;
+    return expoPushToken.data;
   } catch (error) {
     console.error('Error registering for push notifications:', error);
     return null;
   }
 }
 
-/**
- * Save token to database and enable notifications for the user
- */
-async function saveTokenToDatabase(userId: string, token: string) {
-  try {
-    const { error: settingsError } = await supabase
-      .from('profile_settings')
-      .update({
-        push_token: token,
-        notifications_enabled: true
-      })
-      .eq('id', userId);
-
-    if (settingsError) {
-      console.error('Error updating profile settings:', settingsError);
-      return false;
-    }
-    return true;
-  } catch (error) {
-    console.error('Exception saving push token:', error);
-    return false;
-  }
-}
-
-/**
- * Clear token from database
- */
+// Unregister from push notifications
 export async function unregisterFromPushNotifications() {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { error } = await supabase
+
+    await supabase
       .from('profile_settings')
-      .update({ push_token: null })
+      .update({ 
+        push_token: null,
+        notifications_enabled: false 
+      })
       .eq('id', user.id);
-    if (error) {
-      console.error('Error clearing push token:', error);
-    }
+      
+    console.log('Unregistered from push notifications');
   } catch (error) {
-    console.error('Exception unregistering push notifications:', error);
+    console.error('Error unregistering from push notifications:', error);
   }
 }
 
-/**
- * Schedule a local notification (for testing)
- */
-export async function scheduleTestNotification(title: string, body: string) {
+// Send a local test notification
+export async function sendLocalTestNotification() {
   await Notifications.scheduleNotificationAsync({
     content: {
-      title,
-      body,
-      data: { screen: 'Home' },
+      title: "Test Notification",
+      body: "This is a test notification",
+      data: { screen: 'friends' },
     },
     trigger: { seconds: 2 },
   });
 }
 
-/**
- * Set up notification listeners
- * @param onNotificationReceived Callback for when notification is received
- * @param onNotificationResponseReceived Callback for when notification is tapped
- * @returns Cleanup function to remove listeners
- */
-export function setupNotificationListeners(
-  onNotificationReceived?: (notification: Notifications.Notification) => void,
-  onNotificationResponseReceived?: (response: Notifications.NotificationResponse) => void
-) {
-  const notificationReceivedListener = onNotificationReceived
-    ? Notifications.addNotificationReceivedListener(onNotificationReceived)
-    : null;
-  const notificationResponseListener = onNotificationResponseReceived
-    ? Notifications.addNotificationResponseReceivedListener(onNotificationResponseReceived)
-    : null;
-  return () => {
-    if (notificationReceivedListener) {
-      Notifications.removeNotificationSubscription(notificationReceivedListener);
+// Send a friend request notification
+export async function sendFriendRequestNotification(receiverId: string, senderNickname: string) {
+  try {
+    // Check if receiver has push token and notifications enabled
+    const { data: receiverSettings, error } = await supabase
+      .from('profile_settings')
+      .select('push_token, notifications_enabled')
+      .eq('id', receiverId)
+      .single();
+      
+    if (error || !receiverSettings?.push_token || !receiverSettings?.notifications_enabled) {
+      console.log('Cannot send notification - receiver has no token or disabled notifications');
+      return false;
     }
-    if (notificationResponseListener) {
-      Notifications.removeNotificationSubscription(notificationResponseListener);
-    }
-  };
+    
+    // Call Expo Push API
+    const response = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Accept-encoding': 'gzip, deflate',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: receiverSettings.push_token,
+        title: 'New Friend Request',
+        body: `${senderNickname} sent you a friend request`,
+        data: { screen: 'friends' },
+        sound: 'default',
+        channelId: Platform.OS === 'android' ? 'friend-requests' : undefined,
+      }),
+    });
+    
+    const result = await response.json();
+    console.log('Push notification result:', result);
+    
+    return !result.errors;
+  } catch (error) {
+    console.error('Error sending friend request notification:', error);
+    return false;
+  }
 }
 
-// Re-export notification server functions for convenience
-export const sendFriendRequestNotification = NotificationServer.sendFriendRequestNotification;
-export const sendChallengeInviteNotification = NotificationServer.sendChallengeInviteNotification;
-export const sendChallengeActivityNotification = NotificationServer.sendChallengeActivityNotification;
-export const sendChallengeReminderNotification = NotificationServer.sendChallengeReminderNotification;
+// Send a challenge invite notification
+export async function sendChallengeInviteNotification(
+  receiverId: string, 
+  senderNickname: string,
+  challengeId: string,
+  challengeName: string
+) {
+  try {
+    // Check if receiver has push token and notifications enabled
+    const { data: receiverSettings, error } = await supabase
+      .from('profile_settings')
+      .select('push_token, notifications_enabled')
+      .eq('id', receiverId)
+      .single();
+      
+    if (error || !receiverSettings?.push_token || !receiverSettings?.notifications_enabled) {
+      console.log('Cannot send notification - receiver has no token or disabled notifications');
+      return false;
+    }
+    
+    // Call Expo Push API
+    const response = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Accept-encoding': 'gzip, deflate',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: receiverSettings.push_token,
+        title: 'Challenge Invite',
+        body: `${senderNickname} invited you to join "${challengeName}"`,
+        data: { 
+          screen: 'challengedetails',
+          params: { id: challengeId }
+        },
+        sound: 'default',
+        channelId: Platform.OS === 'android' ? 'challenge-invites' : undefined,
+      }),
+    });
+    
+    const result = await response.json();
+    console.log('Push notification result:', result);
+    
+    return !result.errors;
+  } catch (error) {
+    console.error('Error sending challenge invite notification:', error);
+    return false;
+  }
+}
