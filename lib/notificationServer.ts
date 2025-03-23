@@ -1,9 +1,7 @@
 import { supabase } from './supabase';
 
-// Configuration
 const EXPO_PUSH_API = 'https://exp.host/--/api/v2/push/send';
 
-// Notification types
 type NotificationData = {
   screen?: string;
   params?: Record<string, any>;
@@ -21,46 +19,75 @@ export async function sendNotificationToUser(
   badgeCount?: number
 ) {
   try {
-    // Get user's push token and notification settings
+    console.log('Attempting to send notification to user:', userId);
+    
+    // Get user's push token and notification settings with improved logging
     const { data: user, error: userError } = await supabase
       .from('profile_settings')
-      .select(`
-        push_token,
-        notifications_enabled
-      `)
+      .select(`push_token, notifications_enabled`)
       .eq('id', userId)
       .single();
 
-    if (userError || !user || !user.push_token || !user.notifications_enabled) {
-      console.log('Cannot send notification:', { userId, error: userError?.message, user });
+    if (userError) {
+      console.error('Error fetching user profile settings:', userError);
       return false;
     }
+    if (!user) {
+      console.log('No profile settings found for user:', userId);
+      return false;
+    }
+    if (!user.push_token) {
+      console.log('No push token found for user:', userId);
+      return false;
+    }
+    if (!user.notifications_enabled) {
+      console.log('Notifications disabled for user:', userId);
+      return false;
+    }
+
+    console.log('Sending push notification to token:', user.push_token);
+    
+    // Prepare notification payload
+    const message = {
+      to: user.push_token,
+      data: {
+        screen: data.screen,
+        params: data.params,
+      },
+      title: data.title,
+      body: data.body,
+      sound: 'default',
+      badge: badgeCount,
+      channelId: data.channelId || 'default',
+    };
+    
+    console.log('Notification payload:', JSON.stringify(message));
 
     // Send notification via Expo push API
     const response = await fetch(EXPO_PUSH_API, {
       method: 'POST',
       headers: {
+        'Accept': 'application/json',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        to: user.push_token,
-        data: {
-          screen: data.screen,
-          params: data.params,
-        },
-        title: data.title,
-        body: data.body,
-        sound: 'default',
-        badge: badgeCount,
-        channelId: data.channelId || 'default',
-      }),
+      body: JSON.stringify(message),
     });
 
     const result = await response.json();
-    console.log('Push notification response:', result);
+    console.log('Push notification response:', JSON.stringify(result));
     
-    if (result.errors || !result.data || result.data.status !== 'ok') {
-      console.error('Error sending notification:', result);
+    if (result.errors && result.errors.length > 0) {
+      console.error('Push service returned errors:', result.errors);
+      return false;
+    }
+    
+    if (!result.data || !result.data.status) {
+      console.error('Invalid response from push service:', result);
+      return false;
+    }
+    
+    if (result.data.status !== 'ok') {
+      console.error('Push service returned non-ok status:', result.data.status);
       return false;
     }
 

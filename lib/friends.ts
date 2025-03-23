@@ -102,77 +102,73 @@ export const getFriendRequests = async (): Promise<FriendRequest[]> => {
  * 3) Send a friend request by EXACT nickname (sender sees no request in their own list).
  */
 export const sendFriendRequest = async (receiverNickname: string): Promise<void> => {
-  const { data: receiver, error: recErr } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('nickname', receiverNickname.toLowerCase())
-    .single();
-  if (recErr) throw recErr;
-  if (!receiver) throw new Error('User not found');
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
+    // Get the target user's profile
+    const { data: targetUser, error: targetUserError } = await supabase
+      .from('profiles')
+      .select('id, nickname')
+      .eq('nickname', receiverNickname)
+      .single();
 
-  if (receiver.id === user.id) {
-    throw new Error('You cannot send a friend request to yourself');
-  }
+    if (targetUserError) throw targetUserError;
+    if (!targetUser) throw new Error('User not found');
 
-  // Check if already friends
-  const { data: existingFriend } = await supabase
-    .from('friends')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('friend_id', receiver.id)
-    .single();
-  if (existingFriend) {
-    throw new Error('You are already friends with this user');
-  }
+    // Check if a pending friend request already exists
+    const { data: existingRequest, error: checkError } = await supabase
+      .from('friend_requests')
+      .select('*')
+      .eq('sender_id', user.id)
+      .eq('receiver_id', targetUser.id)
+      .eq('status', 'pending')
+      .maybeSingle();
 
-  // Check if there's a non-rejected request
-  const { data: existingRequest, error: reqErr } = await supabase
-    .from('friend_requests')
-    .select('*')
-    .or(`and(sender_id.eq.${user.id},receiver_id.eq.${receiver.id}),and(sender_id.eq.${receiver.id},receiver_id.eq.${user.id})`)
-    .not('status', 'eq', 'rejected')
-    .single();
-  if (reqErr && reqErr.code !== 'PGRST116') throw reqErr;
-  if (existingRequest) {
-    if (existingRequest.status === 'pending') {
-      throw new Error('A friend request already exists');
-    } else if (existingRequest.status === 'blocked') {
-      throw new Error('Unable to send friend request');
-    }
-  }
+    if (checkError) throw checkError;
+    if (existingRequest) throw new Error('Friend request already sent');
 
-  // Insert new request
-  const { error, data: newRequest } = await supabase
-    .from('friend_requests')
-    .insert({
-      sender_id: user.id,
-      receiver_id: receiver.id,
-    })
-    .select('id')
-    .single();
-  if (error) throw error;
-  
-  // Get sender's profile for the notification
-  const { data: senderProfile } = await supabase
-    .from('profiles')
-    .select('nickname')
-    .eq('id', user.id)
-    .single();
+    // Create the friend request
+    const { data: requestData, error: insertError } = await supabase
+      .from('friend_requests')
+      .insert({
+        sender_id: user.id,
+        receiver_id: targetUser.id,
+        status: 'pending'
+      })
+      .select()
+      .single();
+
+    if (insertError) throw insertError;
     
-  if (senderProfile) {
-    // Send push notification
+    // Send push notification after successful DB insertion
     try {
-      await sendFriendRequestNotification(
-        receiver.id, 
-        senderProfile.nickname || 'Someone'
+      // Retrieve sender's nickname for notification content
+      const { data: senderProfile } = await supabase
+        .from('profiles')
+        .select('nickname')
+        .eq('id', user.id)
+        .single();
+
+      const senderNickname = senderProfile?.nickname || 'Someone';
+      
+      // Dynamically import the notification service
+      const notificationService = await import('./notificationService');
+      const sent = await notificationService.sendFriendRequestNotification(
+        targetUser.id,
+        senderNickname
       );
-    } catch (notifyError) {
-      console.error('Failed to send notification:', notifyError);
-      // Don't throw here, the friend request was created successfully
+      
+      console.log('Notification sent result:', sent);
+    } catch (notifError) {
+      // Log error but do not fail the friend request creation
+      console.error('Failed to send notification:', notifError);
     }
+
+    return requestData;
+  } catch (error) {
+    console.error('Error sending friend request:', error);
+    throw error;
   }
 };
 

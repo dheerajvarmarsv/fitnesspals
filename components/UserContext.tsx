@@ -18,7 +18,6 @@ export interface UserSettings {
     friends: boolean;
     badges: boolean;
   };
-  // No password field here, since your password flow already works
 }
 
 interface UserContextType {
@@ -30,20 +29,12 @@ interface UserContextType {
   handleLogout: () => Promise<void>;
 }
 
-// Generate avatar URL based on nickname
-// Uses a deterministic hash of the nickname to ensure consistent colors
 const generateAvatarUrl = (nickname: string): string => {
-  // Default nickname if none provided
   const nameToUse = nickname || 'User';
-  
-  // Create a simple hash from the nickname to get a consistent color
   const nicknameHash = nameToUse.split('').reduce((hash, char) => {
     return ((hash << 5) - hash) + char.charCodeAt(0);
   }, 0);
-  
-  // Convert hash to hex color (absolute value to ensure positive number)
   const colorHash = Math.abs(nicknameHash).toString(16).padStart(6, '0').substring(0, 6);
-  
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(nameToUse)}&background=${colorHash}&color=ffffff&bold=true`;
 };
 
@@ -70,15 +61,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [isOnline, setIsOnline] = useState(true);
   const [hasLoadedInitialSettings, setHasLoadedInitialSettings] = useState(false);
   
-  // Set up notification handler for when notifications are tapped
   useEffect(() => {
     if (Platform.OS !== 'web') {
-      // Handle notification taps (navigation)
       const subscription = Notifications.addNotificationResponseReceivedListener(response => {
         const data = response.notification.request.content.data;
         console.log('Notification tapped:', data);
-        
-        // Navigate to the appropriate screen if provided
         if (data?.screen) {
           try {
             router.push({
@@ -90,13 +77,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
           }
         }
       });
-      
       return () => subscription.remove();
     }
   }, []);
 
   useEffect(() => {
-    // For web: track offline/online status
     if (Platform.OS === 'web') {
       const updateOnlineStatus = () => setIsOnline(navigator.onLine);
       window.addEventListener('online', updateOnlineStatus);
@@ -109,7 +94,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // On mount, try to load user settings if we are online
     const initializeSettings = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
@@ -124,7 +108,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, [isOnline]);
 
   useEffect(() => {
-    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_OUT') {
@@ -139,65 +122,63 @@ export function UserProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  /**
-   * Loads the user’s data from BOTH `profiles` and `profile_settings`.
-   * Merges them into our local state so they persist on reload.
-   */
   const loadUserSettings = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1) Fetch basic profile info from the `profiles` table (email, nickname, avatar_url)
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select(`
-          email,
-          nickname,
-          avatar_url
-        `)
+        .select(`email, nickname, avatar_url`)
         .eq('id', user.id)
         .single();
       if (profileError) throw profileError;
 
-      // 2) Fetch additional settings from the `profile_settings` table
       const { data: settingsRow, error: settingsError } = await supabase
         .from('profile_settings')
         .select(`
           privacy_mode,
           use_kilometers,
           timezone,
-          notification_settings
+          notification_settings,
+          notifications_enabled,
+          push_token
         `)
         .eq('id', user.id)
         .single();
       if (settingsError) throw settingsError;
 
-      // 3) Parse the JSON column for notifications
       const defaultNotif = defaultSettings.notificationSettings;
       const loadedNotifs = settingsRow?.notification_settings || {};
 
-      // Get nickname for avatar generation
       const userNickname = profile?.nickname || defaultSettings.nickname;
-      
-      // 4) Merge everything into a single UserSettings object
+
       const updatedSettings: UserSettings = {
         email: profile?.email || defaultSettings.email,
         nickname: userNickname,
-        // Always generate avatar from nickname, ignore avatar_url from database
         avatarUrl: generateAvatarUrl(userNickname),
         useKilometers: settingsRow?.use_kilometers ?? defaultSettings.useKilometers,
         timezone: settingsRow?.timezone || defaultSettings.timezone,
-        privacyMode: (settingsRow?.privacy_mode as UserSettings['privacyMode'])
-          ?? defaultSettings.privacyMode,
+        privacyMode: (settingsRow?.privacy_mode as UserSettings['privacyMode']) || defaultSettings.privacyMode,
         notificationSettings: {
-          challenges: loadedNotifs.challenges ?? defaultNotif.challenges,
-          chat: loadedNotifs.chat ?? defaultNotif.chat,
-          sync: loadedNotifs.sync ?? defaultNotif.sync,
-          friends: loadedNotifs.friends ?? defaultNotif.friends,
-          badges: loadedNotifs.badges ?? defaultNotif.badges,
+          challenges: settingsRow?.notifications_enabled && (loadedNotifs.challenges ?? defaultNotif.challenges),
+          chat: settingsRow?.notifications_enabled && (loadedNotifs.chat ?? defaultNotif.chat),
+          sync: settingsRow?.notifications_enabled && (loadedNotifs.sync ?? defaultNotif.sync),
+          friends: settingsRow?.notifications_enabled && (loadedNotifs.friends ?? defaultNotif.friends),
+          badges: settingsRow?.notifications_enabled && (loadedNotifs.badges ?? defaultNotif.badges),
         },
       };
+
+      if (settingsRow?.notifications_enabled && !settingsRow?.push_token && Platform.OS !== 'web') {
+        try {
+          const { registerForPushNotifications } = await import('../lib/notificationService');
+          registerForPushNotifications().catch(err => 
+            console.error('Failed to register for push notifications:', err)
+          );
+        } catch (err) {
+          console.error('Error importing notification service:', err);
+        }
+      }
 
       setSettings(updatedSettings);
       setHasLoadedInitialSettings(true);
@@ -208,14 +189,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  /**
-   * Clears settings in memory (used on sign-out).
-   */
   const clearSettings = async () => {
-    // If user had notifications enabled, unregister from push notifications when logging out
     if (settings.notificationSettings.challenges || settings.notificationSettings.friends) {
       try {
-        // Dynamically import to prevent issues on web
         const { unregisterFromPushNotifications } = await import('../lib/notificationService');
         await unregisterFromPushNotifications();
       } catch (error) {
@@ -227,9 +203,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setHasLoadedInitialSettings(false);
   };
 
-  /**
-   * Handle logout: clear local settings, sign out from Supabase, then go to welcomescreen.
-   */
   const handleLogout = async () => {
     try {
       await clearAuthStorage();
@@ -244,11 +217,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  /**
-   * Update user settings in state + in Supabase.
-   *  - `email`, `nickname`, `avatarUrl` update the `profiles` table
-   *  - `privacyMode`, `useKilometers`, `timezone`, `notificationSettings` update the `profile_settings` table
-   */
   const updateSettings = async (newSettings: Partial<UserSettings>) => {
     try {
       if (!isOnline) {
@@ -258,26 +226,20 @@ export function UserProvider({ children }: { children: ReactNode }) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // Merge new settings into the old
       const mergedSettings = { ...settings, ...newSettings };
 
-      // Prepare two separate objects for updates
       const profileUpdates: Record<string, any> = {};
       const settingsUpdates: Record<string, any> = {};
 
-      // Update profiles table fields
       if (newSettings.email !== undefined) {
         profileUpdates.email = newSettings.email;
       }
       if (newSettings.nickname !== undefined) {
         const nickname = newSettings.nickname.toLowerCase();
         profileUpdates.nickname = nickname;
-        // Always update avatarUrl if nickname changes
         newSettings.avatarUrl = generateAvatarUrl(nickname);
       }
-      // No longer store the avatar_url in the database since we generate it from nickname
 
-      // Update profile_settings table fields
       if (newSettings.privacyMode !== undefined) {
         settingsUpdates.privacy_mode = newSettings.privacyMode;
       }
@@ -294,7 +256,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
         };
       }
 
-      // (A) Update `profiles` if needed
       if (Object.keys(profileUpdates).length > 0) {
         const { error: profileError } = await supabase
           .from('profiles')
@@ -303,7 +264,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
         if (profileError) throw profileError;
       }
 
-      // (B) Update `profile_settings` if needed
       if (Object.keys(settingsUpdates).length > 0) {
         const { error: settingsError } = await supabase
           .from('profile_settings')
@@ -312,7 +272,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
         if (settingsError) throw settingsError;
       }
 
-      // Finally, update local state
       setSettings(mergedSettings);
     } catch (e) {
       console.error('Error updating settings:', e);
@@ -344,5 +303,4 @@ export function useUser() {
   return context;
 }
 
-// Export the avatar generation function so it can be used consistently across the app
 export { generateAvatarUrl };
