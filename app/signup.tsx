@@ -1,7 +1,17 @@
 import { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, Image, SafeAreaView, Platform } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Image,
+  SafeAreaView,
+  Platform
+} from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
+import { LinearGradient } from 'expo-linear-gradient'; // 1. Import LinearGradient
 
 export default function SignUp() {
   const [email, setEmail] = useState('');
@@ -30,7 +40,7 @@ export default function SignUp() {
       }
 
       const trimmedEmail = email.toLowerCase().trim();
-      
+
       if (!validateEmail(trimmedEmail)) {
         setError('Please enter a valid email address');
         return;
@@ -62,6 +72,7 @@ export default function SignUp() {
       });
 
       if (signUpError) {
+        // Retry logic for transient network issues
         if (signUpError.name === 'AuthRetryableFetchError' && retryCount < 3) {
           setRetryCount(prev => prev + 1);
           const delay = Math.pow(2, retryCount) * 1000;
@@ -97,6 +108,16 @@ export default function SignUp() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Logo Section */}
+      <View style={styles.logoContainer}>
+        <Image
+          source={require('../assets/images/logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+      </View>
+
+      {/* Back Button */}
       <TouchableOpacity
         style={styles.backButton}
         onPress={() => router.back()}
@@ -109,74 +130,84 @@ export default function SignUp() {
 
       <Text style={styles.title}>Create an Account</Text>
 
-      {error && (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error}</Text>
-          {error.includes('Network error') && (
-            <TouchableOpacity 
-              style={styles.retryButton}
-              onPress={() => handleSignUp()}
-            >
-              <Text style={styles.retryButtonText}>Retry</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
+      {/* Form Container for extra padding */}
+      <View style={styles.formContainer}>
+        {error && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+            {error.includes('Network error') && (
+              <TouchableOpacity 
+                style={styles.retryButton}
+                onPress={() => handleSignUp()}
+              >
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        placeholderTextColor="#666"
-        keyboardType="email-address"
-        autoCapitalize="none"
-        autoCorrect={false}
-        value={email}
-        onChangeText={(text) => {
-          setEmail(text);
-          setError(null);
-        }}
-        editable={!loading}
-      />
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          placeholderTextColor="#666"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          value={email}
+          onChangeText={(text) => {
+            setEmail(text);
+            setError(null);
+          }}
+          editable={!loading}
+        />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        placeholderTextColor="#666"
-        secureTextEntry
-        autoCapitalize="none"
-        autoCorrect={false}
-        value={password}
-        onChangeText={(text) => {
-          setPassword(text);
-          setError(null);
-        }}
-        editable={!loading}
-      />
+        <TextInput
+          style={styles.input}
+          placeholder="Password"
+          placeholderTextColor="#666"
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          value={password}
+          onChangeText={(text) => {
+            setPassword(text);
+            setError(null);
+          }}
+          editable={!loading}
+        />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Confirm Password"
-        placeholderTextColor="#666"
-        secureTextEntry
-        autoCapitalize="none"
-        autoCorrect={false}
-        value={confirmPassword}
-        onChangeText={(text) => {
-          setConfirmPassword(text);
-          setError(null);
-        }}
-        editable={!loading}
-      />
+        <TextInput
+          style={styles.input}
+          placeholder="Confirm Password"
+          placeholderTextColor="#666"
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          value={confirmPassword}
+          onChangeText={(text) => {
+            setConfirmPassword(text);
+            setError(null);
+          }}
+          editable={!loading}
+        />
 
-      <TouchableOpacity
-        style={[styles.signupButton, loading && styles.signupButtonDisabled]}
-        onPress={() => handleSignUp()}
-        disabled={loading}
-      >
-        <Text style={styles.signupButtonText}>
-          {loading ? 'Creating Account...' : 'Create Account'}
-        </Text>
-      </TouchableOpacity>
+        {/* Gradient Sign-Up Button */}
+        <TouchableOpacity
+          style={styles.signupButton}
+          onPress={() => handleSignUp()}
+          disabled={loading}
+          activeOpacity={0.9}
+        >
+          <LinearGradient
+            colors={['#F58529', '#DD2A7B']}
+            style={styles.gradientBackground}
+          >
+            <Text style={styles.signupButtonText}>
+              {loading ? 'Creating Account...' : 'Create Account'}
+            </Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
 
       <Text style={styles.terms}>
         By signing up you are agreeing to our{' '}
@@ -188,11 +219,22 @@ export default function SignUp() {
 }
 
 const styles = StyleSheet.create({
+  // Main container with white background
   container: {
     flex: 1,
-    backgroundColor: '#000',
-    padding: 20,
+    backgroundColor: '#fff',
+    padding: 20, // Base padding on all sides
   },
+  // Large logo
+  logoContainer: {
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  logo: {
+    width: '80%',
+    height: 180,
+  },
+  // Back button
   backButton: {
     position: 'absolute',
     top: 40,
@@ -201,22 +243,30 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(0,0,0,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   backIcon: {
     width: 24,
     height: 24,
-    tintColor: '#fff',
+    tintColor: '#000',
   },
+  // Title with normal font weight
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: 'normal',
+    fontFamily: 'System',
+    color: '#000',
     marginTop: 80,
     marginBottom: 30,
+    textAlign: 'center',
   },
+  // Additional padding around form elements
+  formContainer: {
+    marginVertical: 10,
+  },
+  // Error message container
   errorContainer: {
     backgroundColor: '#FF4444',
     padding: 12,
@@ -240,37 +290,44 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  // Inputs
   input: {
-    backgroundColor: '#1C1C1E',
+    backgroundColor: '#F5F5F5',
     borderRadius: 8,
     padding: 16,
-    color: '#fff',
+    color: '#000',
     fontSize: 16,
+    fontFamily: 'System',
+    fontWeight: 'normal',
     marginBottom: 16,
   },
+  // Gradient sign-up button
   signupButton: {
-    backgroundColor: '#FC4C02',
-    padding: 16,
     borderRadius: 8,
-    alignItems: 'center',
     marginBottom: 24,
+    overflow: 'hidden',
   },
-  signupButtonDisabled: {
-    opacity: 0.7,
+  gradientBackground: {
+    padding: 16,
+    alignItems: 'center',
+    borderRadius: 8,
   },
   signupButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontFamily: 'System',
+    fontWeight: 'normal',
   },
   terms: {
     color: '#666',
     textAlign: 'center',
     marginTop: 24,
     lineHeight: 20,
+    fontFamily: 'System',
+    fontWeight: 'normal',
   },
   link: {
-    color: '#fff',
+    color: '#000',
     textDecorationLine: 'underline',
   },
 });

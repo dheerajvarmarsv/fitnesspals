@@ -1,25 +1,29 @@
 import { StyleSheet, View, Text, Image, TouchableOpacity, ScrollView, useWindowDimensions, SafeAreaView } from 'react-native';
 import { router } from 'expo-router';
 import { useState, useRef } from 'react';
+import { LinearGradient } from 'expo-linear-gradient'; // <-- 1. Import LinearGradient
 
 const WELCOME_SCREENS = [
   {
     title: 'Track your active life in one place.',
-    image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&auto=format&fit=crop',
-  },
-  {
-    title: 'Connect with fellow athletes.',
-    image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=800&auto=format&fit=crop',
+    image: require('../assets/images/1.png'),
   },
   {
     title: 'Set goals and crush them.',
-    image: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=800&auto=format&fit=crop',
+    image: require('../assets/images/2.png'),
   },
   {
-    title: 'Analyze your performance.',
-    image: 'https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?w=800&auto=format&fit=crop',
+    title: 'Connect with fellow athletes.',
+    image: require('../assets/images/3.png'),
+  },
+  {
+    title: 'Fuel your fitness with epic gamified challenges.',
+    image: require('../assets/images/4.png'),
   },
 ];
+
+// Example color for pagination dot and login text
+const NEW_COLOR = '#FD3A69';
 
 export default function Welcome() {
   const [currentPage, setCurrentPage] = useState(0);
@@ -41,7 +45,7 @@ export default function Welcome() {
     <SafeAreaView style={styles.container}>
       <View style={styles.logoContainer}>
         <Image
-          source={{ uri: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Strava_Logo.svg/2560px-Strava_Logo.svg.png' }}
+          source={require('../assets/images/logo.png')}
           style={styles.logo}
           resizeMode="contain"
         />
@@ -59,7 +63,7 @@ export default function Welcome() {
         {WELCOME_SCREENS.map((screen, index) => (
           <View key={index} style={[styles.page, { width }]}>
             <Image
-              source={{ uri: screen.image }}
+              source={screen.image}
               style={styles.image}
               resizeMode="cover"
             />
@@ -83,10 +87,17 @@ export default function Welcome() {
 
       <View style={styles.buttonContainer}>
         <TouchableOpacity
-          style={styles.joinButton}
           onPress={() => router.push('/signup')}
+          style={styles.joinButton}
+          activeOpacity={0.9}
         >
-          <Text style={styles.joinButtonText}>Join for free</Text>
+          {/* 2. Wrap the text in a gradient */}
+          <LinearGradient
+            colors={['#F58529', '#DD2A7B']}
+            style={styles.gradientBackground}
+          >
+            <Text style={styles.joinButtonText}>Join for free</Text>
+          </LinearGradient>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -103,16 +114,16 @@ export default function Welcome() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#fff',
   },
   logoContainer: {
     alignItems: 'center',
     paddingVertical: 16,
   },
+  // 3. Make the logo 2-3 times bigger than before
   logo: {
-    width: '40%',
-    height: 40,
-    tintColor: '#fff',
+    width: '80%',
+    height: 180,
   },
   scrollView: {
     flex: 1,
@@ -127,10 +138,12 @@ const styles = StyleSheet.create({
     height: '60%',
     borderRadius: 20,
   },
+  // 4. Use normal weight for the title
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontFamily: 'System', // iOS typically uses SF, Android uses Roboto
+    fontWeight: 'normal',
+    color: '#000',
     textAlign: 'center',
     marginTop: 20,
   },
@@ -147,31 +160,39 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   paginationDotActive: {
-    backgroundColor: '#FC4C02',
+    backgroundColor: NEW_COLOR,
   },
   buttonContainer: {
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
+  // 5. Remove backgroundColor; gradient is used instead
   joinButton: {
-    backgroundColor: '#FC4C02',
-    padding: 16,
     borderRadius: 8,
-    alignItems: 'center',
     marginBottom: 12,
+    overflow: 'hidden', // ensures gradient corners are rounded
   },
+  // 6. Style for the gradient wrapper
+  gradientBackground: {
+    padding: 16,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  // 7. Normal weight for the button text
   joinButtonText: {
-    color: '#fff',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontFamily: 'System',
+    fontWeight: 'normal',
+    color: '#fff',
   },
   loginButton: {
     padding: 16,
     alignItems: 'center',
   },
   loginButtonText: {
-    color: '#FC4C02',
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: 'System',
+    fontWeight: 'normal',
+    color: NEW_COLOR,
   },
 });
