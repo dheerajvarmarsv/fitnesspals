@@ -47,6 +47,21 @@ export default function NotificationSettings() {
             const token = await notificationService.registerForPushNotifications();
             if (token) {
               console.log('Push notification token registered successfully:', token);
+              
+              // Double-check the database was updated
+              const { data: { user } } = await supabase.auth.getUser();
+              if (user) {
+                const { error } = await supabase
+                  .from('profile_settings')
+                  .update({
+                    notifications_enabled: true,
+                  })
+                  .eq('id', user.id);
+                  
+                if (error) {
+                  console.error('Error ensuring notifications_enabled is set:', error);
+                }
+              }
             } else {
               console.log('Failed to get push notification token');
               // Reset UI state if registration failed

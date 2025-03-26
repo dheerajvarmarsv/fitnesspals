@@ -241,12 +241,18 @@ export function UserProvider({ children }: { children: ReactNode }) {
         },
       };
 
-      if (settingsRow?.notifications_enabled && !settingsRow?.push_token && Platform.OS !== 'web') {
+      // Always attempt to register for push notifications on login/startup if we're on a device
+      // This ensures we have the latest token even if the app is reinstalled
+      if (Platform.OS !== 'web') {
         try {
           const { registerForPushNotifications } = await import('../lib/notificationService');
-          registerForPushNotifications().catch(err => 
-            console.error('Failed to register for push notifications:', err)
-          );
+          // If notifications are enabled or we don't have a token yet, register
+          if (settingsRow?.notifications_enabled || !settingsRow?.push_token) {
+            console.log('Attempting to register for push notifications on app startup');
+            registerForPushNotifications().catch(err => 
+              console.error('Failed to register for push notifications:', err)
+            );
+          }
         } catch (err) {
           console.error('Error importing notification service:', err);
         }

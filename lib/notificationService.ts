@@ -107,8 +107,15 @@ export async function registerForPushNotifications() {
     const expoProjectId = Constants.expoConfig?.extra?.eas?.projectId;
     console.log('Using EAS project ID:', expoProjectId);
     
+    if (!expoProjectId) {
+      console.error('Missing EAS project ID in app.config.ts');
+      return null;
+    }
+    
+    // Force a new token to be generated
     const pushToken = await Notifications.getExpoPushTokenAsync({
       projectId: expoProjectId,
+      devicePushToken: null, // Force a new token to be generated
     });
 
     console.log('Expo push token:', pushToken.data);
@@ -116,18 +123,49 @@ export async function registerForPushNotifications() {
     // 5. Save the token to the database
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      const { error } = await supabase
+      // First check if we already have the same token
+      const { data: currentSettings } = await supabase
         .from('profile_settings')
-        .update({
-          push_token: pushToken.data,
-          notifications_enabled: true,
-        })
-        .eq('id', user.id);
+        .select('push_token, notifications_enabled')
+        .eq('id', user.id)
+        .single();
+        
+      // Only update if token changed or notifications are disabled
+      if (currentSettings?.push_token !== pushToken.data || !currentSettings?.notifications_enabled) {
+        console.log('Updating push token in the database');
+        
+        const { error } = await supabase
+          .from('profile_settings')
+          .update({
+            push_token: pushToken.data,
+            notifications_enabled: true,
+          })
+          .eq('id', user.id);
 
-      if (error) {
-        console.error('Error saving push token to database:', error);
+        if (error) {
+          console.error('Error saving push token to database:', error);
+        } else {
+          console.log('Saved push token to database');
+          
+          // Send a test notification log
+          try {
+            await supabase
+              .from('notification_logs')
+              .insert({
+                event_type: 'token_registration',
+                recipient_id: user.id,
+                sender_id: user.id,
+                message: 'Push token registration',
+                status: 'sent',
+                details: JSON.stringify({ token: pushToken.data })
+              });
+            console.log('Created notification log for token registration');
+          } catch (logError) {
+            console.error('Failed to create notification log:', logError);
+          }
+        }
       } else {
-        console.log('Saved push token to database');
+        console.log('Token already registered and notifications enabled');
       }
     }
 
