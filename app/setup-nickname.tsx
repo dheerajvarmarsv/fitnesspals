@@ -16,6 +16,7 @@ import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
+import { useUser, generateAvatarUrl } from '../components/UserContext';
 
 const MAX_LENGTH = 20;
 const { width, height } = Dimensions.get('window');
@@ -24,6 +25,7 @@ export default function SetupNickname() {
   const [nickname, setNickname] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { updateSettings } = useUser();
 
   const validateNickname = (nickname: string) => {
     return /^[a-zA-Z0-9_]{3,20}$/.test(nickname);
@@ -58,17 +60,10 @@ export default function SetupNickname() {
         return;
       }
 
-      // Update profile with nickname
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('avatar_url')
-        .eq('id', user.id)
-        .single();
-      if (profileError) throw profileError;
+      // Generate the avatar URL from the nickname
+      const avatarUrl = generateAvatarUrl(nickname);
 
-      const defaultAvatar = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400';
-      const avatarUrl = profileData.avatar_url || defaultAvatar;
-
+      // Update profile with nickname and generated avatar
       const { error: updateError } = await supabase
         .from('profiles')
         .update({
@@ -77,6 +72,12 @@ export default function SetupNickname() {
         })
         .eq('id', user.id);
       if (updateError) throw updateError;
+      
+      // Update the UserContext with the new nickname and avatar to reflect changes immediately
+      await updateSettings({
+        nickname: nickname.toLowerCase(),
+        avatarUrl: avatarUrl
+      });
 
       router.replace('/(tabs)');
     } catch (e: any) {

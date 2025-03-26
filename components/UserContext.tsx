@@ -23,6 +23,7 @@ export interface UserSettings {
 interface UserContextType {
   settings: UserSettings;
   updateSettings: (newSettings: Partial<UserSettings>) => Promise<void>;
+  refreshUserProfile: () => Promise<void>;
   clearSettings: () => Promise<void>;
   isOnline: boolean;
   hasLoadedInitialSettings: boolean;
@@ -138,6 +139,45 @@ export function UserProvider({ children }: { children: ReactNode }) {
       initializeSettings();
     }
   }, [isOnline]);
+  
+  // Add realtime subscription to profile changes
+  useEffect(() => {
+    const setupRealtimeListener = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user || !isOnline) return () => {};
+        
+        // Subscribe to profile changes
+        const channel = supabase.channel('profile-changes')
+          .on('postgres_changes', {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'profiles',
+            filter: `id=eq.${user.id}`
+          }, (payload) => {
+            console.log('Profile update detected:', payload);
+            // Refresh user data when profile changes
+            refreshUserProfile();
+          })
+          .subscribe();
+        
+        return () => {
+          supabase.removeChannel(channel);
+        };
+      } catch (error) {
+        console.error('Error setting up realtime listener:', error);
+        return () => {};
+      }
+    };
+    
+    // Only set up the listener when online and after initial settings loaded
+    if (isOnline && hasLoadedInitialSettings) {
+      const cleanup = setupRealtimeListener();
+      return () => {
+        cleanup.then(fn => fn && fn());
+      };
+    }
+  }, [isOnline, hasLoadedInitialSettings]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -249,6 +289,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshUserProfile = async () => {
+    try {
+      await loadUserSettings();
+    } catch (error) {
+      console.error('Error refreshing user profile:', error);
+    }
+  };
+
   const updateSettings = async (newSettings: Partial<UserSettings>) => {
     try {
       if (!isOnline) {
@@ -258,7 +306,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      // Update local state IMMEDIATELY for better UX
       const mergedSettings = { ...settings, ...newSettings };
+      setSettings(mergedSettings);
 
       const profileUpdates: Record<string, any> = {};
       const settingsUpdates: Record<string, any> = {};
@@ -269,7 +319,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
       if (newSettings.nickname !== undefined) {
         const nickname = newSettings.nickname.toLowerCase();
         profileUpdates.nickname = nickname;
-        newSettings.avatarUrl = generateAvatarUrl(nickname);
+        const avatarUrl = generateAvatarUrl(nickname);
+        profileUpdates.avatar_url = avatarUrl;
+        newSettings.avatarUrl = avatarUrl;
       }
 
       if (newSettings.privacyMode !== undefined) {
@@ -303,10 +355,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
           .eq('id', user.id);
         if (settingsError) throw settingsError;
       }
-
-      setSettings(mergedSettings);
     } catch (e) {
       console.error('Error updating settings:', e);
+      // Revert back to database values if the API update failed
+      await refreshUserProfile();
       throw e;
     }
   };
@@ -316,6 +368,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       value={{
         settings,
         updateSettings,
+        refreshUserProfile,
         clearSettings,
         isOnline,
         hasLoadedInitialSettings,

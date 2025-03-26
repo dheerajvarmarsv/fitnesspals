@@ -95,16 +95,6 @@ export default function ProfileSettings() {
       title: 'PREFERENCES',
       items: [
         {
-          id: 'theme',
-          icon: isDark ? 'moon' : 'sunny',
-          iconBgColor: isDark ? '#8134AF' : '#F58529',
-          iconColor: '#fff',
-          title: 'Theme',
-          description: isDark ? 'Dark theme' : 'Light theme',
-          path: '/theme',
-          hasChevron: true,
-        },
-        {
           id: 'notifications',
           icon: 'notifications',
           iconBgColor: theme.colors.primary,

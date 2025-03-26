@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import SharedLayout from '../../../components/SharedLayout';
-import { useUser } from '../../../components/UserContext';
+import { useUser, generateAvatarUrl } from '../../../components/UserContext';
 import { supabase } from '../../../lib/supabase';
 
 const MAX_LENGTH = 30;
@@ -51,8 +51,25 @@ export default function EditNickname() {
       }
 
       // 2) Update in Supabase + local state
-      //    (Calls the function in your UserContext to do the DB update)
-      await updateSettings({ nickname: nickname.toLowerCase() });
+      
+      // Generate avatar URL based on the new nickname
+      const avatarUrl = generateAvatarUrl(nickname);
+      
+      // Update the database directly to ensure avatar gets updated
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({
+          nickname: nickname.toLowerCase(),
+          avatar_url: avatarUrl
+        })
+        .eq('id', user.id);
+      if (updateError) throw updateError;
+      
+      // Also update local state through the UserContext
+      await updateSettings({ 
+        nickname: nickname.toLowerCase(),
+        avatarUrl: avatarUrl
+      });
 
       // 3) Go back to the previous screen
       router.back();

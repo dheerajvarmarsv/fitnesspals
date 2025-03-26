@@ -291,7 +291,7 @@ const formatMetricValue = (activity: any, useKilometers: boolean): string => {
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { settings, isOnline } = useUser();
+  const { settings, isOnline, refreshUserProfile } = useUser();
 
   const [activeChallenges, setActiveChallenges] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
@@ -346,7 +346,11 @@ export default function HomeScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadHomeData();
+    // Also refresh user profile to ensure latest nickname
+    await Promise.all([
+      loadHomeData(),
+      refreshUserProfile()
+    ]);
     setRefreshing(false);
   };
 

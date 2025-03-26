@@ -8,7 +8,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: "myapp",
-  userInterfaceStyle: "automatic",
+  userInterfaceStyle: "light",
+  // Enable React Native's New Architecture (Fabric)
+  newArchEnabled: true,
   splash: {
     image: "./assets/images/splash.png",
     resizeMode: "contain",
