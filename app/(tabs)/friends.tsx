@@ -206,18 +206,17 @@ export default function Friends() {
         </View>
       </View>
 
-      {/* Search bar => opens modal on focus */}
-      <View style={styles.searchContainer}>
+      {/* Search bar => now a button to avoid focus issues on macOS */}
+      <TouchableOpacity 
+        style={styles.searchContainer}
+        onPress={() => setShowSearchModal(true)}
+        activeOpacity={0.7}
+      >
         <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search friends"
-          placeholderTextColor="#999"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          onFocus={() => setShowSearchModal(true)}
-        />
-      </View>
+        <Text style={[styles.searchInput, { color: searchQuery ? '#333' : '#999' }]}>
+          {searchQuery || "Search friends"}
+        </Text>
+      </TouchableOpacity>
 
       {/* Main Content */}
       <ScrollView

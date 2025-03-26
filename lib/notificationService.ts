@@ -241,3 +241,32 @@ export function setupNotificationListeners(
     if (responseListener) responseListener.remove();
   };
 }
+
+// Export the notification functions from notificationServer.ts for backward compatibility
+// This ensures existing imports still work
+export async function sendFriendRequestNotification(receiverId: string, senderNickname: string) {
+  try {
+    // Dynamically import to avoid circular dependencies
+    const { sendFriendRequestNotification } = await import('./notificationServer');
+    return sendFriendRequestNotification(receiverId, senderNickname);
+  } catch (error) {
+    console.error('Error in sendFriendRequestNotification:', error);
+    return false;
+  }
+}
+
+export async function sendChallengeInviteNotification(
+  receiverId: string,
+  senderNickname: string,
+  challengeId: string,
+  challengeName: string
+) {
+  try {
+    // Dynamically import to avoid circular dependencies
+    const { sendChallengeInviteNotification } = await import('./notificationServer');
+    return sendChallengeInviteNotification(receiverId, senderNickname, challengeId, challengeName);
+  } catch (error) {
+    console.error('Error in sendChallengeInviteNotification:', error);
+    return false;
+  }
+}
