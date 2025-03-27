@@ -87,28 +87,40 @@ export async function registerForPushNotifications() {
   try {
     console.log('Registering for push notifications...');
     
+    // Import logs
+    const { logNotificationEvent } = await import('./notificationDebug');
+    await logNotificationEvent('registration_start', 'Starting push token registration process');
+    
     // 1. Check device compatibility
     if (!await isPushNotificationsAvailable()) {
-      console.log('Device not compatible with push notifications');
+      await logNotificationEvent('registration_error', 'Device not compatible with push notifications');
       return null;
     }
 
     // 2. Request permission
+    await logNotificationEvent('permission_request', 'Requesting notification permissions');
     const hasPermission = await requestNotificationPermission();
     if (!hasPermission) {
-      console.log('Permission denied for push notifications');
+      await logNotificationEvent('permission_denied', 'Permission denied for push notifications');
       return null;
     }
+    
+    await logNotificationEvent('permission_granted', 'Notification permissions granted');
 
     // 3. Set up notification channels for Android
-    await setupNotificationChannels();
+    if (Platform.OS === 'android') {
+      await logNotificationEvent('android_channels', 'Setting up Android notification channels');
+      await setupNotificationChannels();
+    }
 
     // 4. Get the push token from Expo
     const expoProjectId = Constants.expoConfig?.extra?.eas?.projectId;
-    console.log('Using EAS project ID:', expoProjectId);
+    await logNotificationEvent('token_fetch', 'Fetching Expo push token', {
+      payload: { projectId: expoProjectId }
+    });
     
     if (!expoProjectId) {
-      console.error('Missing EAS project ID in app.config.ts');
+      await logNotificationEvent('registration_error', 'Missing EAS project ID in app.config.ts');
       return null;
     }
     
@@ -118,22 +130,32 @@ export async function registerForPushNotifications() {
       devicePushToken: null, // Force a new token to be generated
     });
 
-    console.log('Expo push token:', pushToken.data);
+    await logNotificationEvent('token_received', 'Received Expo push token', {
+      pushToken: pushToken.data
+    });
 
     // 5. Save the token to the database
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
+      await logNotificationEvent('saving_token', 'Saving push token to database', {
+        pushToken: pushToken.data
+      });
+      
       // First check if we already have the same token
-      const { data: currentSettings } = await supabase
+      const { data: currentSettings, error: fetchError } = await supabase
         .from('profile_settings')
         .select('push_token, notifications_enabled')
         .eq('id', user.id)
         .single();
         
+      if (fetchError) {
+        await logNotificationEvent('db_fetch_error', 'Error fetching current settings', {
+          error: fetchError.message
+        });
+      }
+        
       // Only update if token changed or notifications are disabled
       if (currentSettings?.push_token !== pushToken.data || !currentSettings?.notifications_enabled) {
-        console.log('Updating push token in the database');
-        
         const { error } = await supabase
           .from('profile_settings')
           .update({
@@ -143,11 +165,13 @@ export async function registerForPushNotifications() {
           .eq('id', user.id);
 
         if (error) {
-          console.error('Error saving push token to database:', error);
+          await logNotificationEvent('db_update_error', 'Error saving push token to database', {
+            error: error.message
+          });
         } else {
-          console.log('Saved push token to database');
+          await logNotificationEvent('token_saved', 'Successfully saved token to database');
           
-          // Send a test notification log
+          // Create notification log entry for debugging
           try {
             await supabase
               .from('notification_logs')
@@ -159,18 +183,33 @@ export async function registerForPushNotifications() {
                 status: 'sent',
                 details: JSON.stringify({ token: pushToken.data })
               });
-            console.log('Created notification log for token registration');
+              
+            await logNotificationEvent('notification_log_created', 'Created notification log entry');
           } catch (logError) {
-            console.error('Failed to create notification log:', logError);
+            await logNotificationEvent('notification_log_error', 'Failed to create notification log', {
+              error: logError
+            });
           }
         }
       } else {
-        console.log('Token already registered and notifications enabled');
+        await logNotificationEvent('token_unchanged', 'Token already registered and notifications enabled');
       }
+    } else {
+      await logNotificationEvent('auth_error', 'No authenticated user found when saving token');
     }
 
     return pushToken.data;
   } catch (error) {
+    // Get the import inside the catch block to avoid circular imports
+    try {
+      const { logNotificationEvent } = await import('./notificationDebug');
+      await logNotificationEvent('registration_exception', 'Exception during registration', {
+        error: error.message
+      });
+    } catch (logError) {
+      console.error('Error logging notification error:', logError);
+    }
+    
     console.error('Error registering for push notifications:', error);
     return null;
   }

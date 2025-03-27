@@ -143,6 +143,11 @@ export const sendFriendRequest = async (receiverNickname: string): Promise<void>
     
     // Send push notification after successful DB insertion
     try {
+      // Import the logging service
+      const { logNotificationEvent } = await import('./notificationDebug');
+      await logNotificationEvent('friend_request_notify_start', 
+        `Starting notification process for friend request to ${receiverNickname}`);
+      
       // Retrieve sender's nickname for notification content
       const { data: senderProfile } = await supabase
         .from('profiles')
@@ -151,18 +156,49 @@ export const sendFriendRequest = async (receiverNickname: string): Promise<void>
         .single();
 
       const senderNickname = senderProfile?.nickname || 'Someone';
+
+      // Check notification settings of receiver
+      const { data: receiverSettings } = await supabase
+        .from('profile_settings')
+        .select('push_token, notifications_enabled')
+        .eq('id', targetUser.id)
+        .single();
+
+      await logNotificationEvent('friend_request_receiver_settings', 
+        'Retrieved receiver notification settings', {
+          payload: {
+            has_token: !!receiverSettings?.push_token,
+            notifications_enabled: receiverSettings?.notifications_enabled
+          }
+        });
       
       // Dynamically import the notification service
       const notificationService = await import('./notificationService');
+      await logNotificationEvent('friend_request_sending', 
+        `Sending friend request notification from ${senderNickname} to ${targetUser.id}`);
+      
       const sent = await notificationService.sendFriendRequestNotification(
         targetUser.id,
         senderNickname
       );
       
+      await logNotificationEvent('friend_request_sent', 
+        `Friend request notification send result: ${sent ? 'success' : 'failed'}`);
+      
       console.log('Notification sent result:', sent);
     } catch (notifError) {
       // Log error but do not fail the friend request creation
       console.error('Failed to send notification:', notifError);
+      
+      try {
+        const { logNotificationEvent } = await import('./notificationDebug');
+        await logNotificationEvent('friend_request_notification_error', 
+          'Error sending friend request notification', {
+            error: notifError.message || String(notifError)
+          });
+      } catch (logError) {
+        console.error('Error logging notification error:', logError);
+      }
     }
 
     return requestData;
