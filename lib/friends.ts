@@ -177,6 +177,7 @@ export const sendFriendRequest = async (receiverNickname: string): Promise<void>
       await logNotificationEvent('friend_request_sending', 
         `Sending friend request notification from ${senderNickname} to ${targetUser.id}`);
       
+      // Use direct notification service
       const sent = await notificationService.sendFriendRequestNotification(
         targetUser.id,
         senderNickname

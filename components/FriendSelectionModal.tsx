@@ -205,6 +205,29 @@ export default function FriendSelectionModal({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      // Get current user's nickname for notification
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('nickname')
+        .eq('id', user.id)
+        .single();
+        
+      if (profileError) throw profileError;
+      
+      const senderNickname = profile?.nickname || 'Someone';
+      
+      // Get challenge details
+      const { data: challenge, error: challengeError } = await supabase
+        .from('challenges')
+        .select('title, challenge_type')
+        .eq('id', challengeId)
+        .single();
+        
+      if (challengeError) throw challengeError;
+      
+      // Use challenge title or fallback to type
+      const challengeName = challenge?.title || `${challenge?.challenge_type.toUpperCase()} Challenge`;
+      
       // Create invites for each selected friend
       const invites = selectedFriends.map(friend => ({
         challenge_id: challengeId,
@@ -218,6 +241,25 @@ export default function FriendSelectionModal({
         .insert(invites);
 
       if (error) throw error;
+      
+      // Import notification service for sending notifications
+      const { sendChallengeInviteNotification } = await import('../lib/notificationService');
+      
+      // Send notifications to each invited friend
+      for (const friend of selectedFriends) {
+        try {
+          console.log(`Sending challenge invite notification to ${friend.nickname}`);
+          await sendChallengeInviteNotification(
+            friend.id,
+            senderNickname,
+            challengeId,
+            challengeName
+          );
+        } catch (notifError) {
+          console.error(`Failed to send notification to ${friend.nickname}:`, notifError);
+          // Continue with other notifications even if one fails
+        }
+      }
       
       // Update local state to reflect the new invites
       setFriends(prev => 

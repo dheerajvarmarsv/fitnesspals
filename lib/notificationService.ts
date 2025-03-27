@@ -285,9 +285,36 @@ export function setupNotificationListeners(
 // This ensures existing imports still work
 export async function sendFriendRequestNotification(receiverId: string, senderNickname: string) {
   try {
-    // Dynamically import to avoid circular dependencies
-    const { sendFriendRequestNotification } = await import('./notificationServer');
-    return sendFriendRequestNotification(receiverId, senderNickname);
+    // First try using direct notification for immediate delivery
+    const { sendNotificationToUser } = await import('./notificationServer');
+    
+    // Directly send notification
+    const sent = await sendNotificationToUser(receiverId, {
+      title: 'New Friend Request',
+      body: `${senderNickname} sent you a friend request`,
+      channelId: 'friend-requests',
+      screen: 'friends',
+    });
+    
+    console.log('Direct notification result:', sent);
+    
+    // Also store in database for edge function processing
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('notification_logs').insert({
+          event_type: 'friend_request',
+          recipient_id: receiverId,
+          sender_id: user.id,
+          message: `Friend request from ${senderNickname}`,
+          status: sent ? 'sent' : 'pending',
+        });
+      }
+    } catch (logError) {
+      console.error('Error storing notification log:', logError);
+    }
+    
+    return sent;
   } catch (error) {
     console.error('Error in sendFriendRequestNotification:', error);
     return false;
@@ -301,9 +328,38 @@ export async function sendChallengeInviteNotification(
   challengeName: string
 ) {
   try {
-    // Dynamically import to avoid circular dependencies
-    const { sendChallengeInviteNotification } = await import('./notificationServer');
-    return sendChallengeInviteNotification(receiverId, senderNickname, challengeId, challengeName);
+    // First try using direct notification for immediate delivery
+    const { sendNotificationToUser } = await import('./notificationServer');
+    
+    // Directly send notification
+    const sent = await sendNotificationToUser(receiverId, {
+      title: 'Challenge Invite',
+      body: `${senderNickname} invited you to join "${challengeName}"`,
+      channelId: 'challenge-invites',
+      screen: 'challengedetails',
+      params: { id: challengeId },
+    });
+    
+    console.log('Direct challenge notification result:', sent);
+    
+    // Also store in database for edge function processing
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('notification_logs').insert({
+          event_type: 'challenge_invite',
+          recipient_id: receiverId,
+          sender_id: user.id,
+          resource_id: challengeId,
+          message: `Challenge invite from ${senderNickname} for "${challengeName}"`,
+          status: sent ? 'sent' : 'pending',
+        });
+      }
+    } catch (logError) {
+      console.error('Error storing challenge notification log:', logError);
+    }
+    
+    return sent;
   } catch (error) {
     console.error('Error in sendChallengeInviteNotification:', error);
     return false;

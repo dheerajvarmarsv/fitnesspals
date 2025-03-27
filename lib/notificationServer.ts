@@ -21,6 +21,13 @@ export async function sendNotificationToUser(
   try {
     console.log('Attempting to send notification to user:', userId);
     
+    // Import the logging function
+    const { logNotificationEvent } = await import('./notificationDebug');
+    await logNotificationEvent('notification_send_start', 
+      `Starting direct notification to user ${userId}`, {
+        payload: data
+      });
+    
     // Get user's push token and notification settings with improved logging
     const { data: user, error: userError } = await supabase
       .from('profile_settings')
@@ -30,22 +37,47 @@ export async function sendNotificationToUser(
 
     if (userError) {
       console.error('Error fetching user profile settings:', userError);
+      await logNotificationEvent('notification_user_error', 
+        'Error fetching user profile settings', {
+          error: userError.message
+        });
       return false;
     }
+    
     if (!user) {
       console.log('No profile settings found for user:', userId);
+      await logNotificationEvent('notification_no_settings', 
+        'No profile settings found for user');
       return false;
     }
+    
+    await logNotificationEvent('notification_settings_found', 
+      'Retrieved notification settings', {
+        payload: {
+          has_token: !!user.push_token,
+          notifications_enabled: user.notifications_enabled
+        }
+      });
+    
     if (!user.push_token) {
       console.log('No push token found for user:', userId);
+      await logNotificationEvent('notification_no_token', 
+        'No push token found for user');
       return false;
     }
+    
     if (!user.notifications_enabled) {
       console.log('Notifications disabled for user:', userId);
+      await logNotificationEvent('notification_disabled', 
+        'Notifications disabled for user');
       return false;
     }
 
     console.log('Sending push notification to token:', user.push_token);
+    await logNotificationEvent('notification_sending', 
+      'Sending push notification', {
+        pushToken: user.push_token
+      });
     
     // Prepare notification payload
     const message = {
@@ -68,6 +100,7 @@ export async function sendNotificationToUser(
       method: 'POST',
       headers: {
         'Accept': 'application/json',
+        'Accept-encoding': 'gzip, deflate',
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(message),
@@ -76,24 +109,62 @@ export async function sendNotificationToUser(
     const result = await response.json();
     console.log('Push notification response:', JSON.stringify(result));
     
+    await logNotificationEvent('notification_response', 
+      'Received response from Expo push service', {
+        response: result,
+        error: result.errors ? JSON.stringify(result.errors) : null
+      });
+    
+    // Store notification attempt in logs
+    try {
+      await supabase
+        .from('notification_logs')
+        .insert({
+          event_type: 'direct_push',
+          recipient_id: userId,
+          sender_id: userId, // may be updated by caller
+          message: data.title + ': ' + data.body,
+          status: result.errors ? 'failed' : 'sent',
+          details: JSON.stringify(result)
+        });
+    } catch (logError) {
+      console.error('Error logging notification:', logError);
+    }
+    
     if (result.errors && result.errors.length > 0) {
       console.error('Push service returned errors:', result.errors);
+      await logNotificationEvent('notification_errors', 
+        'Push service returned errors', {
+          error: JSON.stringify(result.errors)
+        });
       return false;
     }
     
-    if (!result.data || !result.data.status) {
+    if (!result.data) {
       console.error('Invalid response from push service:', result);
+      await logNotificationEvent('notification_invalid_response', 
+        'Invalid response from push service', {
+          error: 'No data field in response'
+        });
       return false;
     }
     
-    if (result.data.status !== 'ok') {
-      console.error('Push service returned non-ok status:', result.data.status);
-      return false;
-    }
-
+    await logNotificationEvent('notification_success', 
+      'Successfully sent notification');
     return true;
   } catch (error) {
     console.error('Error in sendNotificationToUser:', error);
+    
+    try {
+      const { logNotificationEvent } = await import('./notificationDebug');
+      await logNotificationEvent('notification_exception', 
+        'Exception in sendNotificationToUser', {
+          error: error.message
+        });
+    } catch (logError) {
+      console.error('Error logging notification exception:', logError);
+    }
+    
     return false;
   }
 }
