@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -25,7 +25,40 @@ export default function SetupNickname() {
   const [nickname, setNickname] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { updateSettings } = useUser();
+  const { updateSettings, handleLogout } = useUser();
+  
+  // Check if user exists in DB when component mounts
+  useEffect(() => {
+    const checkUserExists = async () => {
+      try {
+        // Get current user from auth
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          // If no user in auth, go to welcome screen
+          router.replace('/welcomescreen');
+          return;
+        }
+        
+        // Check if user exists in profiles table
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', user.id)
+          .single();
+          
+        if (profileError && profileError.code === 'PGRST116') {
+          // User not found in database (was deleted)
+          console.log('User account was deleted from database side, logging out');
+          await handleLogout();
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking user existence:', error);
+      }
+    };
+    
+    checkUserExists();
+  }, []);
 
   const validateNickname = (nickname: string) => {
     return /^[a-zA-Z0-9_]{3,20}$/.test(nickname);
@@ -48,7 +81,24 @@ export default function SetupNickname() {
 
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No user found');
+      if (!user) {
+        await handleLogout();
+        throw new Error('No user found');
+      }
+
+      // Check if user still exists in the database
+      const { data: userProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', user.id)
+        .single();
+        
+      if (profileError && profileError.code === 'PGRST116') {
+        // User not found in database (was deleted)
+        console.log('User account was deleted from database side, logging out');
+        await handleLogout();
+        throw new Error('Your account no longer exists. Please sign up again.');
+      }
 
       // Check if nickname is available
       const { data: isAvailable, error: checkError } = await supabase
