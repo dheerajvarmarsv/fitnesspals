@@ -262,10 +262,11 @@ function ChallengeDetailsContent() {
         .eq('id', participant.id);
   
       // 2. Also remove any invites for this user in this challenge
+      // Use the current challenge_id from route params since participant might not have it
       await supabase
         .from('challenge_invites')
         .delete()
-        .eq('challenge_id', participant.challenge_id)
+        .eq('challenge_id', challenge_id)
         .eq('receiver_id', participant.user_id);
   
       Alert.alert(
@@ -1276,10 +1277,14 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
                     });
                   }
                   
-                  // Success toast or message
-                  alert(isCreator 
-                    ? "Friends added to challenge successfully!" 
-                    : "Invitations sent to the challenge creator for approval!"
+                  // Success toast or message with more specific information
+                  const successMessage = isCreator 
+                    ? "Friends added to challenge successfully! They will receive a notification about the invite." 
+                    : "Invitations sent to the challenge creator for approval!";
+                  
+                  Alert.alert(
+                    "Success",
+                    successMessage
                   );
                   
                   // Refresh participants list
