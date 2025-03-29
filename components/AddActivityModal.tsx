@@ -23,6 +23,7 @@ import {
   updateChallengesWithActivity,
 } from '../lib/challengeUtils';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { calculateSafeZoneRadius } from '../lib/survivalUtils';
 
 const GLOBAL_ACTIVITIES = [
   'Workout',
@@ -393,11 +394,9 @@ export default function AddActivityModal({
               duration = numericValue * 60; // Convert hours to minutes
               break;
             case 'distance_km':
-              // Store distance in kilometers directly
               distance = numericValue;
               break;
             case 'distance_miles':
-              // Convert miles to kilometers for storage
               distance = numericValue * 1.60934;
               break;
             case 'calories':
@@ -413,9 +412,8 @@ export default function AddActivityModal({
               break;
           }
     
-          // Save activity with the appropriate metric
-          // Store the original metric type so UI knows how to display it
-          await saveUserActivity(
+          // Save activity
+          const result = await saveUserActivity(
             {
               activityType: act.activityType,
               duration,
@@ -423,16 +421,19 @@ export default function AddActivityModal({
               calories,
               steps,
               count,
-              metric, // This is important - store the original input metric type
+              metric,
             },
             userId
-          ).then(async (result) => {
-            if (result.success && result.data) {
-              await updateChallengesWithActivity(result.data.id, userId);
-            }
-          });
+          );
+
+          // Only update challenges if activity was saved successfully
+          if (result.success && result.data) {
+            // Update challenges that include this activity
+            await updateChallengesWithActivity(result.data.id, userId);
+          }
         }
       }
+
       Alert.alert('Success', 'Activities saved successfully!', [
         {
           text: 'OK',

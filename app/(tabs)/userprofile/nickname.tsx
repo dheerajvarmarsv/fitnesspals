@@ -41,7 +41,7 @@ export default function EditNickname() {
         .from('profiles')
         .select('id')
         .eq('nickname', nickname.toLowerCase())
-        .neq('id', user.id); // exclude the current user’s row
+        .neq('id', user.id); // exclude the current user's row
 
       if (checkError) throw checkError;
 
@@ -163,13 +163,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   saveButton: {
-    backgroundColor: '#00000',
+    backgroundColor: '#000000',
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
   },
   saveButtonDisabled: {
-    backgroundColor: '#ccc',
+    backgroundColor: '#333333',
   },
   saveButtonText: {
     color: '#fff',

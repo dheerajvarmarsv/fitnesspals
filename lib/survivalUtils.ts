@@ -173,10 +173,6 @@ export const calculateNewDistance = (
 };
 
 /**
- * Process a participant's danger status and update lives/elimination status
- * based on their distance from center and the current safe zone radius
- */
-/**
  * Calculate dynamic elimination threshold based on challenge length
  * Shorter challenges need quicker elimination to maintain challenge
  */
@@ -203,13 +199,6 @@ export const processDangerStatus = (
   // Use default settings if none provided
   const survivalSettings = settings || DEFAULT_SURVIVAL_SETTINGS;
   
-  // Determine elimination threshold based on challenge duration
-  const timeframe = survivalSettings.timeframe || 'daily';
-  // Use dynamically calculated threshold if totalDays is provided, otherwise use the settings value or default
-  const eliminationThreshold = totalDays 
-    ? calculateEliminationThreshold(totalDays) 
-    : (survivalSettings.elimination_threshold || 3);
-  
   // Get participant's current values
   const distanceFromCenter = participant.distance_from_center || 1.0;
   const isInDanger = distanceFromCenter > safeZoneRadius;
@@ -230,14 +219,37 @@ export const processDangerStatus = (
     // Increment danger days
     daysInDanger += 1;
     
+    // Get elimination threshold based on challenge duration
+    const eliminationThreshold = totalDays ? 
+      calculateEliminationThreshold(totalDays) : 
+      (survivalSettings.elimination_threshold || DEFAULT_SURVIVAL_SETTINGS.elimination_threshold);
+    
+    console.log('Danger status check:', {
+      participantId: participant.id,
+      daysInDanger,
+      eliminationThreshold,
+      lives,
+      isInDanger,
+      distanceFromCenter,
+      safeZoneRadius
+    });
+    
     // Check if participant loses a life
     if (daysInDanger >= eliminationThreshold) {
       lives = Math.max(0, lives - 1);
       daysInDanger = 0; // Reset danger counter after losing a life
       
+      console.log('Life lost:', {
+        participantId: participant.id,
+        newLives: lives,
+        wasInDanger: daysInDanger,
+        eliminationThreshold
+      });
+      
       // Check if participant is eliminated
       if (lives <= 0) {
         isEliminated = true;
+        console.log('Participant eliminated:', participant.id);
       }
     }
   } else {

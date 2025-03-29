@@ -3,7 +3,8 @@ import { View, StyleSheet, Dimensions, Animated, Platform, ActivityIndicator, Te
 import Svg, { Circle, G, Line, Defs, RadialGradient, Stop, Pattern, Rect } from 'react-native-svg';
 import UserDot from '../app/UserDot';
 import { useArenaStore } from '../lib/arenaStore';
-import { calculateSafeZoneRadius, DEFAULT_SURVIVAL_SETTINGS } from '../lib/survivalUtils';
+import { calculateSafeZoneRadius, DEFAULT_SURVIVAL_SETTINGS, processDangerStatus } from '../lib/survivalUtils';
+import { supabase } from '../lib/supabase';
 
 const { width } = Dimensions.get('window');
 const ARENA_SIZE = width * 0.9;
@@ -22,7 +23,7 @@ export const Arena = () => {
     currentUser,
     challengeId,
     currentUserParticipant,
-    challengeDetails // Added this to use survival settings
+    challengeDetails
   } = useArenaStore();
   
   const currentUserId = currentUser?.id || null;
@@ -48,11 +49,6 @@ export const Arena = () => {
   // Calculate progress based on actual database values
   const progressPercentage = totalDays > 0 ? Math.min(100, (currentDay / totalDays) * 100) : 0;
   
-  // Determine user status based on data from database and use normalized safe zone
-  // Get survival settings from the dedicated column or fallback to rules
-  // const survivalSettings = challengeDetails?.survival_settings || 
-  //                       challengeDetails?.rules?.survival_settings;
-                           
   // Calculate normalized safe zone (0-1)
   const normalizedSafeZone = calculateSafeZoneRadius(currentDay, totalDays, survivalSettings);
   
@@ -61,19 +57,27 @@ export const Arena = () => {
     (currentUserParticipant.distance_from_center > normalizedSafeZone) : 
     (currentUser ? currentUser.distance > safeZoneRadius : false);
     
+  // Calculate days in danger and lives based on position
+  const daysInDanger = currentUserParticipant?.days_in_danger || 0;
+  const eliminationThreshold = survivalSettings?.elimination_threshold || DEFAULT_SURVIVAL_SETTINGS.elimination_threshold;
+  const isAtRisk = isInDanger && daysInDanger >= eliminationThreshold;
+  
   // Determine if user is eliminated based on database flag
   const isEliminated = currentUserParticipant?.is_eliminated || currentUser?.isEliminated || false;
   
-  // Set status color and text based on actual status
+  // Set status color and text
   let statusColor = '#22c55e'; // Default green for safe
   let statusText = 'Safe';
   
   if (isEliminated) {
     statusColor = '#9ca3af'; // Gray for eliminated
     statusText = 'Eliminated';
+  } else if (isAtRisk) {
+    statusColor = '#ef4444'; // Red for danger (at risk of losing life)
+    statusText = `Danger (${eliminationThreshold - daysInDanger} days until life lost)`;
   } else if (isInDanger) {
-    statusColor = '#ef4444'; // Red for danger
-    statusText = 'Danger';
+    statusColor = '#f97316'; // Orange for in danger but not at risk
+    statusText = `Danger (${daysInDanger}/${eliminationThreshold} days)`;
   }
 
   // Set up real-time subscription when component mounts
@@ -192,7 +196,7 @@ export const Arena = () => {
           </View>
         </View>
         
-        {isInDanger && !isEliminated && (
+        {isAtRisk && !isEliminated && (
           <View style={styles.dangerAlert}>
             <Text style={styles.dangerText}>
               {currentUserParticipant?.days_in_danger !== undefined && (
