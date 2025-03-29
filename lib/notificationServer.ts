@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { logNotificationEvent } from './notificationDebug';
 
 const EXPO_PUSH_API = 'https://exp.host/--/api/v2/push/send';
 
@@ -10,93 +11,65 @@ type NotificationData = {
   channelId?: string;
 };
 
+interface NotificationPayload {
+  title: string;
+  body: string;
+  screen?: string;
+  params?: Record<string, any>;
+  channelId?: string;
+}
+
 /**
  * Send a push notification to a user by their user ID
  */
 export async function sendNotificationToUser(
   userId: string,
-  data: NotificationData,
-  badgeCount?: number
+  notification: NotificationPayload
 ) {
   try {
-    console.log('Attempting to send notification to user:', userId);
-    
-    // Import the logging function
-    const { logNotificationEvent } = await import('./notificationDebug');
-    await logNotificationEvent('notification_send_start', 
-      `Starting direct notification to user ${userId}`, {
-        payload: data
-      });
-    
-    // Get user's push token and notification settings with improved logging
-    const { data: user, error: userError } = await supabase
+    // Get user's notification settings
+    const { data: settings, error: settingsError } = await supabase
       .from('profile_settings')
-      .select(`push_token, notifications_enabled`)
+      .select('push_token, notifications_enabled')
       .eq('id', userId)
       .single();
 
-    if (userError) {
-      console.error('Error fetching user profile settings:', userError);
-      await logNotificationEvent('notification_user_error', 
-        'Error fetching user profile settings', {
-          error: userError.message
+    if (settingsError) {
+      await logNotificationEvent('notification_settings_error', 
+        'Error fetching notification settings', { error: settingsError.message });
+      return false;
+    }
+
+    if (!settings?.push_token || !settings?.notifications_enabled) {
+      await logNotificationEvent('notification_no_token', 
+        'User has no push token or notifications disabled', {
+          payload: {
+            has_token: !!settings?.push_token,
+            notifications_enabled: settings?.notifications_enabled
+          }
         });
       return false;
     }
-    
-    if (!user) {
-      console.log('No profile settings found for user:', userId);
-      await logNotificationEvent('notification_no_settings', 
-        'No profile settings found for user');
-      return false;
-    }
-    
-    await logNotificationEvent('notification_settings_found', 
-      'Retrieved notification settings', {
-        payload: {
-          has_token: !!user.push_token,
-          notifications_enabled: user.notifications_enabled
-        }
-      });
-    
-    if (!user.push_token) {
-      console.log('No push token found for user:', userId);
-      await logNotificationEvent('notification_no_token', 
-        'No push token found for user');
-      return false;
-    }
-    
-    if (!user.notifications_enabled) {
-      console.log('Notifications disabled for user:', userId);
-      await logNotificationEvent('notification_disabled', 
-        'Notifications disabled for user');
-      return false;
-    }
 
-    console.log('Sending push notification to token:', user.push_token);
-    await logNotificationEvent('notification_sending', 
-      'Sending push notification', {
-        pushToken: user.push_token
-      });
-    
-    // Prepare notification payload
+    // Prepare notification message
     const message = {
-      to: user.push_token,
-      data: {
-        screen: data.screen,
-        params: data.params,
-      },
-      title: data.title,
-      body: data.body,
+      to: settings.push_token,
+      title: notification.title,
+      body: notification.body,
+      data: notification.params ? {
+        screen: notification.screen,
+        ...notification.params
+      } : { screen: notification.screen },
       sound: 'default',
-      badge: badgeCount,
-      channelId: data.channelId || 'default',
+      badge: 1,
+      channelId: notification.channelId
     };
-    
-    console.log('Notification payload:', JSON.stringify(message));
 
-    // Send notification via Expo push API
-    const response = await fetch(EXPO_PUSH_API, {
+    await logNotificationEvent('notification_sending', 
+      'Sending push notification', { pushToken: settings.push_token });
+
+    // Send notification
+    const response = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
@@ -107,64 +80,18 @@ export async function sendNotificationToUser(
     });
 
     const result = await response.json();
-    console.log('Push notification response:', JSON.stringify(result));
-    
+
     await logNotificationEvent('notification_response', 
       'Received response from Expo push service', {
         response: result,
         error: result.errors ? JSON.stringify(result.errors) : null
       });
-    
-    // Store notification attempt in logs
-    try {
-      await supabase
-        .from('notification_logs')
-        .insert({
-          event_type: 'direct_push',
-          recipient_id: userId,
-          sender_id: userId, // may be updated by caller
-          message: data.title + ': ' + data.body,
-          status: result.errors ? 'failed' : 'sent',
-          details: JSON.stringify(result)
-        });
-    } catch (logError) {
-      console.error('Error logging notification:', logError);
-    }
-    
-    if (result.errors && result.errors.length > 0) {
-      console.error('Push service returned errors:', result.errors);
-      await logNotificationEvent('notification_errors', 
-        'Push service returned errors', {
-          error: JSON.stringify(result.errors)
-        });
-      return false;
-    }
-    
-    if (!result.data) {
-      console.error('Invalid response from push service:', result);
-      await logNotificationEvent('notification_invalid_response', 
-        'Invalid response from push service', {
-          error: 'No data field in response'
-        });
-      return false;
-    }
-    
-    await logNotificationEvent('notification_success', 
-      'Successfully sent notification');
-    return true;
-  } catch (error) {
-    console.error('Error in sendNotificationToUser:', error);
-    
-    try {
-      const { logNotificationEvent } = await import('./notificationDebug');
-      await logNotificationEvent('notification_exception', 
-        'Exception in sendNotificationToUser', {
-          error: error.message
-        });
-    } catch (logError) {
-      console.error('Error logging notification exception:', logError);
-    }
-    
+
+    return !result.errors;
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await logNotificationEvent('notification_error', 
+      'Error sending notification', { error: errorMessage });
     return false;
   }
 }

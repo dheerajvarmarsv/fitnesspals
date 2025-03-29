@@ -3,16 +3,18 @@ import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 
+interface NotificationDebugData {
+  pushToken?: string | null;
+  error?: string | null;
+  payload?: any;
+  response?: any;
+}
+
 // Function to log notification events to Supabase
 export async function logNotificationEvent(
   eventType: string,
   description: string,
-  extraData: {
-    pushToken?: string;
-    error?: any;
-    payload?: any;
-    response?: any;
-  } = {}
+  extraData: NotificationDebugData = {}
 ) {
   try {
     // Get current user
@@ -41,7 +43,7 @@ export async function logNotificationEvent(
       description,
       device_info: deviceInfo,
       push_token: extraData.pushToken,
-      error: extraData.error ? (typeof extraData.error === 'string' ? extraData.error : JSON.stringify(extraData.error)) : null,
+      error: extraData.error,
       payload: extraData.payload,
       response: extraData.response
     });
@@ -49,7 +51,7 @@ export async function logNotificationEvent(
     if (error) {
       console.error('Failed to log notification event:', error);
     }
-  } catch (e) {
-    console.error('Error in logNotificationEvent:', e);
+  } catch (error) {
+    console.error('Error in logNotificationEvent:', error);
   }
 }
