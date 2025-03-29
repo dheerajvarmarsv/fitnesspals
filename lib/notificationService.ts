@@ -122,14 +122,12 @@ export async function registerForPushNotifications() {
 
     // 4. Get the push token from Expo
     const expoProjectId = Constants.expoConfig?.extra?.eas?.projectId;
-    await logNotificationEvent('token_fetch', 'Fetching Expo push token', {
-      payload: { projectId: expoProjectId }
-    });
-    
     if (!expoProjectId) {
       await logNotificationEvent('registration_error', 'Missing EAS project ID in app.config.ts');
       return null;
     }
+
+    await logNotificationEvent('token_fetch', 'Fetching Expo push token');
     
     // Get the push token
     const pushToken = await Notifications.getExpoPushTokenAsync({
@@ -142,76 +140,52 @@ export async function registerForPushNotifications() {
 
     // 5. Save the token to the database
     const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      await logNotificationEvent('saving_token', 'Saving push token to database', {
-        pushToken: pushToken.data
-      });
-      
-      // First check if we already have the same token
-      const { data: currentSettings, error: fetchError } = await supabase
-        .from('profile_settings')
-        .select('push_token, notifications_enabled')
-        .eq('id', user.id)
-        .single();
-        
-      if (fetchError) {
-        await logNotificationEvent('db_fetch_error', 'Error fetching current settings', {
-          error: fetchError.message
-        });
-      }
-        
-      // Only update if token changed or notifications are disabled
-      if (currentSettings?.push_token !== pushToken.data || !currentSettings?.notifications_enabled) {
-        const { error } = await supabase
-          .from('profile_settings')
-          .update({
-            push_token: pushToken.data,
-            notifications_enabled: true,
-          })
-          .eq('id', user.id);
+    if (!user) {
+      await logNotificationEvent('auth_error', 'No authenticated user found');
+      return null;
+    }
 
-        if (error) {
-          await logNotificationEvent('db_update_error', 'Error saving push token to database', {
-            error: error.message
-          });
-        } else {
-          await logNotificationEvent('token_saved', 'Successfully saved token to database');
-          
-          // Create notification log entry for debugging
-          try {
-            await supabase
-              .from('notification_logs')
-              .insert({
-                event_type: 'token_registration',
-                recipient_id: user.id,
-                sender_id: user.id,
-                message: 'Push token registration',
-                status: 'sent',
-                details: JSON.stringify({ token: pushToken.data })
-              });
-              
-            await logNotificationEvent('notification_log_created', 'Created notification log entry');
-          } catch (logError: unknown) {
-            const errorMessage = logError instanceof Error ? logError.message : String(logError);
-            await logNotificationEvent('notification_log_error', 'Failed to create notification log', {
-              error: errorMessage
-            });
-          }
-        }
-      } else {
-        await logNotificationEvent('token_unchanged', 'Token already registered and notifications enabled');
-      }
-    } else {
-      await logNotificationEvent('auth_error', 'No authenticated user found when saving token');
+    // Create or update profile settings
+    const { error: upsertError } = await supabase
+      .from('profile_settings')
+      .upsert({
+        id: user.id,
+        push_token: pushToken.data,
+        notifications_enabled: true,
+      }, {
+        onConflict: 'id'
+      });
+
+    if (upsertError) {
+      await logNotificationEvent('db_error', 'Error saving push token', {
+        error: upsertError.message
+      });
+      return null;
+    }
+
+    await logNotificationEvent('token_saved', 'Successfully saved push token');
+
+    // Log the registration
+    try {
+      await supabase.from('notification_logs').insert({
+        event_type: 'token_registration',
+        recipient_id: user.id,
+        sender_id: user.id,
+        message: 'Push token registration',
+        status: 'success',
+        details: JSON.stringify({ token: pushToken.data })
+      });
+    } catch (logError: unknown) {
+      const errorMessage = logError instanceof Error ? logError.message : String(logError);
+      console.error('Error logging token registration:', errorMessage);
     }
 
     return pushToken.data;
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    await logNotificationEvent('registration_exception', 'Exception during registration', {
+    await logNotificationEvent('registration_error', 'Error registering for push notifications', {
       error: errorMessage
     });
-    console.error('Error registering for push notifications:', errorMessage);
     return null;
   }
 }
@@ -248,17 +222,39 @@ export async function unregisterFromPushNotifications() {
 
 // Send a local test notification (for development testing)
 export async function sendTestNotification() {
+  // Get current user's nickname for the test
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('nickname')
+    .eq('id', user?.id)
+    .single();
+
+  const nickname = profile?.nickname || 'Someone';
+  
+  // First send a local notification
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: 'Test Notification',
-      body: 'This is a test notification from the app',
+      title: 'Test Friend Request',
+      body: `${nickname} sent you a friend request`,
       data: { screen: 'friends' },
       sound: true,
     },
     trigger: { seconds: 1 },
   });
+
+  // Also try sending a remote notification to demonstrate both types
+  if (user) {
+    await sendNotificationToUser(user.id, {
+      title: 'Test Challenge Invite',
+      body: `${nickname} invited you to join "Test Challenge"`,
+      channelId: 'challenge-invites',
+      screen: 'challengedetails',
+      params: { id: 'test-challenge' },
+    });
+  }
   
-  console.log('Scheduled a test notification');
+  console.log('Sent test notifications (both local and remote)');
   return true;
 }
 
