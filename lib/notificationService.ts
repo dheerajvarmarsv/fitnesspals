@@ -229,6 +229,10 @@ export async function sendFriendRequestNotification(
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
 
+    // Log the start of notification sending
+    await logNotificationEvent('friend_request_start', 
+      `Starting to send friend request notification to ${receiverId}`);
+
     // Insert into notifications table to trigger webhook
     const { error } = await supabase
       .from('notifications')
@@ -239,18 +243,27 @@ export async function sendFriendRequestNotification(
         title: 'New Friend Request',
         body: `${senderNickname} sent you a friend request`,
         data: {
-          screen: 'friends'
+          screen: 'friends',
+          senderNickname
         }
       });
 
     if (error) {
-      console.error('Error sending friend request notification:', error);
+      await logNotificationEvent('friend_request_error', 
+        'Error creating notification record', {
+          error: error.message
+        });
       return false;
     }
 
+    await logNotificationEvent('friend_request_success', 
+      'Successfully created notification record');
     return true;
   } catch (error) {
-    console.error('Error in sendFriendRequestNotification:', error);
+    await logNotificationEvent('friend_request_exception', 
+      'Exception in sendFriendRequestNotification', {
+        error: error instanceof Error ? error.message : String(error)
+      });
     return false;
   }
 }
@@ -266,6 +279,10 @@ export async function sendChallengeInviteNotification(
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
 
+    // Log the start of notification sending
+    await logNotificationEvent('challenge_invite_start', 
+      `Starting to send challenge invite notification to ${receiverId}`);
+
     // Insert into notifications table to trigger webhook
     const { error } = await supabase
       .from('notifications')
@@ -277,18 +294,28 @@ export async function sendChallengeInviteNotification(
         body: `${senderNickname} invited you to join "${challengeName}"`,
         data: {
           screen: 'challengedetails',
-          params: { id: challengeId }
+          params: { id: challengeId },
+          senderNickname,
+          challengeName
         }
       });
 
     if (error) {
-      console.error('Error sending challenge invite notification:', error);
+      await logNotificationEvent('challenge_invite_error', 
+        'Error creating notification record', {
+          error: error.message
+        });
       return false;
     }
 
+    await logNotificationEvent('challenge_invite_success', 
+      'Successfully created notification record');
     return true;
   } catch (error) {
-    console.error('Error in sendChallengeInviteNotification:', error);
+    await logNotificationEvent('challenge_invite_exception', 
+      'Exception in sendChallengeInviteNotification', {
+        error: error instanceof Error ? error.message : String(error)
+      });
     return false;
   }
 }
@@ -317,7 +344,10 @@ export async function sendTestNotification() {
         type: 'friend_request',
         title: 'Test Friend Request',
         body: `${nickname} sent you a friend request`,
-        data: { screen: 'friends' }
+        data: { 
+          screen: 'friends',
+          senderNickname: nickname
+        }
       }),
       // Challenge invite notification
       supabase.from('notifications').insert({
@@ -328,7 +358,9 @@ export async function sendTestNotification() {
         body: `${nickname} invited you to join "Test Challenge"`,
         data: {
           screen: 'challengedetails',
-          params: { id: 'test-challenge' }
+          params: { id: 'test-challenge' },
+          senderNickname: nickname,
+          challengeName: 'Test Challenge'
         }
       })
     ]);
@@ -359,6 +391,3 @@ export function setupNotificationListeners(
     if (responseListener) responseListener.remove();
   };
 }
-
-// Export the notification functions from notificationServer.ts for backward compatibility
-export { sendFriendRequestNotification, sendChallengeInviteNotification } from './notificationServer';
