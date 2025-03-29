@@ -96,7 +96,6 @@ export async function registerForPushNotifications() {
   try {
     console.log('Registering for push notifications...');
     
-    // Import logs
     await logNotificationEvent('registration_start', 'Starting push token registration process');
     
     // 1. Check device compatibility
@@ -132,10 +131,9 @@ export async function registerForPushNotifications() {
       return null;
     }
     
-    // Force a new token to be generated
+    // Get the push token
     const pushToken = await Notifications.getExpoPushTokenAsync({
       projectId: expoProjectId,
-      devicePushToken: null, // Force a new token to be generated
     });
 
     await logNotificationEvent('token_received', 'Received Expo push token', {
@@ -193,9 +191,10 @@ export async function registerForPushNotifications() {
               });
               
             await logNotificationEvent('notification_log_created', 'Created notification log entry');
-          } catch (logError) {
+          } catch (logError: unknown) {
+            const errorMessage = logError instanceof Error ? logError.message : String(logError);
             await logNotificationEvent('notification_log_error', 'Failed to create notification log', {
-              error: logError
+              error: errorMessage
             });
           }
         }
@@ -207,17 +206,12 @@ export async function registerForPushNotifications() {
     }
 
     return pushToken.data;
-  } catch (error) {
-    // Get the import inside the catch block to avoid circular imports
-    try {
-      await logNotificationEvent('registration_exception', 'Exception during registration', {
-        error: error.message
-      });
-    } catch (logError) {
-      console.error('Error logging notification error:', logError);
-    }
-    
-    console.error('Error registering for push notifications:', error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await logNotificationEvent('registration_exception', 'Exception during registration', {
+      error: errorMessage
+    });
+    console.error('Error registering for push notifications:', errorMessage);
     return null;
   }
 }

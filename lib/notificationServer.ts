@@ -27,7 +27,13 @@ export async function sendNotificationToUser(
   notification: NotificationPayload
 ) {
   try {
-    // Get user's notification settings
+    // Log the start of notification sending
+    await logNotificationEvent('notification_start', 
+      `Starting to send notification to user ${userId}`, {
+        payload: notification
+      });
+
+    // Get user's notification settings and profile
     const { data: settings, error: settingsError } = await supabase
       .from('profile_settings')
       .select('push_token, notifications_enabled')
@@ -36,17 +42,34 @@ export async function sendNotificationToUser(
 
     if (settingsError) {
       await logNotificationEvent('notification_settings_error', 
-        'Error fetching notification settings', { error: settingsError.message });
+        'Error fetching notification settings', { 
+          error: settingsError.message,
+          payload: { userId }
+        });
       return false;
     }
 
-    if (!settings?.push_token || !settings?.notifications_enabled) {
-      await logNotificationEvent('notification_no_token', 
-        'User has no push token or notifications disabled', {
-          payload: {
-            has_token: !!settings?.push_token,
-            notifications_enabled: settings?.notifications_enabled
-          }
+    // Validate notification settings
+    if (!settings) {
+      await logNotificationEvent('notification_no_settings', 
+        'No notification settings found', {
+          payload: { userId }
+        });
+      return false;
+    }
+
+    if (!settings.notifications_enabled) {
+      await logNotificationEvent('notifications_disabled', 
+        'Notifications are disabled for user', {
+          payload: { userId }
+        });
+      return false;
+    }
+
+    if (!settings.push_token) {
+      await logNotificationEvent('no_push_token', 
+        'No push token found for user', {
+          payload: { userId }
         });
       return false;
     }
@@ -56,42 +79,87 @@ export async function sendNotificationToUser(
       to: settings.push_token,
       title: notification.title,
       body: notification.body,
-      data: notification.params ? {
+      data: {
         screen: notification.screen,
-        ...notification.params
-      } : { screen: notification.screen },
+        ...(notification.params || {})
+      },
       sound: 'default',
       badge: 1,
-      channelId: notification.channelId
+      channelId: notification.channelId || 'default',
+      priority: 'high',
+      ttl: 60 * 60 * 24, // 24 hours
     };
 
     await logNotificationEvent('notification_sending', 
-      'Sending push notification', { pushToken: settings.push_token });
+      'Sending push notification', { 
+        pushToken: settings.push_token,
+        payload: message
+      });
 
     // Send notification
-    const response = await fetch('https://exp.host/--/api/v2/push/send', {
+    const response = await fetch(EXPO_PUSH_API, {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
         'Accept-encoding': 'gzip, deflate',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(message),
+      body: JSON.stringify([message]), // Expo expects an array of messages
     });
 
-    const result = await response.json();
+    if (!response.ok) {
+      const errorText = await response.text();
+      await logNotificationEvent('notification_http_error', 
+        'HTTP error from Expo push service', {
+          error: `${response.status}: ${errorText}`,
+          payload: message
+        });
+      return false;
+    }
 
-    await logNotificationEvent('notification_response', 
-      'Received response from Expo push service', {
+    const result = await response.json();
+    const ticket = result.data?.[0];
+
+    if (ticket?.status === 'error') {
+      await logNotificationEvent('notification_expo_error', 
+        'Error from Expo push service', {
+          error: ticket.message,
+          payload: { ticket, message }
+        });
+      return false;
+    }
+
+    await logNotificationEvent('notification_success', 
+      'Successfully sent notification', {
         response: result,
-        error: result.errors ? JSON.stringify(result.errors) : null
+        pushToken: settings.push_token
       });
 
-    return !result.errors;
+    // Log to notification_logs table
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('notification_logs').insert({
+          event_type: 'push_notification',
+          recipient_id: userId,
+          sender_id: user.id,
+          message: `${notification.title}: ${notification.body}`,
+          status: 'sent',
+          details: JSON.stringify({ message, result })
+        });
+      }
+    } catch (logError) {
+      console.error('Error logging notification:', logError);
+    }
+
+    return true;
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     await logNotificationEvent('notification_error', 
-      'Error sending notification', { error: errorMessage });
+      'Error sending notification', { 
+        error: errorMessage,
+        payload: { userId, notification }
+      });
     return false;
   }
 }
