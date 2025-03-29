@@ -220,42 +220,124 @@ export async function unregisterFromPushNotifications() {
   }
 }
 
-// Send a local test notification (for development testing)
-export async function sendTestNotification() {
-  // Get current user's nickname for the test
-  const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('nickname')
-    .eq('id', user?.id)
-    .single();
+// Send a friend request notification
+export async function sendFriendRequestNotification(
+  receiverId: string,
+  senderNickname: string
+) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
 
-  const nickname = profile?.nickname || 'Someone';
-  
-  // First send a local notification
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: 'Test Friend Request',
-      body: `${nickname} sent you a friend request`,
-      data: { screen: 'friends' },
-      sound: true,
-    },
-    trigger: { seconds: 1 },
-  });
+    // Insert into notifications table to trigger webhook
+    const { error } = await supabase
+      .from('notifications')
+      .insert({
+        recipient_id: receiverId,
+        sender_id: user.id,
+        type: 'friend_request',
+        title: 'New Friend Request',
+        body: `${senderNickname} sent you a friend request`,
+        data: {
+          screen: 'friends'
+        }
+      });
 
-  // Also try sending a remote notification to demonstrate both types
-  if (user) {
-    await sendNotificationToUser(user.id, {
-      title: 'Test Challenge Invite',
-      body: `${nickname} invited you to join "Test Challenge"`,
-      channelId: 'challenge-invites',
-      screen: 'challengedetails',
-      params: { id: 'test-challenge' },
-    });
+    if (error) {
+      console.error('Error sending friend request notification:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in sendFriendRequestNotification:', error);
+    return false;
   }
-  
-  console.log('Sent test notifications (both local and remote)');
-  return true;
+}
+
+// Send a challenge invite notification
+export async function sendChallengeInviteNotification(
+  receiverId: string,
+  senderNickname: string,
+  challengeId: string,
+  challengeName: string
+) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    // Insert into notifications table to trigger webhook
+    const { error } = await supabase
+      .from('notifications')
+      .insert({
+        recipient_id: receiverId,
+        sender_id: user.id,
+        type: 'challenge_invite',
+        title: 'Challenge Invite',
+        body: `${senderNickname} invited you to join "${challengeName}"`,
+        data: {
+          screen: 'challengedetails',
+          params: { id: challengeId }
+        }
+      });
+
+    if (error) {
+      console.error('Error sending challenge invite notification:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in sendChallengeInviteNotification:', error);
+    return false;
+  }
+}
+
+// Send a test notification (for development testing)
+export async function sendTestNotification() {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    // Get current user's nickname
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('nickname')
+      .eq('id', user.id)
+      .single();
+
+    const nickname = profile?.nickname || 'Someone';
+
+    // Send both types of notifications for testing
+    await Promise.all([
+      // Friend request notification
+      supabase.from('notifications').insert({
+        recipient_id: user.id,
+        sender_id: user.id,
+        type: 'friend_request',
+        title: 'Test Friend Request',
+        body: `${nickname} sent you a friend request`,
+        data: { screen: 'friends' }
+      }),
+      // Challenge invite notification
+      supabase.from('notifications').insert({
+        recipient_id: user.id,
+        sender_id: user.id,
+        type: 'challenge_invite',
+        title: 'Test Challenge Invite',
+        body: `${nickname} invited you to join "Test Challenge"`,
+        data: {
+          screen: 'challengedetails',
+          params: { id: 'test-challenge' }
+        }
+      })
+    ]);
+
+    return true;
+  } catch (error) {
+    console.error('Error sending test notifications:', error);
+    return false;
+  }
 }
 
 // Set up notification listeners
