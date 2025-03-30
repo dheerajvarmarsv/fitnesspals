@@ -26,8 +26,6 @@ export default function ProfileSettings() {
   const [loading, setLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  // Removed health connection status
-
   const confirmLogout = () => {
     Alert.alert(
       'Sign Out',
@@ -87,6 +85,21 @@ export default function ProfileSettings() {
           title: 'Password',
           description: 'Update your password',
           path: '/password',
+          hasChevron: true,
+        },
+      ],
+    },
+    {
+      title: 'HEALTH & FITNESS',
+      items: [
+        {
+          id: 'fitness-connections',
+          icon: 'fitness',
+          iconBgColor: theme.colors.success,
+          iconColor: '#fff',
+          title: 'Health Services',
+          description: 'Connect to Apple Health or Google Fit',
+          path: '/fitness-connections',
           hasChevron: true,
         },
       ],
@@ -206,7 +219,6 @@ export default function ProfileSettings() {
           </TouchableOpacity>
           <Text style={[styles.email, { color: theme.colors.textTertiary }]}>{settings.email}</Text>
         </View>
-
 
         {/* Settings Sections */}
         <View style={styles.settingsContainer}>

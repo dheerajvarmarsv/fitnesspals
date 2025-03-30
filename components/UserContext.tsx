@@ -4,6 +4,20 @@ import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 
+declare global {
+  interface Window {
+    addEventListener(type: string, listener: () => void): void;
+    removeEventListener(type: string, listener: () => void): void;
+  }
+
+  interface Navigator {
+    onLine: boolean;
+  }
+
+  var window: Window;
+  var navigator: Navigator;
+}
+
 export interface UserSettings {
   email: string;
   nickname: string;
@@ -22,6 +36,7 @@ export interface UserSettings {
 
 interface UserContextType {
   settings: UserSettings;
+  user: any;
   updateSettings: (newSettings: Partial<UserSettings>) => Promise<void>;
   refreshUserProfile: () => Promise<void>;
   clearSettings: () => Promise<void>;
@@ -116,13 +131,19 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (Platform.OS === 'web') {
-      const updateOnlineStatus = () => setIsOnline(navigator.onLine);
-      window.addEventListener('online', updateOnlineStatus);
-      window.addEventListener('offline', updateOnlineStatus);
-      return () => {
-        window.removeEventListener('online', updateOnlineStatus);
-        window.removeEventListener('offline', updateOnlineStatus);
+      const updateOnlineStatus = () => {
+        if (typeof window !== 'undefined' && typeof navigator !== 'undefined') {
+          setIsOnline(navigator.onLine);
+        }
       };
+      if (typeof window !== 'undefined') {
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+        return () => {
+          window.removeEventListener('online', updateOnlineStatus);
+          window.removeEventListener('offline', updateOnlineStatus);
+        };
+      }
     }
   }, []);
 
@@ -373,6 +394,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     <UserContext.Provider
       value={{
         settings,
+        user: null,
         updateSettings,
         refreshUserProfile,
         clearSettings,

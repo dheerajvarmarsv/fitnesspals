@@ -16,7 +16,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.dheshadev.ctp",
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": ["remote-notification"],
+        "NSHealthShareUsageDescription": "Allow CTP to read your health and fitness data to track your activities and progress in challenges.",
+        "NSHealthUpdateUsageDescription": "Allow CTP to write your health and fitness data to track your activities and progress in challenges."
       }
     },
     "android": {
@@ -28,7 +30,14 @@
       "permissions": [
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
-        "android.permission.SCHEDULE_EXACT_ALARM"
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.health.READ_STEPS",
+        "android.permission.health.READ_DISTANCE",
+        "android.permission.health.READ_HEART_RATE",
+        "android.permission.health.READ_EXERCISE",
+        "android.permission.health.READ_SLEEP",
+        "android.permission.health.READ_FLOORS_CLIMBED",
+        "android.permission.health.READ_ACTIVE_CALORIES_BURNED"
       ]
     },
     "web": {
@@ -53,7 +62,8 @@
           }
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      "./androidManifestPlugin.js"
     ]
   }
 }

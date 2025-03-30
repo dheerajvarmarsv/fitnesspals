@@ -292,7 +292,7 @@ export async function initHealthKit(): Promise<boolean> {
   if (!AppleHealthKit) {
     try {
       // Import the module
-      const HealthKit = require('react-native-health');
+      const HealthKit = require('react-native-health').default;
       
       // Check if it's properly loaded and has the expected functions
       if (!HealthKit || typeof HealthKit.initHealthKit !== 'function') {
@@ -312,6 +312,7 @@ export async function initHealthKit(): Promise<boolean> {
               HKPermissions.DistanceWalkingRunning,
               HKPermissions.ActiveEnergyBurned,
               HKPermissions.AppleExerciseTime,
+              HKPermissions.SleepAnalysis,
             ],
             write: [],
           },
