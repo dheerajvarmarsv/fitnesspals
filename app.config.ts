@@ -4,7 +4,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "CTP",
   slug: "ctp",
-  version: "1.1",
+  version: "1.3",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: "myapp",
