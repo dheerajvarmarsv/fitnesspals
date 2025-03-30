@@ -9,23 +9,34 @@ import {
   ActivityIndicator,
   ScrollView,
   SafeAreaView,
+  NativeModules,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useUser } from '../../../../components/UserContext';
 import { supabase } from '../../../../lib/supabase';
-import { initHealthKit, initAndroidHealth, FitnessDataSource } from '../../../../lib/fitness';
+import { 
+  initHealthKit, 
+  initAndroidHealth, 
+  FitnessDataSource,
+  saveFitnessConnection,
+  fetchAndStoreDailyHealthData
+} from '../../../../lib/fitness';
 import { useTheme } from '../../../../lib/ThemeContext';
+
+// Check if running in simulator
+const isSimulator = Platform.OS === 'ios' && 
+  (NativeModules.RNDeviceInfo?.isEmulator || process.env.NODE_ENV === 'development');
 
 // Import AppleHealthKit with proper handling
 let AppleHealthKit: any = null;
-
 if (Platform.OS === 'ios') {
   try {
     const RNHealth = require('react-native-health');
-    AppleHealthKit = RNHealth.default || RNHealth;
+    AppleHealthKit = RNHealth?.default;
     
-    if (!AppleHealthKit) {
-      console.error('Failed to load AppleHealthKit module');
+    if (!AppleHealthKit?.initHealthKit) {
+      console.warn('HealthKit module loaded but missing required functions');
+      AppleHealthKit = null;
     }
   } catch (e) {
     console.error('Error importing react-native-health:', e);
@@ -90,31 +101,10 @@ export default function HealthServices() {
           return;
         }
 
-        // Verify module is loaded
-        if (!AppleHealthKit) {
-          setPermissionError('Unable to initialize Apple Health. Please ensure the app is properly installed.');
-          return;
-        }
-
-        // Check HealthKit availability
-        const isAvailable = await new Promise<boolean>((resolve) => {
-          AppleHealthKit.isHealthKitAvailable((error: any, result: boolean) => {
-            if (error) {
-              console.error('Error checking HealthKit availability:', error);
-              resolve(false);
-              return;
-            }
-            resolve(result);
-          });
-        });
-
-        if (!isAvailable) {
-          setPermissionError(
-            'Health app is not available on this device. Please ensure:\n\n' +
-            '1. You are using a real iOS device (not a simulator)\n' +
-            '2. The Health app is installed and set up\n' +
-            '3. Your device supports HealthKit'
-          );
+        // Handle simulator environment
+        if (isSimulator) {
+          console.warn('Running in simulator - using mock HealthKit data');
+          await handleSimulatorConnection(source);
           return;
         }
 
@@ -146,26 +136,7 @@ export default function HealthServices() {
                     return;
                   }
 
-                  // Update connection status
-                  const { error } = await supabase
-                    .from('user_fitness_connections')
-                    .upsert({
-                      user_id: user?.id,
-                      type: source,
-                      connected: true,
-                      status: 'connected',
-                      updated_at: new Date().toISOString(),
-                    });
-
-                  if (error) throw error;
-
-                  // Update local state
-                  setConnections(prev => ({
-                    ...prev,
-                    [source]: true,
-                  }));
-
-                  // Initial sync
+                  await updateConnectionStatus(source, true);
                   await handleSync();
                   
                   Alert.alert(
@@ -226,6 +197,43 @@ export default function HealthServices() {
     }
   };
 
+  const handleSimulatorConnection = async (source: FitnessDataSource) => {
+    try {
+      await updateConnectionStatus(source, true);
+      await handleSync();
+      
+      Alert.alert(
+        'Simulator Mode',
+        'Connected to Health services in simulator mode. Mock data will be used for testing.',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('Error in simulator connection:', error);
+      setPermissionError('Failed to set up simulator connection. Please try again.');
+    }
+  };
+
+  const updateConnectionStatus = async (source: FitnessDataSource, connected: boolean) => {
+    try {
+      if (!user?.id) throw new Error('User not authenticated');
+
+      await saveFitnessConnection(user.id, {
+        type: source,
+        connected,
+        status: connected ? 'connected' : 'disconnected',
+        permissions: [],
+      });
+
+      setConnections(prev => ({
+        ...prev,
+        [source]: connected,
+      }));
+    } catch (error) {
+      console.error('Error updating connection status:', error);
+      throw error;
+    }
+  };
+
   const handleDisconnect = async (source: FitnessDataSource) => {
     Alert.alert(
       'Disconnect Health Service',
@@ -238,23 +246,7 @@ export default function HealthServices() {
           onPress: async () => {
             try {
               setLoading(true);
-
-              const { error } = await supabase
-                .from('user_fitness_connections')
-                .update({
-                  connected: false,
-                  status: 'disconnected',
-                  updated_at: new Date().toISOString(),
-                })
-                .eq('user_id', user?.id)
-                .eq('type', source);
-
-              if (error) throw error;
-
-              setConnections(prev => ({
-                ...prev,
-                [source]: false,
-              }));
+              await updateConnectionStatus(source, false);
             } catch (error) {
               console.error('Error disconnecting:', error);
               Alert.alert('Error', 'Failed to disconnect health service');
@@ -309,6 +301,15 @@ export default function HealthServices() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {isSimulator && (
+        <View style={styles.simulatorBanner}>
+          <Ionicons name="information-circle" size={24} color="#fff" />
+          <Text style={styles.simulatorText}>
+            Running in Simulator Mode - Using mock health data
+          </Text>
+        </View>
+      )}
+      
       <ScrollView 
         style={styles.content}
         contentContainerStyle={styles.scrollContent}
@@ -557,5 +558,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     flex: 1,
     marginLeft: 12,
+  },
+  simulatorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2196F3',
+    padding: 12,
+    marginBottom: 16,
+  },
+  simulatorText: {
+    color: '#fff',
+    fontSize: 14,
+    marginLeft: 8,
+    flex: 1,
   },
 }); 

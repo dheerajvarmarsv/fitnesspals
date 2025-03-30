@@ -1,5 +1,5 @@
 // lib/fitness.ts
-import { Platform } from 'react-native';
+import { Platform, NativeModules } from 'react-native';
 import { supabase } from './supabase';
 
 // ---------------------
@@ -94,7 +94,20 @@ export async function getUserFitnessConnections(userId: string): Promise<Fitness
 export async function saveFitnessConnection(
   userId: string,
   connectionData: Partial<FitnessConnection>
-): Promise<FitnessConnection> {
+): Promise<FitnessConnection | null> {
+  // First try to update existing connection
+  const { data: existingData, error: selectError } = await supabase
+    .from('user_fitness_connections')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('type', connectionData.type)
+    .single();
+
+  if (selectError && selectError.code !== 'PGRST116') {
+    console.error('Error checking existing connection:', selectError);
+    throw selectError;
+  }
+
   const connection = {
     user_id: userId,
     type: connectionData.type as FitnessDataSource,
@@ -102,17 +115,22 @@ export async function saveFitnessConnection(
     status: connectionData.status || 'disconnected',
     permissions: connectionData.permissions || [],
     updated_at: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+    ...(existingData?.id ? { id: existingData.id } : {})
   };
+
   const { data, error } = await supabase
     .from('user_fitness_connections')
-    .upsert([connection], { onConflict: 'user_id, type' })
+    .upsert(connection)
     .select()
     .single();
+
   if (error) {
     console.error('Error saving fitness connection:', error);
     throw error;
   }
-  return data;
+
+  return data as FitnessConnection;
 }
 
 export async function updateSyncStatus(
@@ -280,54 +298,59 @@ let AppleHealthKit: any = null;
 let HKPermissions: any = null;
 let healthKitInitialized = false;
 
-// Properly load HealthKit module with correct import handling
-if (Platform.OS === 'ios') {
+// Check if running in simulator
+const isSimulator = Platform.OS === 'ios' && 
+  (NativeModules.RNDeviceInfo?.isEmulator || process.env.NODE_ENV === 'development');
+
+// Initialize HealthKit module
+async function initializeHealthKit() {
+  if (Platform.OS !== 'ios') return null;
+
   try {
-    // Import the module directly to ensure proper bundling
-    const RNHealth = require('react-native-health');
-    
-    // Handle both CommonJS and ES modules
-    AppleHealthKit = RNHealth.default || RNHealth;
-    
-    if (!AppleHealthKit) {
-      console.error('Failed to load AppleHealthKit module');
-    } else {
-      // Initialize permissions constants
-      HKPermissions = AppleHealthKit.Constants?.Permissions;
+    // Dynamic import to ensure proper module loading
+    const RNHealth = await import('react-native-health');
+    const HealthKit = RNHealth.default;
+
+    // Verify module and required functions
+    if (HealthKit && typeof HealthKit.initHealthKit === 'function') {
+      AppleHealthKit = HealthKit;
+      HKPermissions = HealthKit.Constants?.Permissions;
+      return HealthKit;
     }
+    console.warn('HealthKit module loaded but missing required functions');
+    return null;
   } catch (e) {
     console.error('Error importing react-native-health:', e);
+    return null;
   }
 }
 
 export async function initHealthKit(): Promise<boolean> {
-  // Early return if already initialized or not on iOS
-  if (healthKitInitialized || Platform.OS !== 'ios') {
-    return healthKitInitialized;
+  // Early return if already initialized
+  if (healthKitInitialized) {
+    return true;
   }
 
-  // Verify module is loaded
-  if (!AppleHealthKit) {
-    console.error('HealthKit module not available');
+  // Handle simulator environment
+  if (isSimulator) {
+    console.warn('Running in iOS simulator - using mock HealthKit data');
+    healthKitInitialized = true;
+    return true;
+  }
+
+  // Early return if not on iOS
+  if (Platform.OS !== 'ios') {
     return false;
   }
 
   try {
-    // Check if HealthKit is available using Promise
-    const isAvailable = await new Promise<boolean>((resolve) => {
-      AppleHealthKit.isHealthKitAvailable((error: any, result: boolean) => {
-        if (error) {
-          console.error('Error checking HealthKit availability:', error);
-          resolve(false);
-          return;
-        }
-        resolve(result);
-      });
-    });
-
-    if (!isAvailable) {
-      console.error('HealthKit is not available on this device');
-      return false;
+    // Initialize HealthKit if not already loaded
+    if (!AppleHealthKit) {
+      AppleHealthKit = await initializeHealthKit();
+      if (!AppleHealthKit) {
+        console.error('Failed to initialize HealthKit module');
+        return false;
+      }
     }
 
     // Set up permissions
@@ -366,7 +389,6 @@ export async function initHealthKit(): Promise<boolean> {
                 resolvePermission(!err && result?.permissions?.read?.includes(HKPermissions?.Steps || 'Steps'));
               });
             }),
-            // Add other permission checks as needed
           ]);
 
           const allPermissionsGranted = results.every(result => result === true);
@@ -384,19 +406,34 @@ export async function initHealthKit(): Promise<boolean> {
   }
 }
 
+// Mock data for simulator environment
+const mockHealthData = {
+  steps: 8000,
+  distance: 6.5,
+  duration: 45,
+  calories: 320,
+};
+
 export async function fetchAppleHealthData(date: Date): Promise<{
   steps: number;
   distance: number;
   duration: number;
   calories: number;
 }> {
-  // Return defaults for non-iOS platforms
+  // Return mock data for simulator
+  if (isSimulator) {
+    return mockHealthData;
+  }
+
+  // Return defaults if not on iOS or HealthKit not available
   if (Platform.OS !== 'ios' || !AppleHealthKit) {
     return { steps: 0, distance: 0, duration: 0, calories: 0 };
   }
 
   const isInit = await initHealthKit();
-  if (!isInit) return { steps: 0, distance: 0, duration: 0, calories: 0 };
+  if (!isInit) {
+    return { steps: 0, distance: 0, duration: 0, calories: 0 };
+  }
 
   const startOfDay = new Date(date);
   startOfDay.setHours(0, 0, 0, 0);
