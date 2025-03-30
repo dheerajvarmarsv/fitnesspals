@@ -91,47 +91,52 @@ export async function getUserFitnessConnections(userId: string): Promise<Fitness
   return data || [];
 }
 
-export async function saveFitnessConnection(
+export const saveFitnessConnection = async (
   userId: string,
-  connectionData: Partial<FitnessConnection>
-): Promise<FitnessConnection | null> {
-  // First try to update existing connection
-  const { data: existingData, error: selectError } = await supabase
-    .from('user_fitness_connections')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('type', connectionData.type)
-    .single();
-
-  if (selectError && selectError.code !== 'PGRST116') {
-    console.error('Error checking existing connection:', selectError);
-    throw selectError;
+  connectionData: {
+    type: FitnessDataSource;
+    connected: boolean;
+    status: string;
+    permissions: string[];
   }
+): Promise<boolean> => {
+  try {
+    // Validate that we have a user ID
+    if (!userId) {
+      console.error('Cannot save fitness connection: No user ID provided');
+      throw new Error('User ID is required');
+    }
 
-  const connection = {
-    user_id: userId,
-    type: connectionData.type as FitnessDataSource,
-    connected: connectionData.connected || false,
-    status: connectionData.status || 'disconnected',
-    permissions: connectionData.permissions || [],
-    updated_at: new Date().toISOString(),
-    created_at: new Date().toISOString(),
-    ...(existingData?.id ? { id: existingData.id } : {})
-  };
+    // Create the connection object with all required fields
+    const connection = {
+      user_id: userId, // Ensure this is properly set
+      type: connectionData.type,
+      connected: connectionData.connected,
+      status: connectionData.status || 'disconnected',
+      permissions: connectionData.permissions || [],
+      updated_at: new Date().toISOString(),
+    };
 
-  const { data, error } = await supabase
-    .from('user_fitness_connections')
-    .upsert(connection)
-    .select()
-    .single();
+    console.log('Saving fitness connection:', connection);
 
-  if (error) {
-    console.error('Error saving fitness connection:', error);
+    // Use upsert to create or update existing connection
+    const { error } = await supabase
+      .from('user_fitness_connections')
+      .upsert([connection], {
+        onConflict: 'user_id,type'
+      });
+
+    if (error) {
+      console.error('Error saving fitness connection:', error);
+      throw error;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Exception in saveFitnessConnection:', error);
     throw error;
   }
-
-  return data as FitnessConnection;
-}
+};
 
 export async function updateSyncStatus(
   connectionId: string,
@@ -638,5 +643,32 @@ export async function fetchAndStoreDailyHealthData(userId: string, date: Date): 
     data = await fetchAndroidHealthData(date);
     source = 'health_connect';
   }
-  await upsertHealthData(userId, dateStr, data, source);
+  
+  try {
+    const { error } = await supabase
+      .from('health_data')
+      .upsert(
+        {
+          user_id: userId,
+          date: dateStr,
+          steps: data.steps || 0,
+          distance: data.distance || 0,
+          duration: data.duration || 0,
+          calories: data.calories || 0,
+          source: source,
+          updated_at: new Date().toISOString()
+        },
+        {
+          onConflict: 'user_id,date'
+        }
+      );
+
+    if (error) {
+      console.error('Error upserting health_data:', error);
+      throw error;
+    }
+  } catch (error) {
+    console.error('Failed to store health data:', error);
+    throw error;
+  }
 }

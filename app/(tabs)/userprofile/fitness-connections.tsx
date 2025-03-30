@@ -24,36 +24,64 @@ import { router } from 'expo-router';
 export default function HealthServicesScreen() {
   const { user } = useUser();
   const { theme } = useTheme();
+  
+  // Define all state hooks at the top
   const [loading, setLoading] = useState(true);
   const [connections, setConnections] = useState<{
     apple_health?: boolean;
     health_connect?: boolean;
   }>({});
   const [syncing, setSyncing] = useState(false);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [authInitialized, setAuthInitialized] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
+  // First useEffect - Check authentication
   useEffect(() => {
-    loadConnections();
+    const checkAuth = async () => {
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (data?.user?.id) {
+          setCurrentUserId(data.user.id);
+          console.log('User authenticated with ID:', data.user.id);
+        } else {
+          console.warn('No authenticated user found');
+        }
+      } catch (error) {
+        console.error('Auth check error:', error);
+      } finally {
+        setAuthInitialized(true);
+      }
+    };
+    
+    checkAuth();
   }, []);
+
+  // Second useEffect - Load connections when auth is initialized and user ID is available
+  useEffect(() => {
+    if (authInitialized && currentUserId) {
+      loadConnections();
+    }
+  }, [authInitialized, currentUserId]);
 
   const loadConnections = async () => {
     try {
-      if (!user?.id) return;
+      if (!currentUserId) return;
 
       const { data, error } = await supabase
         .from('user_fitness_connections')
         .select('type, connected, last_synced')
-        .eq('user_id', user.id);
+        .eq('user_id', currentUserId);
 
       if (error) throw error;
 
-      const connectionState =
-        data?.reduce(
-          (acc, curr) => ({
-            ...acc,
-            [curr.type]: curr.connected,
-          }),
-          {}
-        ) || {};
+      const connectionState = data?.reduce(
+        (acc, curr) => ({
+          ...acc,
+          [curr.type]: curr.connected,
+        }),
+        {}
+      ) || {};
 
       setConnections(connectionState);
     } catch (err) {
@@ -66,40 +94,46 @@ export default function HealthServicesScreen() {
 
   const handleConnect = async (source: FitnessDataSource) => {
     try {
+      if (!currentUserId) {
+        Alert.alert('Error', 'User ID not available. Please log in again.');
+        return;
+      }
+      
       setLoading(true);
-
+      setPermissionError(null);
+      
       let success = false;
       if (source === 'apple_health') {
         success = await initHealthKit();
       } else if (source === 'health_connect') {
         success = await initAndroidHealth();
       }
-
-      if (success) {
-        // Update connection status in database
-        const { error } = await supabase.from('user_fitness_connections').upsert({
-          user_id: user?.id,
+      
+      if (!success) {
+        setPermissionError('Failed to initialize health service.');
+        return;
+      }
+      
+      const { error } = await supabase
+        .from('user_fitness_connections')
+        .upsert({
+          user_id: currentUserId,
           type: source,
           connected: true,
           status: 'connected',
           updated_at: new Date().toISOString(),
+          created_at: new Date().toISOString()
         });
-        if (error) throw error;
-
-        // Update local state
-        setConnections((prev) => ({
-          ...prev,
-          [source]: true,
-        }));
-
-        // Trigger initial sync
-        await handleSync();
-      } else {
-        Alert.alert(
-          'Connection Failed',
-          'Unable to connect to health services. Please ensure you have granted the necessary permissions.'
-        );
-      }
+      
+      if (error) throw error;
+      
+      setConnections(prev => ({
+        ...prev,
+        [source]: true
+      }));
+      
+      Alert.alert('Success', 'Connected to health service successfully!');
+      
     } catch (err) {
       console.error('Error connecting:', err);
       Alert.alert('Error', 'Failed to connect to health services');
@@ -109,6 +143,8 @@ export default function HealthServicesScreen() {
   };
 
   const handleDisconnect = async (source: FitnessDataSource) => {
+    if (!currentUserId) return;
+    
     Alert.alert(
       'Disconnect Health Service',
       'Are you sure you want to disconnect? Your existing health data will be preserved.',
@@ -127,7 +163,7 @@ export default function HealthServicesScreen() {
                   status: 'disconnected',
                   updated_at: new Date().toISOString(),
                 })
-                .eq('user_id', user?.id)
+                .eq('user_id', currentUserId)
                 .eq('type', source);
               if (error) throw error;
 
@@ -148,13 +184,11 @@ export default function HealthServicesScreen() {
   };
 
   const handleSync = async () => {
+    if (!currentUserId) return;
+    
     try {
       setSyncing(true);
-      const {
-        data: { user: currentUser },
-      } = await supabase.auth.getUser();
-      if (!currentUser) throw new Error('User not authenticated');
-
+      
       const { fetchAndStoreDailyHealthData } = await import('../../../lib/fitness');
 
       // Sync last 7 days
@@ -162,7 +196,7 @@ export default function HealthServicesScreen() {
       for (let i = 0; i < 7; i++) {
         const date = new Date();
         date.setDate(date.getDate() - i);
-        promises.push(fetchAndStoreDailyHealthData(currentUser.id, date));
+        promises.push(fetchAndStoreDailyHealthData(currentUserId, date));
       }
 
       await Promise.all(promises);
@@ -174,6 +208,38 @@ export default function HealthServicesScreen() {
       setSyncing(false);
     }
   };
+
+  // Conditionally render based on authentication status
+  if (!authInitialized) {
+    return (
+      <SharedLayout>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#000" />
+          <Text style={styles.loadingText}>Initializing...</Text>
+        </View>
+      </SharedLayout>
+    );
+  }
+
+  if (!currentUserId) {
+    return (
+      <SharedLayout>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={64} color="#FF3B30" />
+          <Text style={styles.errorTitle}>Authentication Required</Text>
+          <Text style={styles.errorMessage}>
+            Please log in to access fitness connections.
+          </Text>
+          <TouchableOpacity 
+            style={styles.primaryButton}
+            onPress={() => router.replace('/login')}
+          >
+            <Text style={styles.primaryButtonText}>Go to Login</Text>
+          </TouchableOpacity>
+        </View>
+      </SharedLayout>
+    );
+  }
 
   if (loading) {
     return (
@@ -193,6 +259,13 @@ export default function HealthServicesScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {permissionError && (
+            <View style={styles.errorCard}>
+              <Ionicons name="alert-circle" size={24} color="#FF3B30" />
+              <Text style={styles.errorCardText}>{permissionError}</Text>
+            </View>
+          )}
+          
           {Platform.OS === 'ios' && (
             <View
               style={[
@@ -346,6 +419,56 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#FF3B30',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  errorMessage: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  errorCard: {
+    flexDirection: 'row',
+    backgroundColor: '#FEE2E2',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  errorCardText: {
+    color: '#DC2626',
+    marginLeft: 12,
+    flex: 1,
+    fontSize: 14,
+  },
+  primaryButton: {
+    backgroundColor: '#000000',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   connectionCard: {
     borderRadius: 12,
