@@ -278,77 +278,110 @@ export async function disconnectFitnessSource(
 // Platform-specific imports to handle web bundling issues for iOS
 let AppleHealthKit: any = null;
 let HKPermissions: any = null;
-let healthKitPermissions: any = null;
-
-// We'll initialize these only when the initHealthKit function is called
 let healthKitInitialized = false;
+
+// Properly load HealthKit module with correct import handling
+if (Platform.OS === 'ios') {
+  try {
+    // Import the module directly to ensure proper bundling
+    const RNHealth = require('react-native-health');
+    
+    // Handle both CommonJS and ES modules
+    AppleHealthKit = RNHealth.default || RNHealth;
+    
+    if (!AppleHealthKit) {
+      console.error('Failed to load AppleHealthKit module');
+    } else {
+      // Initialize permissions constants
+      HKPermissions = AppleHealthKit.Constants?.Permissions;
+    }
+  } catch (e) {
+    console.error('Error importing react-native-health:', e);
+  }
+}
+
 export async function initHealthKit(): Promise<boolean> {
   // Early return if already initialized or not on iOS
   if (healthKitInitialized || Platform.OS !== 'ios') {
     return healthKitInitialized;
   }
-  
-  // Try to load the module only when needed
+
+  // Verify module is loaded
   if (!AppleHealthKit) {
-    try {
-      // Import the module
-      const HealthKit = require('react-native-health').default;
-      
-      // Check if it's properly loaded and has the expected functions
-      if (!HealthKit || typeof HealthKit.initHealthKit !== 'function') {
-        console.error('HealthKit module loaded but missing expected functions');
-        return false;
-      }
-      
-      AppleHealthKit = HealthKit;
-      
-      // Set up permissions only after we know the module is properly loaded
-      if (AppleHealthKit.Constants && AppleHealthKit.Constants.Permissions) {
-        HKPermissions = AppleHealthKit.Constants.Permissions;
-        healthKitPermissions = {
-          permissions: {
-            read: [
-              HKPermissions.Steps,
-              HKPermissions.DistanceWalkingRunning,
-              HKPermissions.ActiveEnergyBurned,
-              HKPermissions.AppleExerciseTime,
-              HKPermissions.SleepAnalysis,
-            ],
-            write: [],
-          },
-        };
-      } else {
-        console.error('HealthKit module loaded but missing Constants.Permissions');
-        return false;
-      }
-    } catch (e) {
-      console.error('Failed to load Apple HealthKit:', e);
-      return false;
-    }
-  }
-  
-  // If we got this far and still don't have the module or permissions, abort
-  if (!AppleHealthKit || !healthKitPermissions) {
-    console.error('Failed to initialize HealthKit: Module or permissions missing');
+    console.error('HealthKit module not available');
     return false;
   }
-  
-  // Initialize HealthKit
-  return new Promise<boolean>((resolve) => {
-    try {
-      AppleHealthKit.initHealthKit(healthKitPermissions, (err: any) => {
-        if (err) {
-          console.error('Error initializing HealthKit:', err);
-          return resolve(false);
+
+  try {
+    // Check if HealthKit is available using Promise
+    const isAvailable = await new Promise<boolean>((resolve) => {
+      AppleHealthKit.isHealthKitAvailable((error: any, result: boolean) => {
+        if (error) {
+          console.error('Error checking HealthKit availability:', error);
+          resolve(false);
+          return;
         }
-        healthKitInitialized = true;
-        resolve(true);
+        resolve(result);
       });
-    } catch (error) {
-      console.error('Exception initializing HealthKit:', error);
-      resolve(false);
+    });
+
+    if (!isAvailable) {
+      console.error('HealthKit is not available on this device');
+      return false;
     }
-  });
+
+    // Set up permissions
+    const permissions = {
+      permissions: {
+        read: [
+          HKPermissions?.Steps || 'Steps',
+          HKPermissions?.DistanceWalkingRunning || 'DistanceWalkingRunning',
+          HKPermissions?.ActiveEnergyBurned || 'ActiveEnergyBurned',
+          HKPermissions?.AppleExerciseTime || 'AppleExerciseTime',
+          HKPermissions?.SleepAnalysis || 'SleepAnalysis',
+        ],
+        write: [],
+      },
+    };
+
+    // Initialize HealthKit with permissions
+    return new Promise<boolean>((resolve) => {
+      AppleHealthKit.initHealthKit(permissions, async (error: any) => {
+        if (error) {
+          console.error('Error initializing HealthKit:', error);
+          resolve(false);
+          return;
+        }
+
+        try {
+          // Verify permissions were granted
+          const results = await Promise.all([
+            new Promise<boolean>((resolvePermission) => {
+              AppleHealthKit.getAuthStatus({
+                permissions: {
+                  read: [HKPermissions?.Steps || 'Steps'],
+                  write: [],
+                },
+              }, (err: any, result: any) => {
+                resolvePermission(!err && result?.permissions?.read?.includes(HKPermissions?.Steps || 'Steps'));
+              });
+            }),
+            // Add other permission checks as needed
+          ]);
+
+          const allPermissionsGranted = results.every(result => result === true);
+          healthKitInitialized = allPermissionsGranted;
+          resolve(allPermissionsGranted);
+        } catch (permError) {
+          console.error('Error checking HealthKit permissions:', permError);
+          resolve(false);
+        }
+      });
+    });
+  } catch (e) {
+    console.error('Error during HealthKit initialization:', e);
+    return false;
+  }
 }
 
 export async function fetchAppleHealthData(date: Date): Promise<{

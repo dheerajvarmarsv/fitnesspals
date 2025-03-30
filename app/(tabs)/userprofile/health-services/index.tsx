@@ -16,6 +16,22 @@ import { supabase } from '../../../../lib/supabase';
 import { initHealthKit, initAndroidHealth, FitnessDataSource } from '../../../../lib/fitness';
 import { useTheme } from '../../../../lib/ThemeContext';
 
+// Import AppleHealthKit with proper handling
+let AppleHealthKit: any = null;
+
+if (Platform.OS === 'ios') {
+  try {
+    const RNHealth = require('react-native-health');
+    AppleHealthKit = RNHealth.default || RNHealth;
+    
+    if (!AppleHealthKit) {
+      console.error('Failed to load AppleHealthKit module');
+    }
+  } catch (e) {
+    console.error('Error importing react-native-health:', e);
+  }
+}
+
 interface FitnessConnection {
   type: FitnessDataSource;
   connected: boolean;
@@ -31,6 +47,7 @@ export default function HealthServices() {
     health_connect?: boolean;
   }>({});
   const [syncing, setSyncing] = useState(false);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
 
   useEffect(() => {
     loadConnections();
@@ -64,16 +81,117 @@ export default function HealthServices() {
   const handleConnect = async (source: FitnessDataSource) => {
     try {
       setLoading(true);
+      setPermissionError(null);
 
-      let success = false;
       if (source === 'apple_health') {
-        success = await initHealthKit();
-      } else if (source === 'health_connect') {
-        success = await initAndroidHealth();
-      }
+        // Check platform
+        if (Platform.OS !== 'ios') {
+          setPermissionError('Apple Health is only available on iOS devices.');
+          return;
+        }
 
-      if (success) {
-        // Update connection status in database
+        // Verify module is loaded
+        if (!AppleHealthKit) {
+          setPermissionError('Unable to initialize Apple Health. Please ensure the app is properly installed.');
+          return;
+        }
+
+        // Check HealthKit availability
+        const isAvailable = await new Promise<boolean>((resolve) => {
+          AppleHealthKit.isHealthKitAvailable((error: any, result: boolean) => {
+            if (error) {
+              console.error('Error checking HealthKit availability:', error);
+              resolve(false);
+              return;
+            }
+            resolve(result);
+          });
+        });
+
+        if (!isAvailable) {
+          setPermissionError(
+            'Health app is not available on this device. Please ensure:\n\n' +
+            '1. You are using a real iOS device (not a simulator)\n' +
+            '2. The Health app is installed and set up\n' +
+            '3. Your device supports HealthKit'
+          );
+          return;
+        }
+
+        // Show permission request dialog
+        Alert.alert(
+          'Health Data Access',
+          'CTP needs access to your health data to track your activities. We will request access to:\n\n' +
+          '• Steps\n' +
+          '• Distance\n' +
+          '• Active Energy\n' +
+          '• Exercise Time\n' +
+          '• Sleep Analysis\n\n' +
+          'You can manage these permissions at any time in Settings.',
+          [
+            {
+              text: 'Continue',
+              onPress: async () => {
+                try {
+                  const healthKitInitialized = await initHealthKit();
+                  
+                  if (!healthKitInitialized) {
+                    setPermissionError(
+                      'Unable to access Health data. Please:\n\n' +
+                      '1. Open Settings > Privacy & Security > Health\n' +
+                      '2. Find CTP in the list\n' +
+                      '3. Enable all categories\n' +
+                      '4. Return to CTP and try connecting again'
+                    );
+                    return;
+                  }
+
+                  // Update connection status
+                  const { error } = await supabase
+                    .from('user_fitness_connections')
+                    .upsert({
+                      user_id: user?.id,
+                      type: source,
+                      connected: true,
+                      status: 'connected',
+                      updated_at: new Date().toISOString(),
+                    });
+
+                  if (error) throw error;
+
+                  // Update local state
+                  setConnections(prev => ({
+                    ...prev,
+                    [source]: true,
+                  }));
+
+                  // Initial sync
+                  await handleSync();
+                  
+                  Alert.alert(
+                    'Success',
+                    'Successfully connected to Apple Health. Your health data will now sync automatically.'
+                  );
+                } catch (error) {
+                  console.error('Error during HealthKit setup:', error);
+                  setPermissionError('Failed to set up HealthKit. Please try again.');
+                }
+              }
+            },
+            {
+              text: 'Cancel',
+              style: 'cancel',
+            }
+          ]
+        );
+      } else if (source === 'health_connect') {
+        const healthConnectInitialized = await initAndroidHealth();
+        if (!healthConnectInitialized) {
+          setPermissionError('Unable to connect to Health Connect. Please ensure you have granted the necessary permissions.');
+          return;
+        }
+
+        // Update connection status
         const { error } = await supabase
           .from('user_fitness_connections')
           .upsert({
@@ -92,17 +210,17 @@ export default function HealthServices() {
           [source]: true,
         }));
 
-        // Trigger initial sync
+        // Initial sync
         await handleSync();
-      } else {
+        
         Alert.alert(
-          'Connection Failed',
-          'Unable to connect to health services. Please ensure you have granted the necessary permissions.'
+          'Success',
+          'Successfully connected to Health Connect. Your health data will now sync automatically.'
         );
       }
     } catch (error) {
       console.error('Error connecting:', error);
-      Alert.alert('Error', 'Failed to connect to health services');
+      Alert.alert('Error', 'Failed to connect to health services. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -199,6 +317,13 @@ export default function HealthServices() {
         <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
           Connect to your device's health services to automatically track your activities
         </Text>
+
+        {permissionError && (
+          <View style={[styles.errorCard, { backgroundColor: '#FF3B30' }]}>
+            <Ionicons name="alert-circle" size={24} color="#fff" />
+            <Text style={styles.errorText}>{permissionError}</Text>
+          </View>
+        )}
 
         {Platform.OS === 'ios' && (
           <View style={[styles.connectionCard, { 
@@ -419,5 +544,18 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 12,
     fontSize: 14,
+  },
+  errorCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#fff',
+    fontSize: 14,
+    flex: 1,
+    marginLeft: 12,
   },
 }); 
