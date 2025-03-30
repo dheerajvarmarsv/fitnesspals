@@ -4,18 +4,18 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import SharedLayout from '../../components/SharedLayout';
 
+interface DebugTool {
+  id: string;
+  title: string;
+  description: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  route: string;
+}
+
 export default function DebugIndex() {
   const router = useRouter();
 
-  const debugTools = [
-    {
-      id: 'notifications',
-      title: 'Notification Debugging',
-      description: 'Test and debug push notifications',
-      icon: 'notifications-outline',
-      route: '/debug/notifications',
-    }
-  ];
+  const debugTools: DebugTool[] = [];
 
   return (
     <SharedLayout>
@@ -61,13 +61,11 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 8,
-    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     marginBottom: 24,
-    textAlign: 'center',
   },
   toolsList: {
     flex: 1,
@@ -75,18 +73,21 @@ const styles = StyleSheet.create({
   toolCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#fff',
     padding: 16,
-    backgroundColor: '#f8f9fa',
     borderRadius: 12,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#e9ecef',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   iconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#e9ecef',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -96,7 +97,7 @@ const styles = StyleSheet.create({
   },
   toolTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
     marginBottom: 4,
   },
   toolDescription: {
@@ -105,14 +106,11 @@ const styles = StyleSheet.create({
   },
   footer: {
     padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#e9ecef',
-    marginTop: 16,
+    alignItems: 'center',
   },
   footerText: {
     fontSize: 12,
     color: '#666',
     textAlign: 'center',
-    fontStyle: 'italic',
   },
 });

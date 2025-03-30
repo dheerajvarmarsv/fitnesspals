@@ -78,15 +78,16 @@ const CHALLENGE_MODES: ModeInfo[] = [
   },
 ];
 
-// DEFAULT_ACTIVITIES includes only the seven allowed activities
+// DEFAULT_ACTIVITIES includes only the allowed activities
 const DEFAULT_ACTIVITIES: ActivityRule[] = [
-  { activityType: 'Workout',  points: 1, metric: 'time', targetValue: 0, isSelected: false },
-  { activityType: 'Steps',  points: 1, metric: 'steps', targetValue: 0, isSelected: false },
+  { activityType: 'Workout', points: 1, metric: 'time', targetValue: 0, isSelected: false },
+  { activityType: 'Steps', points: 1, metric: 'steps', targetValue: 0, isSelected: false },
   { activityType: 'Sleep', points: 1, metric: 'time', targetValue: 0, isSelected: false },
   { activityType: 'Screen Time', points: 1, metric: 'time', targetValue: 0, isSelected: false },
-  { activityType: 'No Sugars',  points: 1, metric: 'steps', targetValue: 0, isSelected: false },
+  { activityType: 'Sugars', points: 1, metric: 'count', targetValue: 0, isSelected: false },
+  { activityType: 'High Intensity', points: 1, metric: 'time', targetValue: 0, isSelected: false },
   { activityType: 'Yoga', points: 1, metric: 'time', targetValue: 0, isSelected: false },
-  { activityType: 'High Intensity', points: 1, metric: 'calories', targetValue: 0, isSelected: false },
+  { activityType: 'Count', points: 1, metric: 'count', targetValue: 0, isSelected: false },
 ];
 
 function formatThreshold(value: number, metric: string): string {

@@ -1,16 +1,17 @@
-import { INITIAL_SAFE_ZONE, FINAL_SAFE_ZONE, DEFAULT_DISTANCE, DEFAULT_LIVES, DAYS_IN_DANGER_LIMIT } from './arenaStore';
+import { supabase } from './supabase';
 
 /**
  * Default survival settings if not specified in the challenge
  */
 export const DEFAULT_SURVIVAL_SETTINGS = {
-  initial_safe_radius: 1.0,  // Start with full arena as safe zone
-  final_safe_radius: 0.1,    // End with 10% as safe zone 
+  initial_safe_zone_radius: 1.0,
+  min_safe_zone_radius: 0.1,
+  max_safe_zone_radius: 1.0,
+  safe_zone_shrink_rate: 0.1,
+  danger_threshold: 0.8,
   max_points_per_period: 10, // Maximum points per day/week
   max_movement_per_period: 0.05, // Maximum movement per period (5% of arena)
   timeframe: 'daily',    // 'daily' or 'weekly'
-  elimination_threshold: 3,  // Days in danger before losing a life
-  start_lives: 3        // Starting lives
 };
 
 /**
@@ -29,8 +30,8 @@ export const calculateSafeZoneRadius = (
   const survivalSettings = settings || DEFAULT_SURVIVAL_SETTINGS;
   
   // Extract parameters
-  const initialRadius = survivalSettings.initial_safe_radius || 1.0;
-  const finalRadius = survivalSettings.final_safe_radius || 0.1;
+  const initialRadius = survivalSettings.initial_safe_zone_radius || 1.0;
+  const finalRadius = survivalSettings.min_safe_zone_radius || 0.1;
   const timeframe = survivalSettings.timeframe || 'daily';
   
   // Ensure currentDay is at least 1 (1-based)
@@ -186,83 +187,84 @@ export const calculateEliminationThreshold = (totalDays: number): number => {
   }
 };
 
-export const processDangerStatus = (
+export interface ProcessDangerResult {
+  success: boolean;
+  eliminated: boolean;
+  daysInDanger: number;
+}
+
+export async function processDangerStatus(
   participant: any,
   safeZoneRadius: number,
-  settings?: any,
-  totalDays?: number
-): { 
-  days_in_danger: number,
-  lives: number,
-  is_eliminated: boolean
-} => {
-  // Use default settings if none provided
-  const survivalSettings = settings || DEFAULT_SURVIVAL_SETTINGS;
-  
-  // Get participant's current values
+  currentDay: number,
+  totalDays: number,
+  settings = DEFAULT_SURVIVAL_SETTINGS
+): Promise<ProcessDangerResult> {
   const distanceFromCenter = participant.distance_from_center || 1.0;
-  const isInDanger = distanceFromCenter > safeZoneRadius;
+  const dangerThreshold = settings.danger_threshold || 0.8;
+  const isInDanger = distanceFromCenter > (safeZoneRadius * dangerThreshold);
   
-  // Current values - always use settings from the challenge
-  let daysInDanger = participant.days_in_danger || 0;
-  
-  // Use participant's current lives, or fall back to settings
-  const defaultLives = survivalSettings.start_lives || DEFAULT_SURVIVAL_SETTINGS.start_lives;
-  let lives = participant.lives !== undefined && participant.lives !== null ? 
-      participant.lives : defaultLives;
+  try {
+    // If in danger, they are eliminated immediately (no more lives system)
+    if (isInDanger) {
+      // Update participant record with elimination
+      const { error: updateError } = await supabase
+        .from('challenge_participants')
+        .update({
+          days_in_danger: 1,
+          is_eliminated: true,
+          elimination_date: new Date().toISOString(),
+          status: 'eliminated'
+        })
+        .eq('id', participant.id);
       
-  // Check elimination status
-  let isEliminated = participant.is_eliminated || false;
-  
-  // Process danger status
-  if (isInDanger) {
-    // Increment danger days
-    daysInDanger += 1;
-    
-    // Get elimination threshold based on challenge duration
-    const eliminationThreshold = totalDays ? 
-      calculateEliminationThreshold(totalDays) : 
-      (survivalSettings.elimination_threshold || DEFAULT_SURVIVAL_SETTINGS.elimination_threshold);
-    
-    console.log('Danger status check:', {
-      participantId: participant.id,
-      daysInDanger,
-      eliminationThreshold,
-      lives,
-      isInDanger,
-      distanceFromCenter,
-      safeZoneRadius
-    });
-    
-    // Check if participant loses a life
-    if (daysInDanger >= eliminationThreshold) {
-      lives = Math.max(0, lives - 1);
-      daysInDanger = 0; // Reset danger counter after losing a life
-      
-      console.log('Life lost:', {
-        participantId: participant.id,
-        newLives: lives,
-        wasInDanger: daysInDanger,
-        eliminationThreshold
-      });
-      
-      // Check if participant is eliminated
-      if (lives <= 0) {
-        isEliminated = true;
-        console.log('Participant eliminated:', participant.id);
+      if (updateError) {
+        console.error('Error updating participant elimination status:', updateError);
+        return {
+          success: false,
+          eliminated: false,
+          daysInDanger: 1
+        };
       }
+      
+      return {
+        success: true,
+        eliminated: true,
+        daysInDanger: 1
+      };
     }
-  } else {
-    // Reset danger days if not in danger
-    daysInDanger = 0;
+    
+    // If not in danger, reset days in danger
+    const { error: updateError } = await supabase
+      .from('challenge_participants')
+      .update({
+        days_in_danger: 0
+      })
+      .eq('id', participant.id);
+    
+    if (updateError) {
+      console.error('Error resetting participant danger days:', updateError);
+      return {
+        success: false,
+        eliminated: false,
+        daysInDanger: 0
+      };
+    }
+
+    return {
+      success: true,
+      eliminated: false,
+      daysInDanger: 0
+    };
+  } catch (error) {
+    console.error('Error in processDangerStatus:', error instanceof Error ? error.message : String(error));
+    return {
+      success: false,
+      eliminated: false,
+      daysInDanger: participant.days_in_danger || 0
+    };
   }
-  
-  return {
-    days_in_danger: daysInDanger,
-    lives,
-    is_eliminated: isEliminated
-  };
-};
+}
 
 /**
  * Initialize a new participant for a survival challenge
@@ -283,7 +285,6 @@ export const initializeParticipant = (
 ): {
   challenge_id: string,
   user_id: string,
-  lives: number,
   days_in_danger: number,
   distance_from_center: number,
   angle: number,
@@ -291,9 +292,6 @@ export const initializeParticipant = (
 } => {
   // Use default settings if none provided
   const survivalSettings = settings || DEFAULT_SURVIVAL_SETTINGS;
-  
-  // Get starting lives from settings or use dynamic calculation based on challenge length
-  const startLives = survivalSettings.start_lives || 3;
   
   // For late joiners, calculate their starting distance
   let startDistance = 1.0;  // Default to outer edge
@@ -303,27 +301,22 @@ export const initializeParticipant = (
     const safeRadius = calculateSafeZoneRadius(currentDay, totalDays, survivalSettings);
     
     // Place them just inside the safe zone (95% of current safe radius)
-    // This gives them a small safety buffer
     startDistance = safeRadius * 0.95;
     
     // For very short challenges, ensure they're not too advantaged
     if (totalDays <= 3 && currentDay >= totalDays/2) {
-      // For very short challenges where user joins late, put them halfway between
-      // safe zone and edge to give them a fighting chance but still require effort
       startDistance = safeRadius + ((1.0 - safeRadius) * 0.5);
     }
   }
   
-  // Find an angle that isn't too close to existing participants
-  // This would require passing in existing participants, which we'll leave for a future enhancement
-  const angle = Math.random() * 360; // Random angle around the circle
+  // Random angle around the circle
+  const angle = Math.random() * 360;
   
   return {
     challenge_id: challengeId,
     user_id: userId,
-    lives: startLives,
     days_in_danger: 0,
-    distance_from_center: 1.0, // Always start at outer edge
+    distance_from_center: startDistance,
     angle: angle,
     is_eliminated: false
   };
@@ -495,23 +488,24 @@ export const processDailySurvivalUpdates = async (supabaseClient: any) => {
             const dangerStatus = processDangerStatus(
               participant,
               safeZoneRadius,
-              survivalSettings,
-              totalDays
+              currentDay,
+              totalDays,
+              survivalSettings
             );
             
             // Update participant with danger status
             await supabaseClient
               .from('challenge_participants')
               .update({
-                days_in_danger: dangerStatus.days_in_danger,
+                days_in_danger: dangerStatus.daysInDanger,
                 lives: dangerStatus.lives,
-                is_eliminated: dangerStatus.is_eliminated
+                is_eliminated: dangerStatus.eliminated
               })
               .eq('id', participant.id);
               
             // Track stats
             if (currentDistance > safeZoneRadius) stats.participantsInDanger++;
-            if (dangerStatus.is_eliminated) stats.participantsEliminated++;
+            if (dangerStatus.eliminated) stats.participantsEliminated++;
             
             console.log(`Processed danger status for participant ${participant.id}:`, dangerStatus);
           } catch (err) {
@@ -534,3 +528,131 @@ export const processDailySurvivalUpdates = async (supabaseClient: any) => {
     return { error: 'Internal server error', message: err.message };
   }
 };
+
+export interface ProcessDailyResult {
+  participantId: string;
+  success: boolean;
+  eliminated: boolean;
+  daysInDanger: number;
+}
+
+export async function processDailyUpdates(
+  participants: any[],
+  safeZoneRadius: number,
+  currentDay: number,
+  totalDays: number,
+  survivalSettings = DEFAULT_SURVIVAL_SETTINGS
+): Promise<ProcessDailyResult[]> {
+  const results: ProcessDailyResult[] = [];
+  
+  for (const participant of participants) {
+    if (participant.is_eliminated) continue;
+    
+    try {
+      const dangerResult = await processDangerStatus(
+        participant,
+        safeZoneRadius,
+        currentDay,
+        totalDays,
+        survivalSettings
+      );
+      
+      results.push({
+        participantId: participant.id,
+        success: dangerResult.success,
+        eliminated: dangerResult.eliminated,
+        daysInDanger: dangerResult.daysInDanger
+      });
+    } catch (error) {
+      console.error(`Error processing participant ${participant.id}:`, error instanceof Error ? error.message : String(error));
+      results.push({
+        participantId: participant.id,
+        success: false,
+        eliminated: false,
+        daysInDanger: participant.days_in_danger || 0
+      });
+    }
+  }
+  
+  return results;
+}
+
+export async function processSurvivalUpdates(
+  challengeId: string,
+  participants: any[],
+  currentDay: number,
+  totalDays: number,
+  survivalSettings = DEFAULT_SURVIVAL_SETTINGS
+) {
+  const stats = {
+    participantsProcessed: 0,
+    participantsInDanger: 0,
+    participantsEliminated: 0,
+    errors: 0
+  };
+
+  try {
+    // Calculate safe zone radius for current day
+    const safeZoneRadius = calculateSafeZoneRadius(currentDay, totalDays, survivalSettings);
+    
+    // Process each participant
+    for (const participant of participants) {
+      if (participant.is_eliminated) {
+        stats.participantsEliminated++;
+        continue;
+      }
+      
+      try {
+        const currentDistance = participant.distance_from_center || 1.0;
+        
+        // Process danger status
+        const dangerResult = await processDangerStatus(
+          participant,
+          safeZoneRadius,
+          currentDay,
+          totalDays,
+          survivalSettings
+        );
+        
+        // Update participant record with new status
+        const { error: updateError } = await supabase
+          .from('challenge_participants')
+          .update({
+            days_in_danger: dangerResult.daysInDanger,
+            is_eliminated: dangerResult.eliminated,
+            status: dangerResult.eliminated ? 'eliminated' : 'active'
+          })
+          .eq('id', participant.id);
+        
+        if (updateError) {
+          console.error('Error updating participant status:', updateError);
+          stats.errors++;
+          continue;
+        }
+        
+        // Track stats
+        stats.participantsProcessed++;
+        if (currentDistance > safeZoneRadius) stats.participantsInDanger++;
+        if (dangerResult.eliminated) stats.participantsEliminated++;
+        
+        console.log(`Processed danger status for participant ${participant.id}:`, dangerResult);
+      } catch (error) {
+        console.error(`Error processing participant ${participant.id}:`, error instanceof Error ? error.message : String(error));
+        stats.errors++;
+      }
+    }
+    
+    return {
+      success: true,
+      stats,
+      safeZoneRadius
+    };
+  } catch (error) {
+    console.error('Error in processSurvivalUpdates:', error instanceof Error ? error.message : String(error));
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+      stats
+    };
+  }
+}

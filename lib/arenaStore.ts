@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { User } from '../lib/user';
 import { Dimensions } from 'react-native';
 import { supabase } from './supabase';
 import { DEFAULT_SURVIVAL_SETTINGS, calculateSafeZoneRadius } from './survivalUtils';
@@ -8,6 +7,18 @@ const { width } = Dimensions.get('window');
 const ARENA_SIZE = width * 0.9; 
 const MAX_SAFE_ZONE_RADIUS = (ARENA_SIZE / 2) * 0.9;
 const MIN_SAFE_ZONE_RADIUS = (ARENA_SIZE / 2) * 0.1;
+
+export interface User {
+  id: string;
+  name: string;
+  angle: number;
+  distance: number;
+  points: number;
+  daysInDanger: number;
+  isCurrentUser: boolean;
+  isEliminated: boolean;
+  avatarUrl: string;
+}
 
 export const mapParticipantToUser = (
   participant: any, 
@@ -42,7 +53,6 @@ export const mapParticipantToUser = (
     name: nickname,
     angle,
     distance: arenaRadius * distanceFromCenter,
-    lives: participant.lives ?? DEFAULT_SURVIVAL_SETTINGS.start_lives,
     points: pointsValue,
     daysInDanger: participant.days_in_danger || 0,
     isCurrentUser: participant.user_id === currentUserId,
@@ -76,7 +86,7 @@ interface ArenaState {
 
 export const useArenaStore = create<ArenaState>((set, get) => ({
   challengeId: null,
-  safeZoneRadius: (ARENA_SIZE / 2) * DEFAULT_SURVIVAL_SETTINGS.initial_safe_radius,
+  safeZoneRadius: (ARENA_SIZE / 2) * DEFAULT_SURVIVAL_SETTINGS.initial_safe_zone_radius,
   users: [],
   participantsData: [],
   currentUserParticipant: null,
@@ -92,7 +102,7 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
   reset: () => {
     set({
       challengeId: null,
-      safeZoneRadius: (ARENA_SIZE / 2) * DEFAULT_SURVIVAL_SETTINGS.initial_safe_radius,
+      safeZoneRadius: (ARENA_SIZE / 2) * DEFAULT_SURVIVAL_SETTINGS.initial_safe_zone_radius,
       users: [],
       participantsData: [],
       currentUserParticipant: null,
@@ -174,7 +184,6 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
           user_id,
           challenge_id,
           total_points,
-          lives,
           days_in_danger,
           distance_from_center,
           angle,

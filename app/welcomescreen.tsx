@@ -28,7 +28,8 @@ const NEW_COLOR = '#FD3A69';
 export default function Welcome() {
   const [currentPage, setCurrentPage] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
 
   const handleScroll = (event: any) => {
     const offsetX = event.nativeEvent.contentOffset.x;
@@ -43,10 +44,10 @@ export default function Welcome() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.logoContainer}>
+      <View style={[styles.logoContainer, isLandscape && styles.logoContainerLandscape]}>
         <Image
           source={require('../assets/images/logo.png')}
-          style={styles.logo}
+          style={[styles.logo, isLandscape && styles.logoLandscape]}
           resizeMode="contain"
         />
       </View>
@@ -62,50 +63,54 @@ export default function Welcome() {
       >
         {WELCOME_SCREENS.map((screen, index) => (
           <View key={index} style={[styles.page, { width }]}>
-            <Image
-              source={screen.image}
-              style={styles.image}
-              resizeMode="cover"
-            />
-            <Text style={styles.title}>{screen.title}</Text>
+            <View style={[styles.contentContainer, isLandscape && styles.contentContainerLandscape]}>
+              <Image
+                source={screen.image}
+                style={[styles.image, isLandscape && styles.imageLandscape]}
+                resizeMode="contain"
+              />
+              <Text style={[styles.title, isLandscape && styles.titleLandscape]}>{screen.title}</Text>
+            </View>
           </View>
         ))}
       </ScrollView>
 
-      <View style={styles.pagination}>
-        {WELCOME_SCREENS.map((_, index) => (
+      <View style={[styles.bottomContainer, isLandscape && styles.bottomContainerLandscape]}>
+        <View style={styles.pagination}>
+          {WELCOME_SCREENS.map((_, index) => (
+            <TouchableOpacity
+              key={index}
+              onPress={() => handleDotPress(index)}
+              style={[
+                styles.paginationDot,
+                currentPage === index && styles.paginationDotActive,
+              ]}
+            />
+          ))}
+        </View>
+
+        <View style={[styles.buttonContainer, isLandscape && styles.buttonContainerLandscape]}>
           <TouchableOpacity
-            key={index}
-            onPress={() => handleDotPress(index)}
-            style={[
-              styles.paginationDot,
-              currentPage === index && styles.paginationDotActive,
-            ]}
-          />
-        ))}
-      </View>
-
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          onPress={() => router.push('/signup')}
-          style={styles.joinButton}
-          activeOpacity={0.9}
-        >
-          {/* 2. Wrap the text in a gradient */}
-          <LinearGradient
-            colors={['#F58529', '#DD2A7B']}
-            style={styles.gradientBackground}
+            onPress={() => router.push('/signup')}
+            style={[styles.joinButton, isLandscape && styles.joinButtonLandscape]}
+            activeOpacity={0.9}
           >
-            <Text style={styles.joinButtonText}>Join for free</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+            {/* 2. Wrap the text in a gradient */}
+            <LinearGradient
+              colors={['#F58529', '#DD2A7B']}
+              style={styles.gradientBackground}
+            >
+              <Text style={styles.joinButtonText}>Join for free</Text>
+            </LinearGradient>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.loginButton}
-          onPress={() => router.push('/login')}
-        >
-          <Text style={styles.loginButtonText}>Log in</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.loginButton, isLandscape && styles.loginButtonLandscape]}
+            onPress={() => router.push('/login')}
+          >
+            <Text style={styles.loginButtonText}>Log in</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -120,10 +125,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
   },
-  // 3. Make the logo 2-3 times bigger than before
+  logoContainerLandscape: {
+    paddingVertical: 8,
+  },
   logo: {
     width: '80%',
     height: 180,
+  },
+  logoLandscape: {
+    height: 100,
   },
   scrollView: {
     flex: 1,
@@ -133,19 +143,48 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 20,
   },
+  contentContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  contentContainerLandscape: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: '5%',
+  },
   image: {
     width: '90%',
     height: '60%',
     borderRadius: 20,
   },
-  // 4. Use normal weight for the title
+  imageLandscape: {
+    width: '45%',
+    height: '80%',
+  },
   title: {
     fontSize: 24,
-    fontFamily: 'System', // iOS typically uses SF, Android uses Roboto
+    fontFamily: 'System',
     fontWeight: 'normal',
     color: '#000',
     textAlign: 'center',
     marginTop: 20,
+  },
+  titleLandscape: {
+    width: '45%',
+    marginTop: 0,
+    fontSize: 22,
+  },
+  bottomContainer: {
+    width: '100%',
+  },
+  bottomContainerLandscape: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
   },
   pagination: {
     flexDirection: 'row',
@@ -165,20 +204,25 @@ const styles = StyleSheet.create({
   buttonContainer: {
     paddingHorizontal: 20,
     paddingBottom: 20,
+    width: '100%',
   },
-  // 5. Remove backgroundColor; gradient is used instead
+  buttonContainerLandscape: {
+    width: '40%',
+    paddingHorizontal: 0,
+  },
   joinButton: {
     borderRadius: 8,
     marginBottom: 12,
     overflow: 'hidden', // ensures gradient corners are rounded
   },
-  // 6. Style for the gradient wrapper
+  joinButtonLandscape: {
+    marginBottom: 8,
+  },
   gradientBackground: {
     padding: 16,
     alignItems: 'center',
     borderRadius: 8,
   },
-  // 7. Normal weight for the button text
   joinButtonText: {
     fontSize: 16,
     fontFamily: 'System',
@@ -188,6 +232,9 @@ const styles = StyleSheet.create({
   loginButton: {
     padding: 16,
     alignItems: 'center',
+  },
+  loginButtonLandscape: {
+    padding: 12,
   },
   loginButtonText: {
     fontSize: 16,

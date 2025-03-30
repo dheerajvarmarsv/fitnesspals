@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, Switch, Alert, Platform, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Text, Switch, Alert, Platform } from 'react-native';
 import SharedLayout from '../../../components/SharedLayout';
 import { useUser } from '../../../components/UserContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../../lib/ThemeContext';
 import { supabase } from '../../../lib/supabase';
+
 export default function NotificationSettings() {
   const { settings, updateSettings } = useUser();
   const { theme } = useTheme();
@@ -200,64 +201,6 @@ export default function NotificationSettings() {
             </View>
           </View>
         )}
-        
-        {/* Testing buttons (visible only in development mode) */}
-        {__DEV__ && notificationsEnabled && Platform.OS !== 'web' && (
-          <View style={styles.testButtonsContainer}>
-            <Text style={[styles.testTitle, { color: theme.colors.textPrimary }]}>
-              Testing Options (Development Only)
-            </Text>
-            
-            <TouchableOpacity
-              style={[styles.testButton, { backgroundColor: theme.colors.info }]}
-              onPress={async () => {
-                try {
-                  const { sendTestNotification } = await import('../../../lib/notificationService');
-                  await sendTestNotification();
-                  Alert.alert('Test Notification', 'Sent a local test notification');
-                } catch (e) {
-                  console.error('Error sending test notification:', e);
-                  Alert.alert('Error', 'Failed to send test notification');
-                }
-              }}
-            >
-              <Text style={styles.testButtonText}>Test Local Notification</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.testButton, { backgroundColor: theme.colors.primary }]}
-              onPress={async () => {
-                try {
-                  const userId = (await supabase.auth.getUser()).data.user?.id;
-                  if (!userId) throw new Error('User not logged in');
-                  
-                  const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('nickname')
-                    .eq('id', userId)
-                    .single();
-                  
-                  const { sendFriendRequestNotification } = await import('../../../lib/notificationService');
-                  const result = await sendFriendRequestNotification(
-                    userId,
-                    profile?.nickname || 'User'
-                  );
-                  
-                  if (result) {
-                    Alert.alert('Success', 'Sent a test push notification to your device');
-                  } else {
-                    Alert.alert('Failed', 'Could not send push notification, check console for details');
-                  }
-                } catch (e) {
-                  console.error('Error sending remote test notification:', e);
-                  Alert.alert('Error', 'Failed to send remote notification');
-                }
-              }}
-            >
-              <Text style={styles.testButtonText}>Test Push Notification</Text>
-            </TouchableOpacity>
-          </View>
-        )}
 
         <View style={styles.privacyNote}>
           <Text style={[styles.privacyText, { color: theme.colors.textTertiary }]}>
@@ -345,28 +288,5 @@ const styles = StyleSheet.create({
   privacyText: {
     fontSize: 12,
     textAlign: 'center',
-  },
-  testButtonsContainer: {
-    marginTop: 16,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: '#f8f9fa',
-    borderWidth: 1,
-    borderColor: '#e9ecef',
-  },
-  testTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  testButton: {
-    marginVertical: 8,
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  testButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
+  }
 });

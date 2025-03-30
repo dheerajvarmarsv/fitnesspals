@@ -10,13 +10,6 @@ export default function DebugLayout() {
           headerShown: true 
         }} 
       />
-      <Stack.Screen 
-        name="notifications" 
-        options={{ 
-          title: "Notification Debug", 
-          headerShown: true 
-        }} 
-      />
     </Stack>
   );
 }

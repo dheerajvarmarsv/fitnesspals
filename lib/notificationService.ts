@@ -4,15 +4,7 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { supabase } from './supabase';
-import { logNotificationEvent } from './notificationDebug';
 import { sendNotificationToUser } from './notificationServer';
-
-interface NotificationDebugData {
-  pushToken?: string | null;
-  error?: string | null;
-  payload?: any;
-  response?: any;
-}
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
@@ -94,98 +86,48 @@ export async function requestNotificationPermission() {
 // Register for push notifications
 export async function registerForPushNotifications() {
   try {
-    console.log('Registering for push notifications...');
-    
-    await logNotificationEvent('registration_start', 'Starting push token registration process');
-    
-    // 1. Check device compatibility
+    // Check if push notifications are available
     if (!await isPushNotificationsAvailable()) {
-      await logNotificationEvent('registration_error', 'Device not compatible with push notifications');
       return null;
     }
 
-    // 2. Request permission
-    await logNotificationEvent('permission_request', 'Requesting notification permissions');
-    const hasPermission = await requestNotificationPermission();
-    if (!hasPermission) {
-      await logNotificationEvent('permission_denied', 'Permission denied for push notifications');
-      return null;
-    }
-    
-    await logNotificationEvent('permission_granted', 'Notification permissions granted');
-
-    // 3. Set up notification channels for Android
-    if (Platform.OS === 'android') {
-      await logNotificationEvent('android_channels', 'Setting up Android notification channels');
-      await setupNotificationChannels();
-    }
-
-    // 4. Get the push token from Expo
-    const expoProjectId = Constants.expoConfig?.extra?.eas?.projectId;
-    if (!expoProjectId) {
-      await logNotificationEvent('registration_error', 'Missing EAS project ID in app.config.ts');
+    // Request permission
+    const permissionGranted = await requestNotificationPermission();
+    if (!permissionGranted) {
+      console.log('Permission not granted for push notifications');
       return null;
     }
 
-    await logNotificationEvent('token_fetch', 'Fetching Expo push token');
-    
-    // Get the push token
+    // Get push token
     const pushToken = await Notifications.getExpoPushTokenAsync({
-      projectId: expoProjectId,
+      projectId: Constants.expoConfig?.extra?.eas?.projectId,
     });
 
-    await logNotificationEvent('token_received', 'Received Expo push token', {
-      pushToken: pushToken.data
-    });
+    // Set up notification channels for Android
+    await setupNotificationChannels();
 
-    // 5. Save the token to the database
+    // Store token in database
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      await logNotificationEvent('auth_error', 'No authenticated user found');
-      return null;
-    }
+    if (user) {
+      const { error } = await supabase
+        .from('profile_settings')
+        .upsert({
+          id: user.id,
+          push_token: pushToken.data,
+          notifications_enabled: true,
+        }, {
+          onConflict: 'id'
+        });
 
-    // Create or update profile settings
-    const { error: upsertError } = await supabase
-      .from('profile_settings')
-      .upsert({
-        id: user.id,
-        push_token: pushToken.data,
-        notifications_enabled: true,
-      }, {
-        onConflict: 'id'
-      });
-
-    if (upsertError) {
-      await logNotificationEvent('db_error', 'Error saving push token', {
-        error: upsertError.message
-      });
-      return null;
-    }
-
-    await logNotificationEvent('token_saved', 'Successfully saved push token');
-
-    // Log the registration
-    try {
-      await supabase.from('notification_logs').insert({
-        event_type: 'token_registration',
-        recipient_id: user.id,
-        sender_id: user.id,
-        message: 'Push token registration',
-        status: 'success',
-        details: JSON.stringify({ token: pushToken.data })
-      });
-    } catch (logError: unknown) {
-      const errorMessage = logError instanceof Error ? logError.message : String(logError);
-      console.error('Error logging token registration:', errorMessage);
+      if (error) {
+        console.error('Error storing push token:', error);
+        return null;
+      }
     }
 
     return pushToken.data;
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    await logNotificationEvent('registration_error', 'Error registering for push notifications', {
-      error: errorMessage
-    });
+  } catch (error) {
+    console.error('Error registering for push notifications:', error);
     return null;
   }
 }
@@ -193,29 +135,26 @@ export async function registerForPushNotifications() {
 // Unregister from push notifications
 export async function unregisterFromPushNotifications() {
   try {
+    // Remove token from database
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      console.log('No user logged in, cannot unregister');
-      return false;
+    if (user) {
+      const { error } = await supabase
+        .from('profile_settings')
+        .update({
+          push_token: null,
+          notifications_enabled: false,
+        })
+        .eq('id', user.id);
+
+      if (error) {
+        console.error('Error removing push token:', error);
+        return false;
+      }
     }
 
-    const { error } = await supabase
-      .from('profile_settings')
-      .update({
-        push_token: null,
-        notifications_enabled: false,
-      })
-      .eq('id', user.id);
-
-    if (error) {
-      console.error('Error unregistering push notifications:', error);
-      return false;
-    }
-
-    console.log('Successfully unregistered from push notifications');
     return true;
   } catch (error) {
-    console.error('Error in unregisterFromPushNotifications:', error);
+    console.error('Error unregistering from push notifications:', error);
     return false;
   }
 }
@@ -228,10 +167,6 @@ export async function sendFriendRequestNotification(
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
-
-    // Log the start of notification sending
-    await logNotificationEvent('friend_request_start', 
-      `Starting to send friend request notification to ${receiverId}`);
 
     // Insert into notifications table to trigger webhook
     const { error } = await supabase
@@ -249,21 +184,12 @@ export async function sendFriendRequestNotification(
       });
 
     if (error) {
-      await logNotificationEvent('friend_request_error', 
-        'Error creating notification record', {
-          error: error.message
-        });
       return false;
     }
 
-    await logNotificationEvent('friend_request_success', 
-      'Successfully created notification record');
     return true;
   } catch (error) {
-    await logNotificationEvent('friend_request_exception', 
-      'Exception in sendFriendRequestNotification', {
-        error: error instanceof Error ? error.message : String(error)
-      });
+    console.error('Exception in sendFriendRequestNotification:', error instanceof Error ? error.message : String(error));
     return false;
   }
 }
@@ -278,10 +204,6 @@ export async function sendChallengeInviteNotification(
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
-
-    // Log the start of notification sending
-    await logNotificationEvent('challenge_invite_start', 
-      `Starting to send challenge invite notification to ${receiverId}`);
 
     // Insert into notifications table to trigger webhook
     const { error } = await supabase
@@ -301,73 +223,12 @@ export async function sendChallengeInviteNotification(
       });
 
     if (error) {
-      await logNotificationEvent('challenge_invite_error', 
-        'Error creating notification record', {
-          error: error.message
-        });
       return false;
     }
 
-    await logNotificationEvent('challenge_invite_success', 
-      'Successfully created notification record');
     return true;
   } catch (error) {
-    await logNotificationEvent('challenge_invite_exception', 
-      'Exception in sendChallengeInviteNotification', {
-        error: error instanceof Error ? error.message : String(error)
-      });
-    return false;
-  }
-}
-
-// Send a test notification (for development testing)
-export async function sendTestNotification() {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
-
-    // Get current user's nickname
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('nickname')
-      .eq('id', user.id)
-      .single();
-
-    const nickname = profile?.nickname || 'Someone';
-
-    // Send both types of notifications for testing
-    await Promise.all([
-      // Friend request notification
-      supabase.from('notifications').insert({
-        recipient_id: user.id,
-        sender_id: user.id,
-        type: 'friend_request',
-        title: 'Test Friend Request',
-        body: `${nickname} sent you a friend request`,
-        data: { 
-          screen: 'friends',
-          senderNickname: nickname
-        }
-      }),
-      // Challenge invite notification
-      supabase.from('notifications').insert({
-        recipient_id: user.id,
-        sender_id: user.id,
-        type: 'challenge_invite',
-        title: 'Test Challenge Invite',
-        body: `${nickname} invited you to join "Test Challenge"`,
-        data: {
-          screen: 'challengedetails',
-          params: { id: 'test-challenge' },
-          senderNickname: nickname,
-          challengeName: 'Test Challenge'
-        }
-      })
-    ]);
-
-    return true;
-  } catch (error) {
-    console.error('Error sending test notifications:', error);
+    console.error('Exception in sendChallengeInviteNotification:', error instanceof Error ? error.message : String(error));
     return false;
   }
 }

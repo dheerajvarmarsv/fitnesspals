@@ -67,7 +67,7 @@ export default function ArenaScreen() {
             <View style={styles.tutorialItem}>
               <View style={[styles.tutorialDot, { backgroundColor: '#ef4444' }]} />
               <Text style={styles.tutorialText}>
-                Red Zone: Danger area. You'll lose lives here!
+                Red Zone: Danger area. Missing a day here means elimination!
               </Text>
             </View>
             
@@ -75,12 +75,6 @@ export default function ArenaScreen() {
               <View style={[styles.tutorialDot, { backgroundColor: '#3b82f6' }]} />
               <Text style={styles.tutorialText}>
                 Complete workouts to move toward the safe zone
-              </Text>
-            </View>
-            
-            <View style={styles.tutorialItem}>
-              <Text style={styles.tutorialText}>
-                ❤️ You have 3 lives. Lose all lives and you're eliminated!
               </Text>
             </View>
             

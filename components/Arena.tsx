@@ -38,13 +38,9 @@ export const Arena = () => {
   // Use currentUserParticipant for accurate database values
   const userPoints = currentUserParticipant?.total_points || currentUser?.points || 0;
   
-  // Get survival settings to get max lives
+  // Get survival settings
   const survivalSettings = challengeDetails?.survival_settings || 
                         challengeDetails?.rules?.survival_settings;
-  
-  // Use lives from participant data with fallback to user object or survival settings
-  const userLives = currentUserParticipant?.lives || currentUser?.lives || 0;
-  const maxLives = survivalSettings?.start_lives || DEFAULT_SURVIVAL_SETTINGS.start_lives;
   
   // Calculate progress based on actual database values
   const progressPercentage = totalDays > 0 ? Math.min(100, (currentDay / totalDays) * 100) : 0;
@@ -57,10 +53,8 @@ export const Arena = () => {
     (currentUserParticipant.distance_from_center > normalizedSafeZone) : 
     (currentUser ? currentUser.distance > safeZoneRadius : false);
     
-  // Calculate days in danger and lives based on position
+  // Calculate days in danger
   const daysInDanger = currentUserParticipant?.days_in_danger || 0;
-  const eliminationThreshold = survivalSettings?.elimination_threshold || DEFAULT_SURVIVAL_SETTINGS.elimination_threshold;
-  const isAtRisk = isInDanger && daysInDanger >= eliminationThreshold;
   
   // Determine if user is eliminated based on database flag
   const isEliminated = currentUserParticipant?.is_eliminated || currentUser?.isEliminated || false;
@@ -72,12 +66,9 @@ export const Arena = () => {
   if (isEliminated) {
     statusColor = '#9ca3af'; // Gray for eliminated
     statusText = 'Eliminated';
-  } else if (isAtRisk) {
-    statusColor = '#ef4444'; // Red for danger (at risk of losing life)
-    statusText = `Danger (${eliminationThreshold - daysInDanger} days until life lost)`;
   } else if (isInDanger) {
-    statusColor = '#f97316'; // Orange for in danger but not at risk
-    statusText = `Danger (${daysInDanger}/${eliminationThreshold} days)`;
+    statusColor = '#ef4444'; // Red for danger
+    statusText = 'Danger';
   }
 
   // Set up real-time subscription when component mounts
@@ -182,13 +173,6 @@ export const Arena = () => {
           <View style={styles.statDivider} />
           
           <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Lives</Text>
-            <Text style={styles.statValue}>{userLives}/{maxLives}</Text>
-          </View>
-          
-          <View style={styles.statDivider} />
-          
-          <View style={styles.statItem}>
             <Text style={styles.statLabel}>Status</Text>
             <Text style={[styles.statValue, { color: statusColor }]}>
               {statusText}
@@ -196,23 +180,12 @@ export const Arena = () => {
           </View>
         </View>
         
-        {isAtRisk && !isEliminated && (
+        {isInDanger && !isEliminated && (
           <View style={styles.dangerAlert}>
             <Text style={styles.dangerText}>
               {currentUserParticipant?.days_in_danger !== undefined && (
-                // Get elimination threshold from survival_settings column or rules
-                (challengeDetails?.survival_settings?.elimination_threshold !== undefined && (
-                  currentUserParticipant.days_in_danger >= (challengeDetails.survival_settings.elimination_threshold - 1) ? 
-                    'FINAL WARNING! Log enough activities now to survive' : 
-                    `In danger zone! ${challengeDetails.survival_settings.elimination_threshold - currentUserParticipant.days_in_danger} day(s) until losing a life`
-                )) || 
-                // Fallback to rules if needed
-                (challengeDetails?.rules?.survival_settings?.elimination_threshold !== undefined && (
-                  currentUserParticipant.days_in_danger >= (challengeDetails.rules.survival_settings.elimination_threshold - 1) ? 
-                    'FINAL WARNING! Log enough activities now to survive' : 
-                    `In danger zone! ${challengeDetails.rules.survival_settings.elimination_threshold - currentUserParticipant.days_in_danger} day(s) until losing a life`
-                ))
-              ) || 'In danger zone! Log activity to survive'}
+                'In danger zone! Log activity now to survive'
+              )}
             </Text>
           </View>
         )}

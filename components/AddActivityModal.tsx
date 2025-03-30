@@ -30,7 +30,7 @@ const GLOBAL_ACTIVITIES = [
   'Steps',
   'Sleep',
   'Screen Time',
-  'No Sugars',
+  'Sugars',
   'High Intensity',
   'Yoga',
   'Count',
@@ -43,7 +43,7 @@ const ACTIVITY_COLORS: { [key: string]: { light: string; primary: string; gradie
   Steps:          { light: '#E8F5E9', primary: '#4CAF50', gradient: ['#4CAF50', '#1B5E20'], text: '#1B5E20' },
   Sleep:          { light: '#E0F7FA', primary: '#00BCD4', gradient: ['#00BCD4', '#006064'], text: '#006064' },
   'Screen Time':  { light: '#FFF3E0', primary: '#FF9800', gradient: ['#FF9800', '#E65100'], text: '#E65100' },
-  'No Sugars':    { light: '#FCE4EC', primary: '#F06292', gradient: ['#F06292', '#880E4F'], text: '#880E4F' },
+  'Sugars':       { light: '#FCE4EC', primary: '#F06292', gradient: ['#F06292', '#880E4F'], text: '#880E4F' },
   'High Intensity': { light: '#FFEBEE', primary: '#F44336', gradient: ['#F44336', '#B71C1C'], text: '#B71C1C' },
   Yoga:           { light: '#F3E5F5', primary: '#9C27B0', gradient: ['#9C27B0', '#4A148C'], text: '#4A148C' },
   Count:          { light: '#ECEFF1', primary: '#607D8B', gradient: ['#607D8B', '#263238'], text: '#263238' },
@@ -55,7 +55,7 @@ const ACTIVITY_ICONS: { [key: string]: string } = {
   Steps: 'shoe-prints',
   Sleep: 'bed',
   'Screen Time': 'mobile',
-  'No Sugars': 'cookie-bite',
+  'Sugars': 'cookie-bite',
   'High Intensity': 'fire',
   Yoga: 'pray',
   Count: 'hashtag',
@@ -72,11 +72,29 @@ interface ActivityData {
   isCustom: boolean;
 }
 
+interface UserActivity {
+  activityType: string;
+  duration: number;
+  distance: number;
+  calories: number;
+  steps: number;
+  count: number;
+  metric: string;
+}
+
 interface AddActivityModalProps {
   visible: boolean;
   onClose: () => void;
   onSaveComplete?: () => void;
 }
+
+type GradientColors = readonly [string, string];
+
+const GRADIENT_COLORS: Record<string, GradientColors> = {
+  header: ['#4A90E2', '#5C38ED'],
+  customActivity: ['#3F51B5', '#1A237E'],
+  saveButton: ['#4A90E2', '#5C38ED'],
+} as const;
 
 export default function AddActivityModal({
   visible,
@@ -376,6 +394,8 @@ export default function AddActivityModal({
         ...customActivities.filter(a => Object.values(a.metrics).some(v => v && v.trim() !== '')),
       ];
       
+      console.log('Activities to save:', activitiesToSave);
+      
       for (const act of activitiesToSave) {
         for (const [metricKey, rawVal] of Object.entries(act.metrics)) {
           if (!rawVal || rawVal.trim() === '') continue;
@@ -391,7 +411,9 @@ export default function AddActivityModal({
     
           switch (metric) {
             case 'time':
-              duration = numericValue * 60; // Convert hours to minutes
+              // Explicitly convert hours to minutes for storage
+              duration = numericValue * 60;
+              console.log(`Converting time: ${numericValue} hours = ${duration} minutes`);
               break;
             case 'distance_km':
               distance = numericValue;
@@ -412,6 +434,18 @@ export default function AddActivityModal({
               break;
           }
     
+          // Log the actual values being saved
+          console.log('Saving activity with values:', {
+            type: act.activityType,
+            metric,
+            inputValue: numericValue,
+            duration,
+            distance,
+            calories,
+            steps,
+            count
+          });
+          
           // Save activity
           const result = await saveUserActivity(
             {
@@ -422,7 +456,7 @@ export default function AddActivityModal({
               steps,
               count,
               metric,
-            },
+            } as UserActivity,
             userId
           );
 
@@ -475,7 +509,12 @@ export default function AddActivityModal({
       <View key={activity.id} style={styles.activityContainer}>
         <TouchableOpacity onPress={() => toggleActivityExpansion(activity.id, isChallenge, isCustom)} activeOpacity={0.7}>
           <LinearGradient
-            colors={activity.isExpanded ? colorSet.gradient : ['#f5f5f5', '#e0e0e0']}
+            colors={activity.isExpanded ? 
+              (activity.activityType === 'Walking' ? ['#8BC34A', '#33691E'] :
+               activity.activityType === 'Running' ? ['#FFC107', '#FF6F00'] :
+               activity.activityType === 'Workout' ? ['#2196F3', '#0D47A1'] :
+               ['#3F51B5', '#1A237E']) : 
+              ['#f5f5f5', '#e0e0e0']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={[styles.activityChip, activity.isExpanded && styles.activityChipExpanded]}
@@ -514,7 +553,7 @@ export default function AddActivityModal({
                       ]}
                       value={value}
                       onChangeText={(text) => {
-                        if (text === '' || !isNaN(Number(text))) {
+                        if (text === '' || text === '0' || !isNaN(Number(text))) {
                           updateMetricValue(activity.id, isChallenge, isCustom, metric, text);
                         }
                       }}
@@ -545,7 +584,7 @@ export default function AddActivityModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.container}>
-          <LinearGradient colors={['#4A90E2', '#5C38ED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.header}>
+          <LinearGradient colors={GRADIENT_COLORS.header} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.header}>
             <Text style={styles.headerTitle}>Add Activity</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Ionicons name="close" size={24} color="#fff" />
@@ -592,7 +631,7 @@ export default function AddActivityModal({
               {generalActivities.map(activity => renderActivity(activity, false))}
               {!showCustomForm && (
                 <TouchableOpacity style={styles.customActivityButtonContainer} onPress={() => setShowCustomForm(true)} activeOpacity={0.7}>
-                  <LinearGradient colors={['#3F51B5', '#1A237E']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.customActivityButton}>
+                  <LinearGradient colors={GRADIENT_COLORS.customActivity} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.customActivityButton}>
                     <Ionicons name="add-circle" size={20} color="#fff" style={styles.customActivityIcon} />
                     <Text style={styles.customActivityButtonText}>+ Custom Activity</Text>
                   </LinearGradient>
@@ -652,7 +691,7 @@ export default function AddActivityModal({
                     setShowCustomForm(false);
                     setCustomName('');
                     setSelectedCustomMetrics([]);
-                    setFormErrors({ ...formErrors, custom: undefined });
+                    setFormErrors(prev => ({ ...prev, custom: undefined as unknown as string }));
                   }}>
                     <Text style={styles.cancelButtonText}>Cancel</Text>
                   </TouchableOpacity>
@@ -669,7 +708,7 @@ export default function AddActivityModal({
           </ScrollView>
           <View style={styles.footer}>
             <LinearGradient
-              colors={['#4A90E2', '#5C38ED']}
+              colors={GRADIENT_COLORS.saveButton}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={[styles.saveButton, (loading || getActivitiesWithValues() === 0) && styles.saveButtonDisabled]}

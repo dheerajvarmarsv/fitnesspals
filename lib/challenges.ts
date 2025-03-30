@@ -22,6 +22,17 @@ interface ChallengeCreationParams {
   isPrivate: boolean;
 }
 
+interface ChallengeRules {
+  challenge_mode: string;
+  allowed_activities: string[];
+  points_per_activity: Record<string, number>;
+  metrics: Record<string, string>;
+  survival_settings?: any;
+  totalCheckpoints?: number;
+  pointsPerCheckpoint?: number;
+  estimatedTotalPoints?: number;
+}
+
 /**
  * Create a new challenge along with its activities and adds the creator as a participant.
  */
@@ -43,8 +54,23 @@ export async function createChallengeInSupabase({
   if (!userId) throw new Error('User ID is required');
   if (!name || name.trim().length === 0) throw new Error('Challenge name is required');
 
+  // Check if user already has 2 active challenges
+  const { data: activeParticipations, error: participationError } = await supabase
+    .from('challenge_participants')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('status', 'active');
+
+  if (participationError) {
+    throw new Error('Failed to check active challenges');
+  }
+
+  if (activeParticipations && activeParticipations.length >= 2) {
+    throw new Error('You can only participate in 2 active challenges at a time');
+  }
+
   // Create base rules object
-  let challengeRules = {
+  let challengeRules: ChallengeRules = {
     challenge_mode: challengeType,
     allowed_activities: selectedActivities.map((act) => act.activityType),
     points_per_activity: selectedActivities.reduce((acc, act) => {
@@ -61,29 +87,11 @@ export async function createChallengeInSupabase({
   if (challengeType === 'survival') {
     const { DEFAULT_SURVIVAL_SETTINGS } = await import('./survivalUtils');
     
-    // Determine elimination threshold based on duration
-    let eliminationThreshold = 3;  // Default
-    
-    if (startDate && endDate) {
-      const totalDays = Math.ceil(
-        (endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000)
-      );
-      
-      // Adjust elimination threshold based on challenge length
-      if (totalDays <= 3) {
-        eliminationThreshold = 1;  // Ultra-short challenges
-      } else if (totalDays <= 10) {
-        eliminationThreshold = 2;  // Short challenges
-      }
-      // Else keep default of 3
-    }
-    
-    // Create survival settings with adjusted elimination threshold
+    // Create survival settings without lives
     challengeRules = {
       ...challengeRules,
       survival_settings: {
-        ...DEFAULT_SURVIVAL_SETTINGS,
-        elimination_threshold: eliminationThreshold
+        ...DEFAULT_SURVIVAL_SETTINGS
       }
     };
   };
@@ -195,7 +203,7 @@ export async function createChallengeInSupabase({
   }
 
   // Prepare participant data - add survival-specific fields if needed
-  let participantData = {
+  let participantData: any = {
     challenge_id: createdChallenge.id,
     user_id: userId,
     status: 'active',
@@ -238,7 +246,6 @@ export async function createChallengeInSupabase({
     // Merge the survival-specific fields into the participant data
     participantData = {
       ...participantData,
-      lives: survivalData.lives,
       days_in_danger: survivalData.days_in_danger,
       distance_from_center: survivalData.distance_from_center,
       angle: survivalData.angle,
@@ -306,47 +313,178 @@ export async function createChallengeInSupabase({
 }
 
 /**
+ * Leave a challenge by setting the left_at timestamp and marking status as 'left'.
+ * This allows users to join a new challenge after leaving one.
+ */
+export async function leaveChallenge(participantId: string) {
+  try {
+    // Get current timestamp in ISO format for consistency
+    const now = new Date().toISOString();
+    
+    console.log(`Leaving challenge with participant ID: ${participantId}, setting left_at to: ${now}`);
+    
+    const { data, error } = await supabase
+      .from('challenge_participants')
+      .update({
+        status: 'left',
+        left_at: now
+      })
+      .eq('id', participantId)
+      .select();
+    
+    if (error) {
+      console.error('Database error when leaving challenge:', error);
+      throw error;
+    }
+    
+    console.log('Challenge left successfully, updated data:', data);
+    
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error leaving challenge:', error);
+    throw error;
+  }
+}
+
+/**
+ * Rejoin a challenge by updating the participant's status back to active
+ * and setting the rejoined_at timestamp.
+ */
+export async function rejoinChallenge(participantId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('challenge_participants')
+      .update({
+        status: 'active',
+        left_at: null,
+        rejoined_at: new Date().toISOString(),
+      })
+      .eq('id', participantId)
+      .select();
+    
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error rejoining challenge:', error);
+    throw error;
+  }
+}
+
+/**
+ * Check if a user has reached the maximum number of active challenges.
+ * Users can participate in at most 2 active challenges at a time.
+ * Challenges with status 'left' are not counted against this limit.
+ */
+export async function canJoinNewChallenge(userId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('challenge_participants')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('status', 'active');
+    
+    if (error) throw error;
+    
+    // User can join if they have fewer than 2 active challenges
+    const canJoin = !data || data.length < 2;
+    return { canJoin, activeCount: data?.length || 0 };
+  } catch (error) {
+    console.error('Error checking if user can join challenge:', error);
+    throw error;
+  }
+}
+
+/**
  * Fetch active challenges for a user, optionally filtering by status.
+ * This includes challenges where the user is a participant with 'active' status
+ * and challenges the user has created.
  */
 export async function getActiveChallengesForUser(
   userId: string,
-  status?: 'active' | 'left'
+  status: 'active' | 'left' = 'active'
 ) {
-  let query = supabase
-    .from('challenge_participants')
-    .select(`
-      id,
-      challenge_id,
-      status,
-      left_at,
-      challenges (
+  try {
+    const { data: participantChallenges, error: participantError } = await supabase
+      .from('challenge_participants')
+      .select(`
         id,
-        title,
-        description,
-        challenge_type,
-        start_date,
-        end_date,
-        is_private,
-        challenge_participants (count)
-      )
-    `)
-    .eq('user_id', userId);
-  if (status) {
-    query = query.eq('status', status);
+        challenge_id,
+        status,
+        left_at,
+        rejoined_at,
+        challenge:challenges(
+          *,
+          participant_count:challenge_participants(count)
+        )
+      `)
+      .eq('user_id', userId)
+      .eq('status', status);
+    
+    if (participantError) throw participantError;
+    
+    // Get challenges where user is the creator
+    const { data: creatorChallenges, error: creatorError } = await supabase
+      .from('challenges')
+      .select(`
+        *,
+        participant_count:challenge_participants(count)
+      `)
+      .eq('creator_id', userId)
+      .eq('status', 'active');
+    
+    if (creatorError) throw creatorError;
+    
+    // Process participant challenges
+    const participantList = (participantChallenges || []).map(row => {
+      const c = row.challenge;
+      // Ensure participant_count is a number
+      const count = typeof c.participant_count === 'object' && c.participant_count !== null
+        ? c.participant_count.count
+        : (c.participant_count || 0);
+      
+      return {
+        ...c,
+        participant_count: count,
+        participant_id: row.id,
+        participant_status: row.status,
+        left_at: row.left_at,
+        rejoined_at: row.rejoined_at
+      };
+    });
+    
+    // Process creator challenges
+    const creatorList = (creatorChallenges || []).map(c => {
+      // Ensure participant_count is a number
+      const count = typeof c.participant_count === 'object' && c.participant_count !== null
+        ? c.participant_count.count
+        : (c.participant_count || 0);
+      
+      return {
+        ...c,
+        participant_count: count,
+        is_creator: true
+      };
+    });
+    
+    // Combine and deduplicate challenges
+    // Creator's own challenges always have priority
+    const allChallenges = [...creatorList];
+    
+    // Add participant challenges if they're not already in the list
+    for (const pc of participantList) {
+      if (!allChallenges.some(c => c.id === pc.id)) {
+        allChallenges.push(pc);
+      }
+    }
+    
+    // Sort by created_at date, most recent first
+    return allChallenges.sort((a, b) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  } catch (error) {
+    console.error('Error in getActiveChallengesForUser:', error);
+    throw error;
   }
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
-  return (data || []).map((row: any) => {
-    const c = row.challenges;
-    const count = c.challenge_participants?.[0]?.count || 0;
-    return {
-      ...c,
-      participant_count: count,
-      participant_id: row.id,
-      participant_status: row.status,
-      left_at: row.left_at,
-    };
-  });
 }
 
 /**
@@ -376,7 +514,7 @@ export async function leaveChallenges(userId: string, challengeIds: string[]) {
     const isCreator = challengeData.creator_id === userId;
 
     // If user is creator and is the only active participant, delete the entire challenge.
-    if (isCreator && activeCount <= 1) {
+    if (isCreator && (activeCount || 0) <= 1) {
       const { error: deleteError } = await supabase
         .from('challenges')
         .delete()
@@ -424,21 +562,4 @@ export async function canRejoinChallenge(userId: string, challengeId: string) {
   const isActive = challenge.status === 'active';
   const isNotEnded = !challenge.end_date || new Date(challenge.end_date) > new Date();
   return { canRejoin: isActive && isNotEnded, participantId: data?.id };
-}
-
-/**
- * Rejoin a challenge by updating the participant's status back to active.
- */
-export async function rejoinChallenge(participantId: string) {
-  const { data, error } = await supabase
-    .from('challenge_participants')
-    .update({
-      status: 'active',
-      left_at: null,
-      rejoined_at: new Date().toISOString(),
-    })
-    .eq('id', participantId)
-    .select();
-  if (error) throw error;
-  return { success: true, data };
 }

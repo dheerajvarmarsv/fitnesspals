@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
@@ -54,7 +55,7 @@ const ACTIVITY_COLORS: {
   Steps:          { light: '#E8F5E9', primary: '#4CAF50', gradient: ['#4CAF50', '#1B5E20'], text: '#1B5E20' },
   Sleep:          { light: '#E0F7FA', primary: '#00BCD4', gradient: ['#00BCD4', '#006064'], text: '#006064' },
   'Screen Time':  { light: '#FFF3E0', primary: '#FF9800', gradient: ['#FF9800', '#E65100'], text: '#E65100' },
-  'No Sugars':    { light: '#FCE4EC', primary: '#F06292', gradient: ['#F06292', '#880E4F'], text: '#880E4F' },
+  'Sugars':       { light: '#FCE4EC', primary: '#F06292', gradient: ['#F06292', '#880E4F'], text: '#880E4F' },
   'High Intensity': { light: '#FFEBEE', primary: '#F44336', gradient: ['#F44336', '#B71C1C'], text: '#B71C1C' },
   Yoga:           { light: '#F3E5F5', primary: '#9C27B0', gradient: ['#9C27B0', '#4A148C'], text: '#4A148C' },
   Count:          { light: '#ECEFF1', primary: '#607D8B', gradient: ['#607D8B', '#263238'], text: '#263238' },
@@ -75,7 +76,7 @@ const ACTIVITY_ICONS: { [key: string]: string } = {
   Steps: 'shoe-prints',
   Sleep: 'bed',
   'Screen Time': 'mobile',
-  'No Sugars': 'cookie-bite',
+  'Sugars': 'cookie-bite',
   'High Intensity': 'fire',
   Yoga: 'pray',
   Count: 'hashtag',
@@ -89,7 +90,7 @@ const ACTIVITY_ICONS: { [key: string]: string } = {
   'Cardio Workout': 'heartbeat',
   Custom: 'star',
 };
-const getTextWidth = (text) => {
+const getTextWidth = (text: string): number => {
   // Simple estimation - adjust the multiplier based on your font
   return text.length * 20; // Approximately 20 units per character
 }
@@ -245,45 +246,60 @@ async function fetchActivitySummaryByDate(userId: string, date: Date) {
 }
 
 const formatMetricValue = (activity: any, useKilometers: boolean): string => {
+  // Helper function to safely convert values that might be objects to strings
+  const safeToString = (value: any): string => {
+    if (value === 0) return "0";
+    if (value === null || value === undefined) return "0";
+    if (typeof value === 'object') return "0";
+    return value.toString();
+  };
+  
   let displayValue = '';
   
   switch (activity.metric) {
     case 'time':
-      if (activity.duration) displayValue = `${Math.round(activity.duration / 60)} min`;
+      // Ensure duration is always displayed, even if 0
+      const durationMin = activity.duration ? Math.round(activity.duration / 60) : 0;
+      displayValue = `${durationMin} min`;
       break;
     case 'distance_km':
-      if (activity.distance !== null) {
-        if (useKilometers) {
-          displayValue = `${activity.distance.toFixed(2)} km`;
-        } else {
-          const miles = activity.distance * 0.621371;
-          displayValue = `${miles.toFixed(2)} mi`;
-        }
+      // Ensure distance is always displayed, even if 0
+      const distance = activity.distance !== null ? activity.distance : 0;
+      if (useKilometers) {
+        displayValue = `${distance.toFixed(2)} km`;
+      } else {
+        const miles = distance * 0.621371;
+        displayValue = `${miles.toFixed(2)} mi`;
       }
       break;
     case 'distance_miles':
-      if (activity.distance !== null) {
-        // The distance is stored in km in the database
-        if (useKilometers) {
-          displayValue = `${activity.distance.toFixed(2)} km`;
-        } else {
-          // Convert back to miles for display
-          const miles = activity.distance * 0.621371;
-          displayValue = `${miles.toFixed(2)} mi`;
-        }
+      // Ensure distance is always displayed, even if 0
+      const distanceMiles = activity.distance !== null ? activity.distance : 0;
+      if (useKilometers) {
+        displayValue = `${distanceMiles.toFixed(2)} km`;
+      } else {
+        const miles = distanceMiles * 0.621371;
+        displayValue = `${miles.toFixed(2)} mi`;
       }
       break;
     case 'calories':
-      if (activity.calories) displayValue = `${activity.calories} cal`;
+      // Ensure calories is always displayed, even if 0
+      const calories = activity.calories ? safeToString(activity.calories) : "0";
+      displayValue = `${calories} cal`;
       break;
     case 'steps':
-      if (activity.steps) displayValue = `${activity.steps} steps`;
+      // Ensure steps is always displayed, even if 0
+      const steps = activity.steps ? safeToString(activity.steps) : "0";
+      displayValue = `${steps} steps`;
       break;
     case 'count':
-      if (activity.count) displayValue = `${activity.count} count`;
+      // Handle cases where count is an object, null, or 0
+      const count = (activity.count !== undefined && activity.count !== null) ? 
+        safeToString(activity.count) : "0";
+      displayValue = `${count} count`;
       break;
     default:
-      displayValue = 'No data';
+      displayValue = '0';
       break;
   }
   return displayValue;
@@ -451,7 +467,7 @@ export default function HomeScreen() {
           return (
             <LinearGradient
               key={activity.id}
-              colors={colorSet.gradient}
+              colors={colorSet.gradient as any}
               style={styles.activitySquareCard}
             >
               <FontAwesome5 name={iconName} size={34} color="#fff" style={{ marginBottom: 8 }} />
@@ -588,7 +604,7 @@ export default function HomeScreen() {
                 <View style={[styles.activityStatIconContainer, { backgroundColor: 'rgba(74,144,226,0.1)' }]}>
                   <Ionicons name="walk" size={28} color="#4A90E2" />
                 </View>
-                <Text style={styles.activityStatValue}>{activitySummary.steps}</Text>
+                <Text style={styles.activityStatValue}>{activitySummary.steps === 0 ? "0" : activitySummary.steps}</Text>
                 <Text style={styles.activityStatLabel}>steps</Text>
               </View>
               <View style={styles.activityStatItem}>
@@ -597,8 +613,8 @@ export default function HomeScreen() {
                 </View>
                 <Text style={styles.activityStatValue}>
                   {settings.useKilometers
-                    ? `${activitySummary.distance.toFixed(2)} km`
-                    : `${(activitySummary.distance * 0.621371).toFixed(2)} mi`}
+                    ? `${activitySummary.distance === 0 ? "0" : activitySummary.distance.toFixed(2)} km`
+                    : `${activitySummary.distance === 0 ? "0" : (activitySummary.distance * 0.621371).toFixed(2)} mi`}
                 </Text>
                 <Text style={styles.activityStatLabel}>distance</Text>
               </View>
@@ -607,7 +623,7 @@ export default function HomeScreen() {
                   <Ionicons name="time" size={28} color="#9C6ADE" />
                 </View>
                 <Text style={styles.activityStatValue}>
-                  {(activitySummary.duration / 60).toFixed(1)}
+                  {activitySummary.duration === 0 ? "0.0" : (activitySummary.duration / 60).toFixed(1)}
                 </Text>
                 <Text style={styles.activityStatLabel}>hours</Text>
               </View>
@@ -615,7 +631,7 @@ export default function HomeScreen() {
                 <View style={[styles.activityStatIconContainer, { backgroundColor: 'rgba(245,166,35,0.1)' }]}>
                   <Ionicons name="flame" size={28} color="#F5A623" />
                 </View>
-                <Text style={styles.activityStatValue}>{activitySummary.calories}</Text>
+                <Text style={styles.activityStatValue}>{activitySummary.calories === 0 ? "0" : activitySummary.calories}</Text>
                 <Text style={styles.activityStatLabel}>cal</Text>
               </View>
             </View>
@@ -729,7 +745,9 @@ export default function HomeScreen() {
                               : 'Open-ended'}
                           </Text>
                           <Text style={styles.challengeMeta}>
-                            {challenge.participant_count || 0} participant(s)
+                            {typeof challenge.participant_count === 'object' && 'count' in challenge.participant_count 
+                              ? challenge.participant_count.count 
+                              : challenge.participant_count || 0} participant(s)
                           </Text>
                         </View>
                       </BlurView>
@@ -757,7 +775,9 @@ export default function HomeScreen() {
                             : 'Open-ended'}
                         </Text>
                         <Text style={styles.challengeMeta}>
-                          {challenge.participant_count || 0} participant(s)
+                          {typeof challenge.participant_count === 'object' && 'count' in challenge.participant_count 
+                            ? challenge.participant_count.count 
+                            : challenge.participant_count || 0} participant(s)
                         </Text>
                       </View>
                     </TouchableOpacity>
@@ -786,7 +806,6 @@ export default function HomeScreen() {
         visible={showAddActivityModal}
         onClose={() => setShowAddActivityModal(false)}
         onSaveComplete={loadHomeData}
-        selectedDate={selectedDate}
       />
     </View>
   );

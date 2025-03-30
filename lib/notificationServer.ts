@@ -1,5 +1,4 @@
 import { supabase } from './supabase';
-import { logNotificationEvent } from './notificationDebug';
 import * as Notifications from 'expo-notifications';
 
 const EXPO_PUSH_API = 'https://exp.host/--/api/v2/push/send';
@@ -28,12 +27,6 @@ export async function sendNotificationToUser(
   notification: NotificationPayload
 ) {
   try {
-    // Log the start of notification sending
-    await logNotificationEvent('notification_start', 
-      `Starting to send notification to user ${userId}`, {
-        payload: notification
-      });
-
     // Get user's notification settings and profile
     const { data: settings, error: settingsError } = await supabase
       .from('profile_settings')
@@ -50,20 +43,15 @@ export async function sendNotificationToUser(
         .single();
 
       if (createError) {
-        await logNotificationEvent('notification_settings_error', 
-          'Error creating notification settings', { 
-            error: createError.message,
-            payload: { userId }
-          });
         return false;
       }
 
       // Use the newly created settings
       if (newSettings) {
-        await logNotificationEvent('notification_settings_created', 
-          'Created new notification settings', {
-            payload: { userId }
-          });
+        // await logNotificationEvent('notification_settings_created', 
+        //   'Created new notification settings', {
+        //     payload: { userId }
+        //   });
       }
     }
 
@@ -81,10 +69,10 @@ export async function sendNotificationToUser(
       trigger: { seconds: 1 },
     });
 
-    await logNotificationEvent('local_notification_sent', 
-      'Sent local notification', {
-        payload: notification
-      });
+    // await logNotificationEvent('local_notification_sent', 
+    //   'Sent local notification', {
+    //     payload: notification
+    //   });
 
     // If we have a push token, also try to send remote notification
     if (settings?.push_token) {
@@ -116,17 +104,16 @@ export async function sendNotificationToUser(
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        await logNotificationEvent('remote_notification_error', 
-          'Error sending remote notification', {
-            error: errorText,
-            payload: message
-          });
+        // await logNotificationEvent('remote_notification_error', 
+        //   'Error sending remote notification', {
+        //     error: errorText,
+        //     payload: message
+        //   });
       } else {
-        await logNotificationEvent('remote_notification_sent', 
-          'Sent remote notification', {
-            payload: message
-          });
+        // await logNotificationEvent('remote_notification_sent', 
+        //   'Sent remote notification', {
+        //     payload: message
+        //   });
       }
     }
 
@@ -150,11 +137,12 @@ export async function sendNotificationToUser(
     return true;
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    await logNotificationEvent('notification_error', 
-      'Error sending notification', { 
-        error: errorMessage,
-        payload: { userId, notification }
-      });
+    // await logNotificationEvent('notification_error', 
+    //   'Error sending notification', { 
+    //     error: errorMessage,
+    //     payload: { userId, notification }
+    //   });
+    console.error('Error sending notification:', error);
     return false;
   }
 }

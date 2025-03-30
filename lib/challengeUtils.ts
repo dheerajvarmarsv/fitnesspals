@@ -4,35 +4,94 @@ import { supabase } from './supabase';
  * Return all active challenges for the user, with participant counts.
  */
 export async function getActiveChallengesForUser(userId: string) {
-  const { data, error } = await supabase
-    .from('challenge_participants')
-    .select(`
-      challenge_id,
-      status,
-      challenges (
-        id,
-        title,
-        description,
-        challenge_type,
-        start_date,
-        end_date,
-        challenge_participants(count)
-      )
-    `)
-    .eq('user_id', userId)
-    .eq('status', 'active');
-
-  if (error) {
-    console.error('Error fetching active challenges:', error);
-    throw new Error(error.message);
+  try {
+    const now = new Date().toISOString();
+    
+    // Get all challenge IDs where user is a participant
+    const { data: participations, error: participantError } = await supabase
+      .from('challenge_participants')
+      .select('challenge_id')
+      .eq('user_id', userId)
+      .eq('status', 'active');
+    
+    if (participantError) throw participantError;
+    
+    const participantChallengeIds = participations?.map(p => p.challenge_id) || [];
+    
+    // Use separate queries and combine results in JS
+    const result = [];
+    
+    // Query 1: Get challenges where user is a participant
+    if (participantChallengeIds.length > 0) {
+      const { data: participantChallenges, error } = await supabase
+        .from('challenges')
+        .select(`
+          *,
+          participant_count:challenge_participants(count)
+        `)
+        .in('id', participantChallengeIds)
+        .eq('status', 'active')
+        .lte('start_date', now);
+      
+      if (error) throw error;
+      
+      // Client-side filtering for end date
+      const filteredParticipantChallenges = participantChallenges?.filter(c => 
+        !c.end_date || new Date(c.end_date) >= new Date(now)
+      ) || [];
+      
+      // Normalize participant_count to ensure it's always a number
+      const normalizedChallenges = filteredParticipantChallenges.map(challenge => ({
+        ...challenge,
+        participant_count: typeof challenge.participant_count === 'object' && challenge.participant_count !== null
+          ? challenge.participant_count.count
+          : (challenge.participant_count || 0)
+      }));
+      
+      result.push(...normalizedChallenges);
+    }
+    
+    // Query 2: Get challenges where user is the creator
+    const { data: creatorChallenges, error: creatorError } = await supabase
+      .from('challenges')
+      .select(`
+        *,
+        participant_count:challenge_participants(count)
+      `)
+      .eq('creator_id', userId)
+      .eq('status', 'active')
+      .lte('start_date', now);
+    
+    if (creatorError) throw creatorError;
+    
+    // Client-side filtering for end date
+    const filteredCreatorChallenges = creatorChallenges?.filter(c => 
+      !c.end_date || new Date(c.end_date) >= new Date(now)
+    ) || [];
+    
+    // Normalize participant_count to ensure it's always a number
+    const normalizedCreatorChallenges = filteredCreatorChallenges.map(challenge => ({
+      ...challenge,
+      participant_count: typeof challenge.participant_count === 'object' && challenge.participant_count !== null
+        ? challenge.participant_count.count
+        : (challenge.participant_count || 0)
+    }));
+    
+    result.push(...normalizedCreatorChallenges);
+    
+    // Remove duplicates based on challenge ID
+    const uniqueChallenges = Array.from(
+      new Map(result.map(c => [c.id, c])).values()
+    );
+    
+    // Sort by created_at date, most recent first
+    return uniqueChallenges.sort((a, b) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  } catch (error) {
+    console.error('Error in getActiveChallengesForUser:', error);
+    throw error;
   }
-
-  return (data || []).map((row: any) => {
-    const c = row.challenges;
-    const arr = c.challenge_participants || [];
-    const participantCount = arr.length > 0 ? arr[0].count : 0;
-    return { ...c, participant_count: participantCount };
-  });
 }
 
 /**
@@ -118,7 +177,7 @@ export async function saveUserActivity(
     'Steps',
     'Sleep',
     'Screen Time',
-    'No Sugars',
+    'Sugars',
     'High Intensity',
     'Yoga',
     'Count',
@@ -700,3 +759,18 @@ function getWeekNumber(date: Date): number {
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 }
+
+export const ACTIVITY_TYPES = [
+  'Running',
+  'Walking',
+  'Cycling',
+  'Swimming',
+  'Gym',
+  'Meditation',
+  'Sleep',
+  'Screen Time',
+  'Sugars',
+  'High Intensity',
+  'Yoga',
+  'Custom'
+] as const;

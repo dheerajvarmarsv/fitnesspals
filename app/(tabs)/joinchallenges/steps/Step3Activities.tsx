@@ -61,20 +61,22 @@ const DEFAULT_ACTIVITIES = [
   { activityType: 'Steps', defaultMetric: 'steps' as MetricType },
   { activityType: 'Sleep', defaultMetric: 'time' as MetricType },
   { activityType: 'Screen Time', defaultMetric: 'time' as MetricType },
-  { activityType: 'No Sugars', defaultMetric: 'steps' as MetricType },
+  { activityType: 'Sugars', defaultMetric: 'count' as MetricType },
+  { activityType: 'High Intensity', defaultMetric: 'time' as MetricType },
   { activityType: 'Yoga', defaultMetric: 'time' as MetricType },
-  { activityType: 'High Intensity', defaultMetric: 'calories' as MetricType },
+  { activityType: 'Count', defaultMetric: 'count' as MetricType },
 ];
 
-const ACTIVITY_GRADIENTS: { [key: string]: string[] } = {
-  Workout: ['#FF8008', '#FFC837'],
-  Steps: ['#2193b0', '#6dd5ed'],
-  Sleep: ['#0F2027', '#203A43'],
-  'Screen Time': ['#4568DC', '#B06AB3'],
-  'No Sugars': ['#8A2387', '#F27121'],
-  Yoga: ['#834d9b', '#d04ed6'],
-  'High Intensity': ['#f12711', '#f5af19'],
-  Custom: ['#654ea3', '#eaafc8'],
+const activityGradients: { [key: string]: [string, string] } = {
+  Workout: ['#2196F3', '#0D47A1'],
+  Steps: ['#4CAF50', '#1B5E20'],
+  Sleep: ['#00BCD4', '#006064'],
+  'Screen Time': ['#FF9800', '#E65100'],
+  'Sugars': ['#F06292', '#880E4F'],
+  'High Intensity': ['#F44336', '#B71C1C'],
+  Yoga: ['#9C27B0', '#4A148C'],
+  Count: ['#607D8B', '#263238'],
+  Custom: ['#3F51B5', '#1A237E'],
 };
 
 const ACTIVITY_ICONS: { [key: string]: string } = {
@@ -82,7 +84,7 @@ const ACTIVITY_ICONS: { [key: string]: string } = {
   Steps: 'shoe-prints',
   Sleep: 'bed',
   'Screen Time': 'mobile',
-  'No Sugars': 'cookie-bite',
+  Sugars: 'cookie-bite',
   Yoga: 'pray',
   'High Intensity': 'fire',
   Custom: 'star',
@@ -163,14 +165,21 @@ export default function Step3Activities({
   };
 
   const validateNumericInput = (text: string): boolean => {
-    return !isNaN(Number(text)) && text.trim() !== '';
+    const num = parseFloat(text);
+    return !isNaN(num) && num > 0;
   };
 
   // Update fields (metric, targetValue, points)
   const updateActivityRule = (index: number, field: keyof ActivityRule, value: any) => {
-    const updated = [...activities];
-    (updated[index] as any)[field] = value;
-    setActivities(updated);
+    const updatedActivities = [...activities];
+    if (field === 'targetValue') {
+      // Allow any input but store as 0 if invalid
+      const numValue = parseFloat(value);
+      updatedActivities[index][field] = isNaN(numValue) ? 0 : numValue;
+    } else {
+      updatedActivities[index][field] = value;
+    }
+    setActivities(updatedActivities);
   };
 
   const renderActivityItem = ({
@@ -181,7 +190,7 @@ export default function Step3Activities({
     index: number;
   }) => {
     const isExpanded = expandedActivity === index;
-    const gradientColors = ACTIVITY_GRADIENTS[item.activityType] || ACTIVITY_GRADIENTS.Custom;
+    const gradientColors = activityGradients[item.activityType] || activityGradients.Custom;
     const iconName = ACTIVITY_ICONS[item.activityType] || ACTIVITY_ICONS.Custom;
 
     return (
@@ -276,27 +285,12 @@ export default function Step3Activities({
               <View style={localStyles.settingRow}>
                 <Text style={localStyles.settingLabel}>Target:</Text>
                 <TextInput
-                  style={localStyles.settingInput}
-                  placeholder={`Enter target in ${getMetricLabel(item.metric, settings?.useKilometers !== undefined ? settings.useKilometers : true)}`}
-                  placeholderTextColor="rgba(255,255,255,0.7)"
-                  value={item.targetValue ? item.targetValue.toString() : ''}
-                  onChangeText={(text) => {
-                    const trimmed = text.trim();
-                    if (trimmed === '') {
-                      updateActivityRule(index, 'targetValue', 1);
-                      return;
-                    }
-                    if (isNaN(Number(trimmed))) {
-                      return;
-                    }
-                    const numericVal = parseFloat(trimmed);
-                    if (numericVal <= 0) {
-                      updateActivityRule(index, 'targetValue', 1);
-                    } else {
-                      updateActivityRule(index, 'targetValue', numericVal);
-                    }
-                  }}
+                  style={[localStyles.settingInput, { color: '#fff' }]}
+                  value={item.targetValue.toString()}
+                  onChangeText={(text) => updateActivityRule(index, 'targetValue', text)}
                   keyboardType="numeric"
+                  placeholder="Enter target value"
+                  placeholderTextColor="rgba(255,255,255,0.5)"
                 />
               </View>
 
@@ -876,3 +870,11 @@ const localStyles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+export function validateActivities(activities: ActivityRule[]): boolean {
+  return activities.some(act => 
+    act.isSelected && 
+    act.targetValue > 0 && // Must be greater than 0
+    !isNaN(act.targetValue)
+  );
+}

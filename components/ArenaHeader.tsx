@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
-import { Shield, Heart, Trophy, AlertTriangle } from 'lucide-react-native';
+import { Shield, Trophy, AlertTriangle } from 'lucide-react-native';
 import { useArenaStore } from '../lib/arenaStore';
 import { DEFAULT_SURVIVAL_SETTINGS } from '../lib/survivalUtils';
 import { supabase } from '../lib/supabase';
@@ -49,10 +49,6 @@ export const ArenaHeader = ({ title = "Survival Challenge" }: ArenaHeaderProps) 
   // Get points directly from the participant data
   const userPoints = currentUserParticipant?.total_points ?? 0;
   
-  // Get other user data
-  const userLives = currentUserParticipant?.lives ?? currentUser?.lives ?? DEFAULT_SURVIVAL_SETTINGS.start_lives;
-  const maxLives = DEFAULT_SURVIVAL_SETTINGS.start_lives;
-  
   // Calculate progress percentage
   const progressPercentage = totalDays > 0 ? Math.min(100, (currentDay / totalDays) * 100) : 0;
   
@@ -75,7 +71,6 @@ export const ArenaHeader = ({ title = "Survival Challenge" }: ArenaHeaderProps) 
   }
 
   const daysInDanger = currentUserParticipant?.days_in_danger ?? 0;
-  const daysUntilLifeLoss = DEFAULT_SURVIVAL_SETTINGS.elimination_threshold - daysInDanger;
 
   return (
     <View style={styles.container}>
@@ -104,14 +99,6 @@ export const ArenaHeader = ({ title = "Survival Challenge" }: ArenaHeaderProps) 
           <View style={styles.statDivider} />
           
           <View style={styles.statItem}>
-            <Heart size={18} color={isEliminated ? "#9ca3af" : "#ef4444"} style={styles.statIcon} />
-            <Text style={styles.statLabel}>Lives</Text>
-            <Text style={styles.statValue}>{userLives}/{maxLives}</Text>
-          </View>
-          
-          <View style={styles.statDivider} />
-          
-          <View style={styles.statItem}>
             {isEliminated ? (
               <AlertTriangle size={18} color={statusColor} style={styles.statIcon} />
             ) : (
@@ -123,19 +110,17 @@ export const ArenaHeader = ({ title = "Survival Challenge" }: ArenaHeaderProps) 
             </Text>
           </View>
         </View>
-      ) : (
+      ) :
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Unable to load user data</Text>
         </View>
-      )}
+      }
       
       {isInDanger && !isEliminated && (
         <View style={styles.dangerAlert}>
           <AlertTriangle size={16} color="#ffffff" style={{ marginRight: 6 }} />
           <Text style={styles.dangerText}>
-            {daysUntilLifeLoss > 1
-              ? `In danger zone! ${daysUntilLifeLoss} day(s) until losing a life`
-              : 'FINAL WARNING! Log enough activities now to survive'}
+            In danger zone! Log activity now to survive
           </Text>
         </View>
       )}
@@ -146,86 +131,44 @@ export const ArenaHeader = ({ title = "Survival Challenge" }: ArenaHeaderProps) 
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    paddingHorizontal: 20,
-    marginBottom: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   challengeInfo: {
-    alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#ffffff',
     marginBottom: 8,
-    ...Platform.select({
-      web: {
-        textShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
-      },
-    }),
   },
   dayContainer: {
     width: '100%',
-    alignItems: 'center',
   },
   subtitle: {
     fontSize: 16,
     color: '#d1d5db',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   progressBarContainer: {
-    width: '80%',
-    height: 6,
+    width: '100%',
+    height: 4,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 3,
+    borderRadius: 2,
     overflow: 'hidden',
   },
   progressBar: {
     height: '100%',
     backgroundColor: '#3b82f6',
-    borderRadius: 3,
-  },
-  loadingContainer: {
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingText: {
-    color: '#ffffff',
-    fontSize: 14,
-  },
-  errorContainer: {
-    backgroundColor: 'rgba(239,68,68,0.2)',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-  },
-  errorText: {
-    color: '#ffffff',
-    fontSize: 14,
+    borderRadius: 2,
   },
   statsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
     borderRadius: 12,
-    padding: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 4,
-      },
-      web: {
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
-      },
-    }),
+    padding: 12,
+    marginTop: 8,
   },
   statItem: {
     flex: 1,
@@ -237,7 +180,7 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 12,
     color: '#d1d5db',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   statValue: {
     fontSize: 18,
@@ -247,22 +190,41 @@ const styles = StyleSheet.create({
   statDivider: {
     width: 1,
     height: '100%',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    marginHorizontal: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    marginHorizontal: 12,
+  },
+  loadingContainer: {
+    padding: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#d1d5db',
+    fontSize: 14,
+  },
+  errorContainer: {
+    padding: 12,
+    backgroundColor: 'rgba(239, 68, 68, 0.3)',
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  errorText: {
+    color: '#ffffff',
+    fontSize: 14,
   },
   dangerAlert: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(239,68,68,0.7)',
+    marginTop: 8,
+    padding: 12,
+    backgroundColor: 'rgba(239, 68, 68, 0.7)',
     borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginTop: 12,
-    justifyContent: 'center',
   },
   dangerText: {
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '600',
+    flex: 1,
   },
 });
