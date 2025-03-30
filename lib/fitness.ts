@@ -331,82 +331,70 @@ async function initializeHealthKit() {
 }
 
 export async function initHealthKit(): Promise<boolean> {
-  // Early return if already initialized
-  if (healthKitInitialized) {
-    return true;
-  }
-
-  // Handle simulator environment
-  if (isSimulator) {
-    console.warn('Running in iOS simulator - using mock HealthKit data');
-    healthKitInitialized = true;
-    return true;
-  }
-
-  // Early return if not on iOS
   if (Platform.OS !== 'ios') {
+    console.log('HealthKit is only available on iOS');
     return false;
   }
 
   try {
-    // Initialize HealthKit if not already loaded
-    if (!AppleHealthKit) {
-      AppleHealthKit = await initializeHealthKit();
-      if (!AppleHealthKit) {
-        console.error('Failed to initialize HealthKit module');
-        return false;
-      }
+    // Import HealthKit dynamically
+    const RNHealth = require('react-native-health').default;
+    
+    console.log('[Debug] Initializing HealthKit...');
+    console.log('[Debug] RNHealth available:', !!RNHealth);
+
+    if (!RNHealth) {
+      console.error('[Debug] RNHealth module is undefined');
+      return false;
     }
 
-    // Set up permissions
+    // Define permissions with error handling
     const permissions = {
       permissions: {
         read: [
-          HKPermissions?.Steps || 'Steps',
-          HKPermissions?.DistanceWalkingRunning || 'DistanceWalkingRunning',
-          HKPermissions?.ActiveEnergyBurned || 'ActiveEnergyBurned',
-          HKPermissions?.AppleExerciseTime || 'AppleExerciseTime',
-          HKPermissions?.SleepAnalysis || 'SleepAnalysis',
+          RNHealth.Constants.Permissions.Steps,
+          RNHealth.Constants.Permissions.DistanceWalkingRunning,
+          RNHealth.Constants.Permissions.ActiveEnergyBurned,
+          RNHealth.Constants.Permissions.AppleExerciseTime,
+          RNHealth.Constants.Permissions.BasalEnergyBurned
         ],
-        write: [],
-      },
+        write: []
+      }
     };
 
-    // Initialize HealthKit with permissions
-    return new Promise<boolean>((resolve) => {
-      AppleHealthKit.initHealthKit(permissions, async (error: any) => {
+    console.log('[Debug] Permissions configured:', permissions);
+
+    // Request authorization with detailed logging
+    return new Promise((resolve) => {
+      console.log('[Debug] Requesting HealthKit authorization...');
+
+      RNHealth.initHealthKit(permissions, (error: string) => {
         if (error) {
-          console.error('Error initializing HealthKit:', error);
+          console.error('[Debug] HealthKit initialization error:', error);
           resolve(false);
           return;
         }
 
-        try {
-          // Verify permissions were granted
-          const results = await Promise.all([
-            new Promise<boolean>((resolvePermission) => {
-              AppleHealthKit.getAuthStatus({
-                permissions: {
-                  read: [HKPermissions?.Steps || 'Steps'],
-                  write: [],
-                },
-              }, (err: any, result: any) => {
-                resolvePermission(!err && result?.permissions?.read?.includes(HKPermissions?.Steps || 'Steps'));
-              });
-            }),
-          ]);
+        console.log('[Debug] HealthKit initialization succeeded');
 
-          const allPermissionsGranted = results.every(result => result === true);
-          healthKitInitialized = allPermissionsGranted;
-          resolve(allPermissionsGranted);
-        } catch (permError) {
-          console.error('Error checking HealthKit permissions:', permError);
-          resolve(false);
-        }
+        // Test a simple data fetch to confirm access
+        RNHealth.getStepCount({
+          startDate: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(),
+          endDate: new Date().toISOString(),
+        }, (err: string, results: any) => {
+          if (err) {
+            console.error('[Debug] Step count fetch test failed:', err);
+            resolve(false);
+            return;
+          }
+
+          console.log('[Debug] Step count fetch test succeeded:', results);
+          resolve(true);
+        });
       });
     });
-  } catch (e) {
-    console.error('Error during HealthKit initialization:', e);
+  } catch (error) {
+    console.error('[Debug] Exception in initHealthKit:', error);
     return false;
   }
 }
