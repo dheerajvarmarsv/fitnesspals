@@ -304,7 +304,8 @@ import AppleHealthKit, {
   HealthKitPermissions,
   HealthObserver,
   HealthValue,
-  HealthPermission
+  HealthPermission,
+  HealthUnit
 } from 'react-native-health';
 
 // Check if running in simulator
@@ -315,11 +316,11 @@ const isSimulator = Platform.OS === 'ios' &&
 const HEALTHKIT_PERMISSIONS: HealthKitPermissions = {
   permissions: {
     read: [
-      AppleHealthKit.Constants.Permissions.Steps as HealthPermission,
-      AppleHealthKit.Constants.Permissions.DistanceWalkingRunning as HealthPermission,
-      AppleHealthKit.Constants.Permissions.ActiveEnergyBurned as HealthPermission,
-      AppleHealthKit.Constants.Permissions.AppleExerciseTime as HealthPermission,
-      AppleHealthKit.Constants.Permissions.BasalEnergyBurned as HealthPermission
+      AppleHealthKit.Constants.Permissions.Steps,
+      AppleHealthKit.Constants.Permissions.DistanceWalkingRunning,
+      AppleHealthKit.Constants.Permissions.ActiveEnergyBurned,
+      AppleHealthKit.Constants.Permissions.AppleExerciseTime,
+      AppleHealthKit.Constants.Permissions.BasalEnergyBurned
     ],
     write: []
   }
@@ -340,8 +341,6 @@ export async function initHealthKit(): Promise<boolean> {
   }
 
   try {
-    console.log('[Health] Starting HealthKit initialization...');
-
     return new Promise((resolve) => {
       AppleHealthKit.isAvailable((error: Object, available: boolean) => {
         if (error) {
@@ -366,24 +365,8 @@ export async function initHealthKit(): Promise<boolean> {
           }
 
           console.log('[Health] HealthKit initialized successfully');
-          
-          // Verify permissions by attempting to read steps
-          const options = {
-            startDate: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(),
-            endDate: new Date().toISOString(),
-          };
-
-          AppleHealthKit.getStepCount(options, (stepsError: Object, results: HealthValue) => {
-            if (stepsError) {
-              console.error('[Health] Failed to verify permissions:', stepsError);
-              resolve(false);
-              return;
-            }
-
-            console.log('[Health] Permissions verified successfully');
-            healthKitInitialized = true;
-            resolve(true);
-          });
+          healthKitInitialized = true;
+          resolve(true);
         });
       });
     });
@@ -645,4 +628,106 @@ export async function fetchAppleHealthData(date: Date): Promise<{
     console.error('fetchAppleHealthData error:', error);
     return { steps: 0, distance: 0, duration: 0, calories: 0 };
   }
+}
+
+export async function fetchHealthData(date: Date): Promise<HealthData | null> {
+  try {
+    if (!healthKitInitialized) {
+      const isInitialized = await initHealthKit();
+      if (!isInitialized) {
+        return null;
+      }
+    }
+
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const options = {
+      startDate: startOfDay.toISOString(),
+      endDate: endOfDay.toISOString(),
+      includeManuallyAdded: true
+    };
+
+    return new Promise((resolve) => {
+      Promise.all([
+        new Promise<number>((resolveSteps) => {
+          AppleHealthKit.getStepCount(options, (err: Object, results: any) => {
+            resolveSteps(err || !results ? 0 : results.value);
+          });
+        }),
+        new Promise<number>((resolveDistance) => {
+          AppleHealthKit.getDistanceWalkingRunning(options, (err: Object, results: any) => {
+            resolveDistance(err || !results ? 0 : results.value);
+          });
+        }),
+        new Promise<number>((resolveCalories) => {
+          AppleHealthKit.getActiveEnergyBurned(options, (err: Object, results: any) => {
+            resolveCalories(err || !results ? 0 : results.value);
+          });
+        }),
+        new Promise<number>((resolveDuration) => {
+          AppleHealthKit.getAppleExerciseTime(options, (err: Object, results: any) => {
+            resolveDuration(err || !results ? 0 : results.value);
+          });
+        })
+      ]).then(([steps, distance, calories, duration]) => {
+        const healthData: HealthData = {
+          user_id: 'placeholder', // This should be set by the calling function
+          source: Platform.OS === 'ios' ? 'apple_health' : 'health_connect',
+          date: startOfDay.toISOString().split('T')[0],
+          steps,
+          distance,
+          calories,
+          duration,
+          heart_rate: null,
+          sleep_minutes: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        resolve(healthData);
+      }).catch((error) => {
+        console.error('[Health] Error fetching health data:', error);
+        resolve(null);
+      });
+    });
+  } catch (error) {
+    console.error('[Health] Exception in fetchHealthData:', error);
+    return null;
+  }
+}
+
+export async function checkHealthPermissions(): Promise<boolean> {
+  if (Platform.OS === 'ios') {
+    return new Promise((resolve) => {
+      AppleHealthKit.getAuthStatus(HEALTHKIT_PERMISSIONS, (err: Object, results: any) => {
+        if (err) {
+          console.error('[Health] Error checking permissions:', err);
+          resolve(false);
+          return;
+        }
+        // Check if all required permissions are granted
+        const hasAllPermissions = Object.values(results || {}).every(
+          (status: any) => status === 'authorized'
+        );
+        resolve(hasAllPermissions);
+      });
+    });
+  } else if (Platform.OS === 'android') {
+    try {
+      const permissions = await requestPermission([
+        { accessType: 'read', recordType: 'Steps' },
+        { accessType: 'read', recordType: 'Distance' },
+        { accessType: 'read', recordType: 'ActiveCaloriesBurned' },
+        { accessType: 'read', recordType: 'ExerciseSession' },
+      ]);
+      return permissions.length === 4; // All permissions granted
+    } catch (error) {
+      console.error('[Health] Error checking Android permissions:', error);
+      return false;
+    }
+  }
+  return false;
 }
