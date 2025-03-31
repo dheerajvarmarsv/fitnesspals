@@ -299,177 +299,97 @@ export async function disconnectFitnessSource(
 // ------------------------------------------------------------------------
 
 // Platform-specific imports to handle web bundling issues for iOS
-let AppleHealthKit: any = null;
-let HKPermissions: any = null;
-let healthKitInitialized = false;
+import AppleHealthKit, {
+  HealthInputOptions,
+  HealthKitPermissions,
+  HealthObserver,
+  HealthValue,
+  HealthPermission
+} from 'react-native-health';
 
 // Check if running in simulator
 const isSimulator = Platform.OS === 'ios' && 
   (NativeModules.RNDeviceInfo?.isEmulator || process.env.NODE_ENV === 'development');
 
-// Initialize HealthKit module
-async function initializeHealthKit() {
-  if (Platform.OS !== 'ios') return null;
-
-  try {
-    // Dynamic import to ensure proper module loading
-    const RNHealth = await import('react-native-health');
-    const HealthKit = RNHealth.default;
-
-    // Verify module and required functions
-    if (HealthKit && typeof HealthKit.initHealthKit === 'function') {
-      AppleHealthKit = HealthKit;
-      HKPermissions = HealthKit.Constants?.Permissions;
-      return HealthKit;
-    }
-    console.warn('HealthKit module loaded but missing required functions');
-    return null;
-  } catch (e) {
-    console.error('Error importing react-native-health:', e);
-    return null;
+// Initialize permissions outside of the function for better reuse
+const HEALTHKIT_PERMISSIONS: HealthKitPermissions = {
+  permissions: {
+    read: [
+      AppleHealthKit.Constants.Permissions.Steps as HealthPermission,
+      AppleHealthKit.Constants.Permissions.DistanceWalkingRunning as HealthPermission,
+      AppleHealthKit.Constants.Permissions.ActiveEnergyBurned as HealthPermission,
+      AppleHealthKit.Constants.Permissions.AppleExerciseTime as HealthPermission,
+      AppleHealthKit.Constants.Permissions.BasalEnergyBurned as HealthPermission
+    ],
+    write: []
   }
-}
+};
+
+let healthKitInitialized = false;
 
 export async function initHealthKit(): Promise<boolean> {
   if (Platform.OS !== 'ios') {
-    console.log('HealthKit is only available on iOS');
+    console.log('[Health] HealthKit is only available on iOS');
     return false;
   }
 
+  // If already initialized, return true
+  if (healthKitInitialized) {
+    console.log('[Health] HealthKit already initialized');
+    return true;
+  }
+
   try {
-    // Import HealthKit dynamically
-    const RNHealth = require('react-native-health').default;
-    
-    console.log('[Debug] Initializing HealthKit...');
-    console.log('[Debug] RNHealth available:', !!RNHealth);
+    console.log('[Health] Starting HealthKit initialization...');
 
-    if (!RNHealth) {
-      console.error('[Debug] RNHealth module is undefined');
-      return false;
-    }
-
-    // Define permissions with error handling
-    const permissions = {
-      permissions: {
-        read: [
-          RNHealth.Constants.Permissions.Steps,
-          RNHealth.Constants.Permissions.DistanceWalkingRunning,
-          RNHealth.Constants.Permissions.ActiveEnergyBurned,
-          RNHealth.Constants.Permissions.AppleExerciseTime,
-          RNHealth.Constants.Permissions.BasalEnergyBurned
-        ],
-        write: []
-      }
-    };
-
-    console.log('[Debug] Permissions configured:', permissions);
-
-    // Request authorization with detailed logging
     return new Promise((resolve) => {
-      console.log('[Debug] Requesting HealthKit authorization...');
-
-      RNHealth.initHealthKit(permissions, (error: string) => {
+      AppleHealthKit.isAvailable((error: Object, available: boolean) => {
         if (error) {
-          console.error('[Debug] HealthKit initialization error:', error);
+          console.error('[Health] Error checking HealthKit availability:', error);
           resolve(false);
           return;
         }
 
-        console.log('[Debug] HealthKit initialization succeeded');
+        if (!available) {
+          console.log('[Health] HealthKit is not available on this device');
+          resolve(false);
+          return;
+        }
 
-        // Test a simple data fetch to confirm access
-        RNHealth.getStepCount({
-          startDate: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(),
-          endDate: new Date().toISOString(),
-        }, (err: string, results: any) => {
-          if (err) {
-            console.error('[Debug] Step count fetch test failed:', err);
+        console.log('[Health] HealthKit is available, requesting permissions...');
+        
+        AppleHealthKit.initHealthKit(HEALTHKIT_PERMISSIONS, (initError: Object) => {
+          if (initError) {
+            console.error('[Health] HealthKit initialization failed:', initError);
             resolve(false);
             return;
           }
 
-          console.log('[Debug] Step count fetch test succeeded:', results);
-          resolve(true);
+          console.log('[Health] HealthKit initialized successfully');
+          
+          // Verify permissions by attempting to read steps
+          const options = {
+            startDate: new Date(new Date().setDate(new Date().getDate() - 1)).toISOString(),
+            endDate: new Date().toISOString(),
+          };
+
+          AppleHealthKit.getStepCount(options, (stepsError: Object, results: HealthValue) => {
+            if (stepsError) {
+              console.error('[Health] Failed to verify permissions:', stepsError);
+              resolve(false);
+              return;
+            }
+
+            console.log('[Health] Permissions verified successfully');
+            healthKitInitialized = true;
+            resolve(true);
+          });
         });
       });
     });
   } catch (error) {
-    console.error('[Debug] Exception in initHealthKit:', error);
+    console.error('[Health] Exception in initHealthKit:', error);
     return false;
-  }
-}
-
-// Mock data for simulator environment
-const mockHealthData = {
-  steps: 8000,
-  distance: 6.5,
-  duration: 45,
-  calories: 320,
-};
-
-export async function fetchAppleHealthData(date: Date): Promise<{
-  steps: number;
-  distance: number;
-  duration: number;
-  calories: number;
-}> {
-  // Return mock data for simulator
-  if (isSimulator) {
-    return mockHealthData;
-  }
-
-  // Return defaults if not on iOS or HealthKit not available
-  if (Platform.OS !== 'ios' || !AppleHealthKit) {
-    return { steps: 0, distance: 0, duration: 0, calories: 0 };
-  }
-
-  const isInit = await initHealthKit();
-  if (!isInit) {
-    return { steps: 0, distance: 0, duration: 0, calories: 0 };
-  }
-
-  const startOfDay = new Date(date);
-  startOfDay.setHours(0, 0, 0, 0);
-  const endOfDay = new Date(date);
-  endOfDay.setHours(23, 59, 59, 999);
-
-  const options = {
-    startDate: startOfDay.toISOString(),
-    endDate: endOfDay.toISOString(),
-    includeManuallyAdded: true,
-  };
-
-  try {
-    const [steps, distance, calories, exerciseMinutes] = await Promise.all([
-      new Promise<number>((resolve) => {
-        AppleHealthKit.getStepCount(options, (err: any, result: any) => {
-          if (err || !result) return resolve(0);
-          resolve(result.value || 0);
-        });
-      }),
-      new Promise<number>((resolve) => {
-        AppleHealthKit.getDistanceWalkingRunning(options, (err: any, result: any) => {
-          if (err || !result) return resolve(0);
-          resolve(result.value || 0);
-        });
-      }),
-      new Promise<number>((resolve) => {
-        AppleHealthKit.getActiveEnergyBurned(options, (err: any, result: any) => {
-          if (err || !result) return resolve(0);
-          resolve(result.value || 0);
-        });
-      }),
-      new Promise<number>((resolve) => {
-        AppleHealthKit.getAppleExerciseTime(options, (err: any, result: any) => {
-          if (err || !result) return resolve(0);
-          resolve(result.value || 0);
-        });
-      }),
-    ]);
-    return { steps, distance, duration: exerciseMinutes, calories };
-  } catch (error) {
-    console.error('fetchAppleHealthData error:', error);
-    return { steps: 0, distance: 0, duration: 0, calories: 0 };
   }
 }
 
@@ -658,5 +578,71 @@ export async function fetchAndStoreDailyHealthData(userId: string, date: Date): 
   } catch (error) {
     console.error('Failed to store health data:', error);
     throw error;
+  }
+}
+
+export async function fetchAppleHealthData(date: Date): Promise<{
+  steps: number;
+  distance: number;
+  duration: number;
+  calories: number;
+}> {
+  // Return mock data for simulator
+  if (isSimulator) {
+    return { steps: 8000, distance: 6.5, duration: 45, calories: 320 };
+  }
+
+  // Return defaults if not on iOS or HealthKit not available
+  if (Platform.OS !== 'ios' || !AppleHealthKit) {
+    return { steps: 0, distance: 0, duration: 0, calories: 0 };
+  }
+
+  const isInit = await initHealthKit();
+  if (!isInit) {
+    return { steps: 0, distance: 0, duration: 0, calories: 0 };
+  }
+
+  const startOfDay = new Date(date);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(date);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const options = {
+    startDate: startOfDay.toISOString(),
+    endDate: endOfDay.toISOString(),
+    includeManuallyAdded: true,
+  };
+
+  try {
+    const [steps, distance, calories, exerciseMinutes] = await Promise.all([
+      new Promise<number>((resolve) => {
+        AppleHealthKit.getStepCount(options, (err: any, result: any) => {
+          if (err || !result) return resolve(0);
+          resolve(result.value || 0);
+        });
+      }),
+      new Promise<number>((resolve) => {
+        AppleHealthKit.getDistanceWalkingRunning(options, (err: any, result: any) => {
+          if (err || !result) return resolve(0);
+          resolve(result.value || 0);
+        });
+      }),
+      new Promise<number>((resolve) => {
+        AppleHealthKit.getActiveEnergyBurned(options, (err: any, result: any) => {
+          if (err || !result) return resolve(0);
+          resolve(result.value || 0);
+        });
+      }),
+      new Promise<number>((resolve) => {
+        AppleHealthKit.getAppleExerciseTime(options, (err: any, result: any) => {
+          if (err || !result) return resolve(0);
+          resolve(result.value || 0);
+        });
+      }),
+    ]);
+    return { steps, distance, duration: exerciseMinutes, calories };
+  } catch (error) {
+    console.error('fetchAppleHealthData error:', error);
+    return { steps: 0, distance: 0, duration: 0, calories: 0 };
   }
 }
