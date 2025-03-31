@@ -89,21 +89,22 @@ export default function ProfileSettings() {
         },
       ],
     },
-    {
-      title: 'HEALTH & FITNESS',
-      items: [
-        {
-          id: 'fitness-connections',
-          icon: 'fitness',
-          iconBgColor: theme.colors.success,
-          iconColor: '#fff',
-          title: 'Health Services',
-          description: 'Connect to Apple Health or Google Fit',
-          path: '/fitness-connections',
-          hasChevron: true,
-        },
-      ],
-    },
+    // Health & Fitness section temporarily hidden
+    // {
+    //   title: 'HEALTH & FITNESS',
+    //   items: [
+    //     {
+    //       id: 'fitness-connections',
+    //       icon: 'fitness',
+    //       iconBgColor: theme.colors.success,
+    //       iconColor: '#fff',
+    //       title: 'Health Services',
+    //       description: 'Connect to Apple Health or Google Fit',
+    //       path: '/fitness-connections',
+    //       hasChevron: true,
+    //     },
+    //   ],
+    // },
     {
       title: 'PREFERENCES',
       items: [
