@@ -313,33 +313,66 @@ export async function createChallengeInSupabase({
 }
 
 /**
- * Leave a challenge by setting the left_at timestamp and marking status as 'left'.
- * This allows users to join a new challenge after leaving one.
+ * Leave a challenge by deleting all user data related to the challenge.
+ * This ensures users can join new challenges without being restricted by previous participations.
  */
 export async function leaveChallenge(participantId: string) {
   try {
-    // Get current timestamp in ISO format for consistency
-    const now = new Date().toISOString();
-    
-    console.log(`Leaving challenge with participant ID: ${participantId}, setting left_at to: ${now}`);
-    
-    const { data, error } = await supabase
+    // Get the challenge_id and user_id before deleting the participant
+    const { data: participantData, error: fetchError } = await supabase
       .from('challenge_participants')
-      .update({
-        status: 'left',
-        left_at: now
-      })
+      .select('challenge_id, user_id')
       .eq('id', participantId)
-      .select();
-    
-    if (error) {
-      console.error('Database error when leaving challenge:', error);
-      throw error;
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching participant data:', fetchError);
+      throw fetchError;
     }
-    
-    console.log('Challenge left successfully, updated data:', data);
-    
-    return { success: true, data };
+
+    if (!participantData) {
+      throw new Error('Participant not found');
+    }
+
+    const { challenge_id, user_id } = participantData;
+
+    // Delete all challenge activities for this user in this challenge
+    const { error: activitiesError } = await supabase
+      .from('challenge_activities')
+      .delete()
+      .eq('challenge_id', challenge_id)
+      .eq('user_id', user_id);
+
+    if (activitiesError) {
+      console.error('Error deleting challenge activities:', activitiesError);
+      throw activitiesError;
+    }
+
+    // Delete any invites for this user in this challenge
+    const { error: invitesError } = await supabase
+      .from('challenge_invites')
+      .delete()
+      .eq('challenge_id', challenge_id)
+      .eq('receiver_id', user_id);
+
+    if (invitesError) {
+      console.error('Error deleting challenge invites:', invitesError);
+      throw invitesError;
+    }
+
+    // Finally, delete the participant record
+    const { error: participantError } = await supabase
+      .from('challenge_participants')
+      .delete()
+      .eq('id', participantId);
+
+    if (participantError) {
+      console.error('Error deleting participant:', participantError);
+      throw participantError;
+    }
+
+    console.log('Successfully cleaned up all challenge data for participant:', participantId);
+    return { success: true };
   } catch (error) {
     console.error('Error leaving challenge:', error);
     throw error;
@@ -347,33 +380,8 @@ export async function leaveChallenge(participantId: string) {
 }
 
 /**
- * Rejoin a challenge by updating the participant's status back to active
- * and setting the rejoined_at timestamp.
- */
-export async function rejoinChallenge(participantId: string) {
-  try {
-    const { data, error } = await supabase
-      .from('challenge_participants')
-      .update({
-        status: 'active',
-        left_at: null,
-        rejoined_at: new Date().toISOString(),
-      })
-      .eq('id', participantId)
-      .select();
-    
-    if (error) throw error;
-    return { success: true, data };
-  } catch (error) {
-    console.error('Error rejoining challenge:', error);
-    throw error;
-  }
-}
-
-/**
  * Check if a user has reached the maximum number of active challenges.
  * Users can participate in at most 2 active challenges at a time.
- * Challenges with status 'left' are not counted against this limit.
  */
 export async function canJoinNewChallenge(userId: string) {
   try {
@@ -488,78 +496,98 @@ export async function getActiveChallengesForUser(
 }
 
 /**
- * Mark the specified challenges as left for the given user.
+ * Leave multiple challenges by deleting all user data related to each challenge.
  * If the user is the creator and is the only active participant in a challenge, delete the entire challenge.
  */
 export async function leaveChallenges(userId: string, challengeIds: string[]) {
   if (!userId || !challengeIds.length) {
     throw new Error('User ID and challenge IDs are required');
   }
-  for (const challengeId of challengeIds) {
-    // Count active participants in the challenge
-    const { count: activeCount, error: countError } = await supabase
-      .from('challenge_participants')
-      .select('id', { count: 'exact', head: true })
-      .eq('challenge_id', challengeId)
-      .eq('status', 'active');
-    if (countError) throw countError;
 
-    // Retrieve the challenge creator id
-    const { data: challengeData, error: challengeError } = await supabase
-      .from('challenges')
-      .select('creator_id')
-      .eq('id', challengeId)
-      .single();
-    if (challengeError) throw challengeError;
-    const isCreator = challengeData.creator_id === userId;
-
-    // If user is creator and is the only active participant, delete the entire challenge.
-    if (isCreator && (activeCount || 0) <= 1) {
-      const { error: deleteError } = await supabase
-        .from('challenges')
-        .delete()
-        .eq('id', challengeId);
-      if (deleteError) throw deleteError;
-    } else {
-      // Otherwise, update the participant record to set status to 'left'
-      const { error: updateError } = await supabase
+  try {
+    for (const challengeId of challengeIds) {
+      // Count active participants in the challenge
+      const { count: activeCount, error: countError } = await supabase
         .from('challenge_participants')
-        .update({
-          status: 'left',
-          left_at: new Date().toISOString(),
-        })
-        .eq('user_id', userId)
-        .eq('challenge_id', challengeId);
-      if (updateError) throw updateError;
-    }
-  }
-  return { success: true };
-}
+        .select('id', { count: 'exact', head: true })
+        .eq('challenge_id', challengeId)
+        .eq('status', 'active');
+      if (countError) throw countError;
 
-/**
- * Check if the user can rejoin a challenge they previously left.
- */
-export async function canRejoinChallenge(userId: string, challengeId: string) {
-  const { data, error } = await supabase
-    .from('challenge_participants')
-    .select('id, status, left_at')
-    .eq('user_id', userId)
-    .eq('challenge_id', challengeId)
-    .eq('status', 'left')
-    .single();
-  if (error) {
-    if (error.code === 'PGRST116') {
-      return { canRejoin: false };
+      // Retrieve the challenge creator id
+      const { data: challengeData, error: challengeError } = await supabase
+        .from('challenges')
+        .select('creator_id')
+        .eq('id', challengeId)
+        .single();
+      if (challengeError) throw challengeError;
+      const isCreator = challengeData.creator_id === userId;
+
+      // If user is creator and is the only active participant, delete the entire challenge
+      if (isCreator && (activeCount || 0) <= 1) {
+        // Delete all challenge activities for this challenge
+        const { error: activitiesError } = await supabase
+          .from('challenge_activities')
+          .delete()
+          .eq('challenge_id', challengeId);
+
+        if (activitiesError) throw activitiesError;
+
+        // Delete all invites for this challenge
+        const { error: invitesError } = await supabase
+          .from('challenge_invites')
+          .delete()
+          .eq('challenge_id', challengeId);
+
+        if (invitesError) throw invitesError;
+
+        // Delete all participants for this challenge
+        const { error: participantsError } = await supabase
+          .from('challenge_participants')
+          .delete()
+          .eq('challenge_id', challengeId);
+
+        if (participantsError) throw participantsError;
+
+        // Finally, delete the challenge itself
+        const { error: challengeError } = await supabase
+          .from('challenges')
+          .delete()
+          .eq('id', challengeId);
+
+        if (challengeError) throw challengeError;
+      } else {
+        // Delete all challenge activities for this user in this challenge
+        const { error: activitiesError } = await supabase
+          .from('challenge_activities')
+          .delete()
+          .eq('challenge_id', challengeId)
+          .eq('user_id', userId);
+
+        if (activitiesError) throw activitiesError;
+
+        // Delete any invites for this user in this challenge
+        const { error: invitesError } = await supabase
+          .from('challenge_invites')
+          .delete()
+          .eq('challenge_id', challengeId)
+          .eq('receiver_id', userId);
+
+        if (invitesError) throw invitesError;
+
+        // Delete the participant record
+        const { error: participantError } = await supabase
+          .from('challenge_participants')
+          .delete()
+          .eq('challenge_id', challengeId)
+          .eq('user_id', userId);
+
+        if (participantError) throw participantError;
+      }
     }
+    return { success: true };
+  } catch (error) {
+    console.error('Error leaving challenges:', error);
     throw error;
   }
-  const { data: challenge, error: challengeError } = await supabase
-    .from('challenges')
-    .select('status, end_date')
-    .eq('id', challengeId)
-    .single();
-  if (challengeError) throw challengeError;
-  const isActive = challenge.status === 'active';
-  const isNotEnded = !challenge.end_date || new Date(challenge.end_date) > new Date();
-  return { canRejoin: isActive && isNotEnded, participantId: data?.id };
 }

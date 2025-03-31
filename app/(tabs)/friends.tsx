@@ -43,7 +43,7 @@ export default function Friends() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const uniqueProfileLink = `https://stridekick.app/friend/${settings.nickname}`;
+  const uniqueProfileLink = `https://ctp.app/friend/${settings.nickname}`;
 
   // Load data
   const loadData = useCallback(async () => {
@@ -193,7 +193,7 @@ export default function Friends() {
             colors={['#4776E6', '#8E54E9']}
             style={styles.gradientButton}
           >
-            <Text style={styles.addButtonText}>+ Add</Text>
+            <Text style={styles.addButtonText}>+ Invite</Text>
           </LinearGradient>
         </TouchableOpacity>
       </View>

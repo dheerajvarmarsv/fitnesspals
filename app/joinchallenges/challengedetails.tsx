@@ -1,14 +1,22 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Alert, ScrollView, Image } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useUser } from '../../components/UserContext';
 import SharedLayout from '../../components/SharedLayout';
 import { 
   leaveChallenge, 
-  rejoinChallenge, 
-  canRejoinChallenge 
+  canJoinNewChallenge 
 } from '../../lib/challenges';
+import { Ionicons } from '@expo/vector-icons';
+
+interface Friend {
+  id: string;
+  nickname: string;
+  avatar_url: string;
+  selected?: boolean;
+  inviteStatus?: 'pending' | 'accepted' | 'rejected' | 'not_invited';
+}
 
 export default function ChallengeDetailsScreen() {
   return (
@@ -31,6 +39,7 @@ function ChallengeDetailsContent() {
   const [userParticipant, setUserParticipant] = useState<any>(null);
   const [isUserParticipant, setIsUserParticipant] = useState(false);
   const [myParticipantId, setMyParticipantId] = useState<string | null>(null);
+  const [friends, setFriends] = useState<Friend[]>([]);
 
   // Load challenge data
   useEffect(() => {
@@ -102,7 +111,7 @@ function ChallengeDetailsContent() {
       // Confirm with the user
       Alert.alert(
         'Leave Challenge',
-        'Are you sure you want to leave this challenge? Your progress will be saved, and you can rejoin later if the challenge is still active.',
+        'Are you sure you want to leave this challenge? Your progress will be lost.',
         [
           {
             text: 'Cancel',
@@ -113,19 +122,18 @@ function ChallengeDetailsContent() {
             style: 'destructive',
             onPress: async () => {
               try {
-                // Call the leaveChallenge function to update the status and set left_at timestamp
+                // Call the leaveChallenge function to delete all user data
                 const result = await leaveChallenge(myParticipantId);
                 
                 if (result.success) {
                   // Update local state
-                  setUserParticipant((prev: any) => 
-                    prev ? { ...prev, status: 'left', left_at: new Date().toISOString() } : null
-                  );
+                  setUserParticipant(null);
+                  setIsUserParticipant(false);
                   
                   // Show success message
                   Alert.alert(
                     'Left Challenge',
-                    'You have successfully left the challenge. You can rejoin later if the challenge is still active.'
+                    'You have successfully left the challenge.'
                   );
                 }
               } catch (error) {
@@ -146,48 +154,115 @@ function ChallengeDetailsContent() {
     }
   }, [myParticipantId]);
 
-  // Handle rejoining the challenge
-  const handleRejoinChallenge = useCallback(async () => {
+  // Handle joining the challenge
+  const handleJoinChallenge = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user?.id || !myParticipantId) return;
+    if (!user?.id || !challenge_id) return;
     
     try {
       setLoading(true);
       
-      // First check if the user can rejoin (challenge is still active, etc.)
-      const canRejoinResult = await canRejoinChallenge(myParticipantId, challenge_id);
+      // Check if user can join new challenges
+      const { canJoin } = await canJoinNewChallenge(user.id);
       
-      if (!canRejoinResult.canRejoin) {
+      if (!canJoin) {
         Alert.alert(
-          'Cannot Rejoin',
-          'This challenge is no longer active or available to rejoin.'
+          'Cannot Join',
+          'You can only participate in 2 active challenges at a time.'
         );
         setLoading(false);
         return;
       }
       
-      // Proceed with rejoining
-      const result = await rejoinChallenge(myParticipantId);
+      // Create new participant record
+      const { data, error } = await supabase
+        .from('challenge_participants')
+        .insert({
+          challenge_id,
+          user_id: user.id,
+          status: 'active',
+          joined_at: new Date().toISOString(),
+          total_points: 0,
+          current_streak: 0,
+          longest_streak: 0,
+          map_position: 0
+        })
+        .select()
+        .single();
       
-      if (result.success) {
-        // Update local state
-        setUserParticipant((prev: any) => 
-          prev ? { ...prev, status: 'active', left_at: null, rejoined_at: new Date().toISOString() } : null
-        );
-        
-        // Show success message
-        Alert.alert(
-          'Rejoined Challenge',
-          'You have successfully rejoined the challenge.'
-        );
-      }
+      if (error) throw error;
+      
+      // Update local state
+      setUserParticipant(data);
+      setIsUserParticipant(true);
+      setMyParticipantId(data.id);
+      
+      // Show success message
+      Alert.alert(
+        'Joined Challenge',
+        'You have successfully joined the challenge.'
+      );
     } catch (error) {
-      console.error('Error rejoining challenge:', error);
-      Alert.alert('Error', 'Failed to rejoin the challenge. Please try again.');
+      console.error('Error joining challenge:', error);
+      Alert.alert('Error', 'Failed to join the challenge. Please try again.');
     } finally {
       setLoading(false);
     }
-  }, [myParticipantId, challenge_id]);
+  }, [challenge_id]);
+
+  // Toggle friend selection
+  const toggleFriendSelection = (id: string) => {
+    setFriends(prev => 
+      prev.map(friend => {
+        if (friend.id === id && friend.inviteStatus !== 'pending' && friend.inviteStatus !== 'accepted') {
+          return { ...friend, selected: !friend.selected };
+        }
+        return friend;
+      })
+    );
+  };
+
+  const renderFriendItem = ({ item }: { item: Friend }) => {
+    const isInvited = item.inviteStatus === 'pending' || item.inviteStatus === 'accepted';
+    const isSelectable = !isInvited;
+    
+    return (
+      <TouchableOpacity
+        style={[
+          styles.friendItem,
+          !isSelectable && styles.friendItemDisabled
+        ]}
+        onPress={() => isSelectable && toggleFriendSelection(item.id)}
+        disabled={!isSelectable}
+      >
+        <View style={styles.friendInfo}>
+          <View style={styles.avatarContainer}>
+            <Image
+              source={{ uri: item.avatar_url }}
+              style={styles.avatar}
+            />
+          </View>
+          <Text style={styles.friendName}>{item.nickname}</Text>
+        </View>
+        <View style={styles.selectionContainer}>
+          {isInvited ? (
+            <Text style={styles.invitedText}>
+              {item.inviteStatus === 'pending' ? 'Invited' : 'Joined'}
+            </Text>
+          ) : (
+            <View style={[
+              styles.checkbox,
+              item.selected && styles.checkboxSelected
+            ]}>
+              {item.selected && (
+                <Ionicons name="checkmark" size={16} color="#fff" />
+              )}
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   if (loading && !challenge) {
     return (
@@ -261,25 +336,29 @@ function ChallengeDetailsContent() {
         </View>
       </View>
       
-      {isUserParticipant && (
+      {!isUserParticipant ? (
         <View style={styles.actionButtonContainer}>
-          {userParticipant?.status === 'left' ? (
-            <TouchableOpacity
-              style={[styles.actionButton, styles.rejoinButton]}
-              onPress={handleRejoinChallenge}
-              disabled={loading}
-            >
-              <Text style={styles.actionButtonText}>Rejoin Challenge</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.actionButton, styles.leaveButton]}
-              onPress={handleLeaveChallenge}
-              disabled={loading}
-            >
-              <Text style={styles.actionButtonText}>Leave Challenge</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={[styles.actionButton, styles.joinButton]}
+            onPress={handleJoinChallenge}
+            disabled={loading}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.actionButtonText}>Join Challenge</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.actionButtonContainer}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.leaveButton]}
+            onPress={handleLeaveChallenge}
+            disabled={loading}
+            activeOpacity={0.7}
+            pressRetentionOffset={{ top: 10, left: 10, bottom: 10, right: 10 }}
+            delayPressIn={0}
+          >
+            <Text style={styles.actionButtonText}>Leave Challenge</Text>
+          </TouchableOpacity>
         </View>
       )}
     </ScrollView>
@@ -404,12 +483,65 @@ const styles = StyleSheet.create({
   leaveButton: {
     backgroundColor: '#F44336',
   },
-  rejoinButton: {
+  joinButton: {
     backgroundColor: '#4CAF50',
   },
   actionButtonText: {
     color: 'white',
     fontWeight: '600',
     fontSize: 16,
+  },
+  friendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    marginBottom: 8,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+  },
+  friendItemDisabled: {
+    opacity: 0.8,
+    backgroundColor: '#f0f0f0',
+  },
+  friendInfo: {
+    flex: 1,
+  },
+  avatarContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 12,
+  },
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+  },
+  friendName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  selectionContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#4CAF50',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+  },
+  checkboxSelected: {
+    backgroundColor: '#4CAF50',
+  },
+  invitedText: {
+    fontSize: 13,
+    color: '#F59E0B',
+    marginLeft: 8,
   },
 }); 

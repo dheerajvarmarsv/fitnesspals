@@ -273,9 +273,12 @@ export default function YourChallengesScreen() {
 
   return (
     <SharedLayout style={styles.container}>
-      <Animated.View style={[styles.header, { transform: [{ translateY }] }]}>
-        <Text style={styles.title}>Your Challenges</Text>
-        <TouchableOpacity style={styles.createButton} onPress={() => router.push('/joinchallenges/joincreate')}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Challenges</Text>
+        <TouchableOpacity
+          style={styles.createButton}
+          onPress={() => router.push('/joinchallenges/joincreate')}
+        >
           <LinearGradient
             colors={['#DD2A7B', '#8134AF', '#515BD4']}
             start={{ x: 0, y: 0 }}
@@ -285,7 +288,7 @@ export default function YourChallengesScreen() {
             <Text style={styles.createButtonText}>Join / Create</Text>
           </LinearGradient>
         </TouchableOpacity>
-      </Animated.View>
+      </View>
 
       <View style={styles.mainTabsContainer}>
         <View style={styles.mainTabHeader}>
@@ -545,10 +548,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 12 : 16,
-    paddingBottom: 16,
-    backgroundColor: '#fff',
-    zIndex: 10,
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EFEFEF',
   },
   title: { 
     fontSize: 28, 
@@ -557,12 +559,18 @@ const styles = StyleSheet.create({
   },
   createButton: { 
     borderRadius: 20, 
-    overflow: 'hidden' 
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
   },
   createButtonGradient: { 
-    paddingVertical: 8, 
-    paddingHorizontal: 16, 
-    borderRadius: 20 
+    paddingVertical: 10, 
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   createButtonText: { 
     color: '#FFF', 

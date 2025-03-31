@@ -299,61 +299,43 @@ export default function FriendSelectionModal({
 
   // Render each friend item
   const renderFriendItem = ({ item }: { item: Friend }) => {
-    const isPending = item.inviteStatus === 'pending';
-    const isAccepted = item.inviteStatus === 'accepted';
-    const isRejected = item.inviteStatus === 'rejected';
-    const isNotInvited = item.inviteStatus === 'not_invited';
-    
-    // Determine if this friend can be selected
-    const isSelectable = isNotInvited || isRejected;
+    const isInvited = item.inviteStatus === 'pending' || item.inviteStatus === 'accepted';
+    const isSelectable = !isInvited;
     
     return (
       <TouchableOpacity
         style={[
           styles.friendItem,
-          item.selected && styles.friendItemSelected,
-          (isPending || isAccepted) && styles.friendItemDisabled
+          !isSelectable && styles.friendItemDisabled
         ]}
-        onPress={() => isSelectable ? toggleFriendSelection(item.id) : null}
-        activeOpacity={isSelectable ? 0.7 : 1}
+        onPress={() => isSelectable && toggleFriendSelection(item.id)}
+        disabled={!isSelectable}
       >
-        <Image 
-          source={{ uri: item.avatar_url }} 
-          style={styles.avatar} 
-        />
         <View style={styles.friendInfo}>
+          <View style={styles.avatarContainer}>
+            <Image
+              source={{ uri: item.avatar_url }}
+              style={styles.avatar}
+            />
+          </View>
           <Text style={styles.friendName}>{item.nickname}</Text>
-          {isPending && (
-            <Text style={styles.pendingText}>Invited</Text>
-          )}
-          {isAccepted && (
-            <Text style={styles.acceptedText}>Already joined</Text>
-          )}
-          {isRejected && (
-            <Text style={styles.rejectedText}>Declined previously</Text>
+        </View>
+        <View style={styles.selectionContainer}>
+          {isInvited ? (
+            <Text style={styles.invitedText}>
+              {item.inviteStatus === 'pending' ? 'Invited' : 'Joined'}
+            </Text>
+          ) : (
+            <View style={[
+              styles.checkbox,
+              item.selected && styles.checkboxSelected
+            ]}>
+              {item.selected && (
+                <Ionicons name="checkmark" size={16} color="#fff" />
+              )}
+            </View>
           )}
         </View>
-        
-        {isSelectable ? (
-          <View style={[
-            styles.checkbox,
-            item.selected && styles.checkboxSelected
-          ]}>
-            {item.selected && (
-              <Ionicons name="checkmark" size={18} color="#fff" />
-            )}
-          </View>
-        ) : (
-          <View style={[
-            styles.statusBadge,
-            isPending && styles.pendingBadge,
-            isAccepted && styles.acceptedBadge
-          ]}>
-            <Text style={styles.statusBadgeText}>
-              {getInviteStatusDisplay(item.inviteStatus)}
-            </Text>
-          </View>
-        )}
       </TouchableOpacity>
     );
   };
@@ -629,16 +611,15 @@ const styles = StyleSheet.create({
   checkbox: {
     width: 24,
     height: 24,
-    borderRadius: 12,
+    borderRadius: 4,
     borderWidth: 2,
-    borderColor: '#ddd',
-    backgroundColor: '#fff',
+    borderColor: '#4CAF50',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#fff',
   },
   checkboxSelected: {
-    backgroundColor: '#00000',
-    borderColor: '#00000',
+    backgroundColor: '#4CAF50',
   },
   statusBadge: {
     paddingHorizontal: 10,
@@ -688,6 +669,21 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+    marginLeft: 8,
+  },
+  avatarContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 12,
+  },
+  selectionContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  invitedText: {
+    fontSize: 13,
+    color: '#F59E0B',
     marginLeft: 8,
   },
 });
