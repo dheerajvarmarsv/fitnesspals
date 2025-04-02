@@ -6,6 +6,7 @@ import { ThemeProvider } from '../lib/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { Platform } from 'react-native';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
+import AppOpenAdManager from '../components/AppOpenAdManager';
 
 function RootLayoutNav() {
   const { hasLoadedInitialSettings } = useUser();
@@ -77,27 +78,21 @@ function RootLayoutNav() {
 export default function RootLayout() {
   useFrameworkReady();
   
-  // Initialize Google Mobile Ads (only in production builds)
-  useEffect(() => {
-    if (Platform.OS !== 'web' && !__DEV__) {
-      import('../lib/adInit').then(({ mobileAdsInit }) => {
-        mobileAdsInit().catch(error => 
-          console.error('Failed to initialize mobile ads:', error)
-        );
-      }).catch(err => {
-        console.log('Failed to import adInit:', err);
-      });
-    }
-  }, []);
-
   useEffect(() => {
     window.frameworkReady?.();
   }, []);
 
+  // Wrap the entire app with AppOpenAdManager on mobile platforms
   return (
     <ThemeProvider>
       <UserProvider>
-        <RootLayoutNav />
+        {Platform.OS !== 'web' ? (
+          <AppOpenAdManager>
+            <RootLayoutNav />
+          </AppOpenAdManager>
+        ) : (
+          <RootLayoutNav />
+        )}
       </UserProvider>
     </ThemeProvider>
   );

@@ -9,7 +9,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   icon: "./assets/images/icon.png",
   scheme: "myapp",
   userInterfaceStyle: "light",
-  // Enable React Native's New Architecture (Fabric)
   newArchEnabled: true,
   splash: {
     image: "./assets/images/splash.png",
@@ -27,7 +26,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       UIBackgroundModes: ["remote-notification"],
       NSHealthShareUsageDescription: "CTP needs access to your health data to track your activities like steps, distance, and workouts. This data is used to monitor your progress in challenges and help you achieve your fitness goals. Your data is stored securely and is only used within the app.",
       NSHealthUpdateUsageDescription: "CTP needs permission to update your health data to accurately track your activities and ensure your challenge progress is up to date. This allows us to sync your fitness achievements and provide accurate statistics. Your data privacy and security are our top priority.",
-      GADApplicationIdentifier: "ca-app-pub-6833157133488263~3762282463"
+      GADApplicationIdentifier: "ca-app-pub-6833157133488263~6430444881"
     }
   },
   android: {
@@ -57,7 +56,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     "react-native-google-mobile-ads": {
       androidAppId: "ca-app-pub-6833157133488263~9820424352",
-      iosAppId: "ca-app-pub-6833157133488263~3762282463" 
+      iosAppId: "ca-app-pub-6833157133488263~6430444881" 
     }
   },
   plugins: [
@@ -80,7 +79,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "react-native-google-mobile-ads",
       {
         androidAppId: "ca-app-pub-6833157133488263~9820424352",
-        iosAppId: "ca-app-pub-6833157133488263~3762282463",
+        iosAppId: "ca-app-pub-6833157133488263~6430444881",
         user_tracking_description: "This identifier will be used to deliver personalized ads to you.",
         delay_app_measurement_init: true,
         sk_ad_network_items: [

@@ -19,7 +19,7 @@
     <key>CFBundlePackageType</key>
     <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.3</string>
+    <string>1.4</string>
     <key>CFBundleSignature</key>
     <string>????</string>
     <key>CFBundleURLTypes</key>
@@ -41,7 +41,7 @@
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>GADApplicationIdentifier</key>
-    <string>ca-app-pub-6833157133488263~3762282463</string>
+    <string>ca-app-pub-6833157133488263~6430444881</string>
     <key>GADDelayAppMeasurementInit</key>
     <false/>
     <key>LSMinimumSystemVersion</key>
