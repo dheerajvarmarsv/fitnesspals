@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Tabs } from 'expo-router';
 import {
   Platform,
@@ -14,12 +14,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AddActivityModal from '../../components/AddActivityModal';
 import { useTheme } from '../../lib/ThemeContext';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 export default function TabLayout() {
   const [showAddActivity, setShowAddActivity] = useState(false);
   const { theme, isDark } = useTheme();
-
+  
   // Close the modal when activity is saved
   const handleActivitySaved = () => {
     setShowAddActivity(false);
@@ -118,15 +118,12 @@ function CustomTabBar({ state, descriptors, navigation, onAddPress }) {
     );
   };
 
-  // Minimal padding for a cleaner look
-  const bottomPadding = Platform.OS === 'ios' ? 5 : 3;
-
   return (
     <View 
       style={[
         styles.tabBarContainer, 
         { 
-          paddingBottom: bottomPadding,
+          paddingBottom: Platform.OS === 'ios' ? 5 : 3,
           backgroundColor: theme.colors.background,
           borderTopColor: theme.colors.border,
           ...theme.elevation.small
@@ -205,11 +202,22 @@ const styles = StyleSheet.create({
         shadowColor: '#007AFF',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
-        shadowRadius: 6,
+        shadowRadius: 8,
       },
       android: {
         elevation: 6,
       },
+      web: {
+        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)',
+      },
     }),
+  },
+  bannerContainer: {
+    position: 'absolute',
+    bottom: 80, // Position above the tab bar
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    backgroundColor: 'transparent',
   },
 });

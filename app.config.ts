@@ -69,12 +69,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         }
       }
     ],
-    "expo-notifications",
-    [
-      "react-native-google-mobile-ads",
-      {
-        "userTrackingDescription": "This identifier will be used to deliver personalized ads to you."
-      }
-    ]
+    "expo-notifications"
   ]
 });

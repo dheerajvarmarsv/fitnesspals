@@ -1,14 +1,16 @@
 import { Platform } from 'react-native';
-import { MobileAds, MaxAdContentRating } from 'react-native-google-mobile-ads';
 
 // Initialize Google Mobile Ads SDK
 export const mobileAdsInit = async () => {
   try {
-    // Skip initialization on web platform
-    if (Platform.OS === 'web') {
-      console.log('Mobile ads not supported on web platform');
+    // Skip initialization on web platform or in development
+    if (Platform.OS === 'web' || __DEV__) {
+      console.log('Mobile ads not initialized in development or web platform');
       return;
     }
+
+    // In production, dynamically import the module to avoid errors in development
+    const { MobileAds, MaxAdContentRating } = await import('react-native-google-mobile-ads');
 
     // Initialize the Google Mobile Ads SDK
     await MobileAds().initialize();
@@ -22,7 +24,7 @@ export const mobileAdsInit = async () => {
       // Specify if ads should be for users under the age of consent
       tagForUnderAgeOfConsent: false,
       // Request non-personalized ads only
-      testDeviceIdentifiers: __DEV__ ? ['EMULATOR'] : [],
+      testDeviceIdentifiers: [],
     });
 
     console.log('Mobile Ads SDK initialized successfully');
