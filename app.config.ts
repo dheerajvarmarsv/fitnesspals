@@ -56,8 +56,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       projectId: "ace5179f-9d07-4a93-86cb-af3735bf01ef"
     },
     "react-native-google-mobile-ads": {
-      android_app_id: "ca-app-pub-6833157133488263~9820424352",
-      ios_app_id: "ca-app-pub-6833157133488263~3762282463" 
+      androidAppId: "ca-app-pub-6833157133488263~9820424352",
+      iosAppId: "ca-app-pub-6833157133488263~3762282463" 
     }
   },
   plugins: [
@@ -79,8 +79,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "react-native-google-mobile-ads",
       {
-        android_app_id: "ca-app-pub-6833157133488263~9820424352",
-        ios_app_id: "ca-app-pub-6833157133488263~3762282463",
+        androidAppId: "ca-app-pub-6833157133488263~9820424352",
+        iosAppId: "ca-app-pub-6833157133488263~3762282463",
         user_tracking_description: "This identifier will be used to deliver personalized ads to you.",
         delay_app_measurement_init: true,
         sk_ad_network_items: [
