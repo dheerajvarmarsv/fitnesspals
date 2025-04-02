@@ -23,23 +23,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     supportsTablet: true,
     bundleIdentifier: "com.dheshadev.ctp",
-    buildNumber: "1",
     infoPlist: {
       UIBackgroundModes: ["remote-notification"],
-      NSHealthShareUsageDescription: "This app requires access to your health data to track your fitness activities and provide personalized insights.",
-      NSHealthUpdateUsageDescription: "This app requires access to your health data to track your fitness activities and provide personalized insights.",
-      GADApplicationIdentifier: "ca-app-pub-6833157133488263~6430444881",
-      SKAdNetworkItems: [
-        {
-          SKAdNetworkIdentifier: "cstr6suwn9.skadnetwork"
-        }
-      ]
-    },
-    entitlements: {
-      "com.apple.developer.healthkit": true,
-      "com.apple.developer.healthkit.access": []
-    },
-    googleServicesFile: "./GoogleService-Info.plist"
+      NSHealthShareUsageDescription: "CTP needs access to your health data to track your activities like steps, distance, and workouts. This data is used to monitor your progress in challenges and help you achieve your fitness goals. Your data is stored securely and is only used within the app.",
+      NSHealthUpdateUsageDescription: "CTP needs permission to update your health data to accurately track your activities and ensure your challenge progress is up to date. This allows us to sync your fitness achievements and provide accurate statistics. Your data privacy and security are our top priority.",
+      GADApplicationIdentifier: "ca-app-pub-6833157133488263~3762282463"
+    }
   },
   android: {
     adaptiveIcon: {
@@ -47,20 +36,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       backgroundColor: "#000000"
     },
     package: "com.dheshadev.ctp",
-    versionCode: 1,
     permissions: [
       "android.permission.RECEIVE_BOOT_COMPLETED",
       "android.permission.VIBRATE",
-      "android.permission.SCHEDULE_EXACT_ALARM",
-      "android.permission.health.READ_STEPS",
-      "android.permission.health.READ_DISTANCE",
-      "android.permission.health.READ_HEART_RATE",
-      "android.permission.health.READ_EXERCISE",
-      "android.permission.health.READ_SLEEP",
-      "android.permission.health.READ_FLOORS_CLIMBED",
-      "android.permission.health.READ_ACTIVE_CALORIES_BURNED"
+      "android.permission.SCHEDULE_EXACT_ALARM"
     ],
-    googleServicesFile: "./google-services.json"
+    config: {
+      googleMobileAdsAppId: "ca-app-pub-6833157133488263~9820424352"
+    }
   },
   web: {
     bundler: "metro",
@@ -74,7 +57,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     "react-native-google-mobile-ads": {
       androidAppId: "ca-app-pub-6833157133488263~9820424352",
-      iosAppId: "ca-app-pub-6833157133488263~6430444881"
+      iosAppId: "ca-app-pub-6833157133488263~3762282463" 
     }
   },
   plugins: [
@@ -94,25 +77,17 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       }
     ],
     [
-      "react-native-health",
-      {
-        isClinicalDataEnabled: false,
-        healthSharePermission: "This app requires access to your health data to track your fitness activities and provide personalized insights.",
-        healthUpdatePermission: "This app requires access to your health data to track your fitness activities and provide personalized insights."
-      }
-    ],
-    "expo-notifications",
-    "./androidManifestPlugin.js",
-    [
       "react-native-google-mobile-ads",
       {
-        android: {
-          appId: "ca-app-pub-6833157133488263~9820424352"
-        },
-        ios: {
-          appId: "ca-app-pub-6833157133488263~6430444881"
-        }
+        androidAppId: "ca-app-pub-6833157133488263~9820424352",
+        iosAppId: "ca-app-pub-6833157133488263~3762282463",
+        user_tracking_description: "This identifier will be used to deliver personalized ads to you.",
+        delay_app_measurement_init: true,
+        sk_ad_network_items: [
+          "cstr6suwn9.skadnetwork"
+        ]
       }
-    ]
+    ],
+    "expo-notifications"
   ]
 });
