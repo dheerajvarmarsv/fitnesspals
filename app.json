@@ -18,7 +18,13 @@
       "infoPlist": {
         "UIBackgroundModes": ["remote-notification"],
         "NSHealthShareUsageDescription": "This app requires access to your health data to track your fitness activities and provide personalized insights.",
-        "NSHealthUpdateUsageDescription": "This app requires access to your health data to track your fitness activities and provide personalized insights."
+        "NSHealthUpdateUsageDescription": "This app requires access to your health data to track your fitness activities and provide personalized insights.",
+        "GADApplicationIdentifier": "ca-app-pub-6833157133488263~3762282463",
+        "SKAdNetworkItems": [
+          {
+            "SKAdNetworkIdentifier": "cstr6suwn9.skadnetwork"
+          }
+        ]
       },
       "entitlements": {
         "com.apple.developer.healthkit": true,
@@ -80,7 +86,14 @@
         }
       ],
       "expo-notifications",
-      "./androidManifestPlugin.js"
+      "./androidManifestPlugin.js",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "ios_app_id": "ca-app-pub-6833157133488263~3762282463",
+          "android_app_id": "ca-app-pub-6833157133488263~9820424352"
+        }
+      ]
     ]
   }
 }
