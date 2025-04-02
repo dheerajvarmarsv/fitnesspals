@@ -16,16 +16,15 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.dheshadev.ctp",
       "infoPlist": {
-        "UIBackgroundModes": [
-          "remote-notification"
-        ],
+        "UIBackgroundModes": ["remote-notification"],
         "NSHealthShareUsageDescription": "This app requires access to your health data to track your fitness activities and provide personalized insights.",
         "NSHealthUpdateUsageDescription": "This app requires access to your health data to track your fitness activities and provide personalized insights."
       },
       "entitlements": {
         "com.apple.developer.healthkit": true,
         "com.apple.developer.healthkit.access": []
-      }
+      },
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "adaptiveIcon": {
@@ -44,7 +43,8 @@
         "android.permission.health.READ_SLEEP",
         "android.permission.health.READ_FLOORS_CLIMBED",
         "android.permission.health.READ_ACTIVE_CALORIES_BURNED"
-      ]
+      ],
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
