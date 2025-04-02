@@ -23,7 +23,7 @@
         "UIBackgroundModes": ["remote-notification"],
         "NSHealthShareUsageDescription": "This app requires access to your health data to track your fitness activities and provide personalized insights.",
         "NSHealthUpdateUsageDescription": "This app requires access to your health data to track your fitness activities and provide personalized insights.",
-        "GADApplicationIdentifier": "ca-app-pub-6833157133488263~3762282463",
+        "GADApplicationIdentifier": "ca-app-pub-6833157133488263~6430444881",
         "SKAdNetworkItems": [
           {
             "SKAdNetworkIdentifier": "cstr6suwn9.skadnetwork"
@@ -90,7 +90,7 @@
         "react-native-google-mobile-ads",
         {
           "androidAppId": "ca-app-pub-6833157133488263~9820424352",
-          "iosAppId": "ca-app-pub-6833157133488263~3762282463",
+          "iosAppId": "ca-app-pub-6833157133488263~6430444881",
           "user_tracking_description": "This identifier will be used to deliver personalized ads to you.",
           "delay_app_measurement_init": true,
           "sk_ad_network_items": [
@@ -105,12 +105,12 @@
       },
       "react-native-google-mobile-ads": {
         "androidAppId": "ca-app-pub-6833157133488263~9820424352",
-        "iosAppId": "ca-app-pub-6833157133488263~3762282463"
+        "iosAppId": "ca-app-pub-6833157133488263~6430444881"
       }
     }
   },
   "react-native-google-mobile-ads": {
     "androidAppId": "ca-app-pub-6833157133488263~9820424352",
-    "iosAppId": "ca-app-pub-6833157133488263~3762282463"
+    "iosAppId": "ca-app-pub-6833157133488263~6430444881"
   }
 }
