@@ -4,6 +4,22 @@ import { useRouter, useSegments } from 'expo-router';
 import { UserProvider, useUser } from '../components/UserContext';
 import { ThemeProvider } from '../lib/ThemeContext';
 import { supabase } from '../lib/supabase';
+import { Platform } from 'react-native';
+import { mobileAdsInit } from '../lib/adInit';
+import { useFrameworkReady } from '@/hooks/useFrameworkReady';
+import AppOpenAdManager from '../components/AppOpenAdManager';
+
+// Add type declaration for window.frameworkReady
+declare global {
+  interface Window {
+    frameworkReady?: () => void;
+  }
+}
+
+interface AuthState {
+  isLoggedIn: boolean;
+  hasNickname: boolean;
+}
 
 function RootLayoutNav() {
   const { hasLoadedInitialSettings } = useUser();
@@ -14,10 +30,15 @@ function RootLayoutNav() {
     if (!hasLoadedInitialSettings) return;
 
     // Check if the user is logged in and has a nickname
-    const checkAuthAndNickname = async () => {
+    const checkAuthAndNickname = async (): Promise<AuthState> => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return false;
+        if (!session) {
+          return {
+            isLoggedIn: false,
+            hasNickname: false
+          };
+        }
 
         // Check if user has a nickname
         const { data: profile } = await supabase
@@ -39,14 +60,14 @@ function RootLayoutNav() {
     };
 
     // Handle routing based on auth state
-    checkAuthAndNickname().then(({ isLoggedIn, hasNickname }) => {
+    checkAuthAndNickname().then((authState) => {
       const isAuthScreen = ['welcomescreen', 'login', 'signup', 'forgot-password', 'setup-nickname'].includes(segments[0] || '');
 
-      if (isLoggedIn) {
-        if (!hasNickname && segments[0] !== 'setup-nickname') {
+      if (authState.isLoggedIn) {
+        if (!authState.hasNickname && segments[0] !== 'setup-nickname') {
           // If logged in but no nickname, go to nickname setup
           router.replace('/setup-nickname');
-        } else if (hasNickname && isAuthScreen) {
+        } else if (authState.hasNickname && isAuthScreen) {
           // If logged in and has nickname but on auth screen, go to home
           router.replace('/(tabs)');
         }
@@ -73,14 +94,30 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  useFrameworkReady();
+  
+  // Initialize Google Mobile Ads
   useEffect(() => {
-    window.frameworkReady?.();
+    if (Platform.OS !== 'web') {
+      mobileAdsInit().catch(error => 
+        console.error('Failed to initialize mobile ads:', error)
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    // Initialize framework
+    if (typeof window !== 'undefined' && window.frameworkReady) {
+      window.frameworkReady();
+    }
   }, []);
 
   return (
     <ThemeProvider>
       <UserProvider>
-        <RootLayoutNav />
+        <AppOpenAdManager>
+          <RootLayoutNav />
+        </AppOpenAdManager>
       </UserProvider>
     </ThemeProvider>
   );
