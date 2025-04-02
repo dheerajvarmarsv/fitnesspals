@@ -4,7 +4,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "CTP",
   slug: "ctp",
-  version: "1.3",
+  version: "1.4",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: "myapp",
@@ -14,7 +14,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   splash: {
     image: "./assets/images/splash.png",
     resizeMode: "contain",
-    backgroundColor: "#000000"
+    backgroundColor: "#FFFFFF"
   },
   updates: {
     fallbackToCacheTimeout: 0
@@ -33,7 +33,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     adaptiveIcon: {
       foregroundImage: "./assets/images/icon.png",
-      backgroundColor: "#000000"
+      backgroundColor: "#FFFFFF"
     },
     package: "com.dheshadev.ctp",
     permissions: [
