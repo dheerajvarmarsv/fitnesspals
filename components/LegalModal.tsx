@@ -1,7 +1,5 @@
 import React from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView, Platform } from 'react-native';
-import { BlurView } from 'expo-blur';
-import { Ionicons } from '@expo/vector-icons';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 
 interface LegalModalProps {
   isVisible: boolean;
@@ -18,75 +16,63 @@ const LegalModal: React.FC<LegalModalProps> = ({ isVisible, onClose, title, cont
       animationType="fade"
       onRequestClose={onClose}
     >
-      <BlurView intensity={Platform.OS === 'ios' ? 25 : 100} style={styles.blurContainer}>
+      <View style={styles.overlay}>
         <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.header}>
-              <Text style={styles.title}>{title}</Text>
-              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <Ionicons name="close" size={24} color="#666" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.scrollContent}>
-              <Text style={styles.contentText}>{content}</Text>
-            </ScrollView>
+          <View style={styles.header}>
+            <Text style={styles.title}>{title}</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <Text style={styles.closeText}>✕</Text>
+            </TouchableOpacity>
           </View>
+          <ScrollView style={styles.contentContainer}>
+            <Text style={styles.content}>{content}</Text>
+          </ScrollView>
         </View>
-      </BlurView>
+      </View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  blurContainer: {
+  overlay: {
     flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    padding: 20,
   },
   modalContainer: {
-    width: '90%',
-    maxWidth: 500,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    width: '100%',
     maxHeight: '80%',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    overflow: 'hidden',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  modalContent: {
-    flex: 1,
-    backgroundColor: '#fff',
+    padding: 20,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    marginBottom: 15,
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '600',
-    color: '#333',
+    color: '#000',
   },
   closeButton: {
-    padding: 8,
+    padding: 5,
   },
-  scrollContent: {
-    padding: 16,
+  closeText: {
+    fontSize: 20,
+    color: '#666',
   },
-  contentText: {
+  contentContainer: {
+    marginBottom: 10,
+  },
+  content: {
     fontSize: 16,
     lineHeight: 24,
-    color: '#444',
+    color: '#333',
   },
 });
 

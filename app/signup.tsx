@@ -111,24 +111,16 @@ export default function SignUp() {
     }
   };
 
-  const showPrivacyPolicy = useCallback(async () => {
-    try {
-      const content = await loadLegalContent('privacy-policy');
-      setLegalContent(content);
-      setPrivacyVisible(true);
-    } catch (error) {
-      console.error('Error loading privacy policy:', error);
-    }
+  const showPrivacyPolicy = useCallback(() => {
+    const content = loadLegalContent('privacy-policy');
+    setLegalContent(content);
+    setPrivacyVisible(true);
   }, []);
 
-  const showTermsOfService = useCallback(async () => {
-    try {
-      const content = await loadLegalContent('terms-of-service');
-      setLegalContent(content);
-      setTermsVisible(true);
-    } catch (error) {
-      console.error('Error loading terms of service:', error);
-    }
+  const showTermsOfService = useCallback(() => {
+    const content = loadLegalContent('terms-of-service');
+    setLegalContent(content);
+    setTermsVisible(true);
   }, []);
 
   return (
@@ -238,11 +230,11 @@ export default function SignUp() {
           activeOpacity={0.9}
         >
           <LinearGradient
-            colors={['#4c669f', '#3b5998', '#192f6a']}
+            colors={['#F58529', '#DD2A7B']}
             style={styles.gradientButton}
           >
             <Text style={styles.buttonText}>
-              {loading ? 'Creating Account...' : 'Sign Up'}
+              {loading ? 'Creating Account...' : 'Create Account'}
             </Text>
           </LinearGradient>
         </TouchableOpacity>
