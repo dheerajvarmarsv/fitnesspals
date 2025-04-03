@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,7 +11,9 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
-import { LinearGradient } from 'expo-linear-gradient'; // 1. Import LinearGradient
+import { LinearGradient } from 'expo-linear-gradient';
+import LegalModal from '../components/LegalModal';
+import { loadLegalContent } from '../lib/legalContent';
 
 export default function SignUp() {
   const [email, setEmail] = useState('');
@@ -20,6 +22,9 @@ export default function SignUp() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [isPrivacyVisible, setPrivacyVisible] = useState(false);
+  const [isTermsVisible, setTermsVisible] = useState(false);
+  const [legalContent, setLegalContent] = useState('');
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
@@ -106,6 +111,26 @@ export default function SignUp() {
     }
   };
 
+  const showPrivacyPolicy = useCallback(async () => {
+    try {
+      const content = await loadLegalContent('privacy-policy');
+      setLegalContent(content);
+      setPrivacyVisible(true);
+    } catch (error) {
+      console.error('Error loading privacy policy:', error);
+    }
+  }, []);
+
+  const showTermsOfService = useCallback(async () => {
+    try {
+      const content = await loadLegalContent('terms-of-service');
+      setLegalContent(content);
+      setTermsVisible(true);
+    } catch (error) {
+      console.error('Error loading terms of service:', error);
+    }
+  }, []);
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Logo Section */}
@@ -191,6 +216,20 @@ export default function SignUp() {
           editable={!loading}
         />
 
+        {/* Legal Links */}
+        <View style={styles.legalContainer}>
+          <Text style={styles.legalText}>
+            By signing up, you agree to our{' '}
+            <Text style={styles.legalLink} onPress={showTermsOfService}>
+              Terms of Service
+            </Text>
+            {' '}and{' '}
+            <Text style={styles.legalLink} onPress={showPrivacyPolicy}>
+              Privacy Policy
+            </Text>
+          </Text>
+        </View>
+
         {/* Gradient Sign-Up Button */}
         <TouchableOpacity
           style={styles.signupButton}
@@ -199,21 +238,30 @@ export default function SignUp() {
           activeOpacity={0.9}
         >
           <LinearGradient
-            colors={['#F58529', '#DD2A7B']}
-            style={styles.gradientBackground}
+            colors={['#4c669f', '#3b5998', '#192f6a']}
+            style={styles.gradientButton}
           >
-            <Text style={styles.signupButtonText}>
-              {loading ? 'Creating Account...' : 'Create Account'}
+            <Text style={styles.buttonText}>
+              {loading ? 'Creating Account...' : 'Sign Up'}
             </Text>
           </LinearGradient>
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.terms}>
-        By signing up you are agreeing to our{' '}
-        <Text style={styles.link}>Terms of Service</Text>. View our{' '}
-        <Text style={styles.link}>Privacy Policy</Text>.
-      </Text>
+      {/* Legal Modals */}
+      <LegalModal
+        isVisible={isPrivacyVisible}
+        onClose={() => setPrivacyVisible(false)}
+        title="Privacy Policy"
+        content={legalContent}
+      />
+
+      <LegalModal
+        isVisible={isTermsVisible}
+        onClose={() => setTermsVisible(false)}
+        title="Terms & Conditions"
+        content={legalContent}
+      />
     </SafeAreaView>
   );
 }
@@ -307,27 +355,29 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     overflow: 'hidden',
   },
-  gradientBackground: {
+  gradientButton: {
     padding: 16,
     alignItems: 'center',
     borderRadius: 8,
   },
-  signupButtonText: {
+  buttonText: {
     color: '#fff',
     fontSize: 16,
     fontFamily: 'System',
     fontWeight: 'normal',
   },
-  terms: {
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 24,
-    lineHeight: 20,
-    fontFamily: 'System',
-    fontWeight: 'normal',
+  legalContainer: {
+    marginBottom: 20,
+    paddingHorizontal: 20,
   },
-  link: {
-    color: '#000',
+  legalText: {
+    textAlign: 'center',
+    color: '#666',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  legalLink: {
+    color: '#4c669f',
     textDecorationLine: 'underline',
   },
 });
