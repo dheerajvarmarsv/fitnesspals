@@ -432,8 +432,8 @@ export default function AddActivityModal({
           switch (metric) {
             case 'time':
               // Explicitly convert hours to minutes for storage
-              duration = numericValue * 60;
-              console.log(`Converting time: ${numericValue} hours = ${duration} minutes`);
+              duration = Math.round(numericValue * 60); // 1 hour = 60 minutes
+              console.log(`Converting time: ${numericValue} hours = ${duration} minutes for storage`);
               break;
             case 'distance_km':
               distance = numericValue;

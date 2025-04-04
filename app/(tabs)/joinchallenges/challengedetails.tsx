@@ -1263,13 +1263,14 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
                       style={styles.friendAvatar}
                     />
                     <Text style={styles.friendName}>{item.nickname || 'Unknown User'}</Text>
-                    {selectedFriends.includes(item.id) && (
-                      <Ionicons
-                      name={selectedFriends.includes(item.id) ? "checkbox" : "checkbox-outline"}
-                      size={24}
-                      color={selectedFriends.includes(item.id) ? "#000" : "#A9A9A9"}
-                    />
-                    )}
+                    <View style={[
+                      styles.checkbox, 
+                      selectedFriends.includes(item.id) && styles.checkboxSelected
+                    ]}>
+                      {selectedFriends.includes(item.id) && (
+                        <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                      )}
+                    </View>
                   </TouchableOpacity>
                 )}
               />
@@ -1285,7 +1286,8 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
             <TouchableOpacity
               style={[
                 styles.inviteModalButton,
-                (selectedFriends.length === 0 || inviteLoading) && styles.disabledButton,
+                selectedFriends.length > 0 ? styles.inviteButtonActive : styles.inviteButtonInactive,
+                inviteLoading && styles.inviteButtonDisabled
               ]}
               disabled={selectedFriends.length === 0 || inviteLoading}
               onPress={async () => {
@@ -1333,7 +1335,6 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <>
-                  <Ionicons name="paper-plane" size={18} color="#fff" style={{ marginRight: 8 }} />
                   <Text style={styles.inviteModalButtonText}>
                     {challenge?.creator_id === currentUserId 
                       ? "Add to Challenge" 
@@ -1395,7 +1396,7 @@ const styles = StyleSheet.create({
   },
   // Invite Friends Modal
   inviteModalContainer: {
-    height: '50%', // This sets the height to 50% of the screen
+    height: '70%', // This sets the height to 50% of the screen
     backgroundColor: '#fff',
     marginTop: 'auto',
     borderTopLeftRadius: 20,
@@ -1470,13 +1471,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
   },
+  inviteButtonActive: {
+    backgroundColor: '#000000',
+  },
+  inviteButtonInactive: {
+    backgroundColor: '#666666',
+  },
+  inviteButtonDisabled: {
+    opacity: 0.5,
+  },
   inviteModalButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
-  },
-  disabledButton: {
-    backgroundColor: '#A9A9A9',
   },
 
   // Loading / Error
@@ -1676,4 +1683,36 @@ const styles = StyleSheet.create({
     backgroundColor: '#00000', paddingVertical: 12, borderRadius: 8, alignItems: 'center',
   },
   modalCloseButtonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
+
+  // Invite Friends Modal Styles
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#666666',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  checkboxSelected: {
+    backgroundColor: '#000000',
+    borderColor: '#000000',
+  },
+  inviteModalButton: {
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  inviteButtonActive: {
+    backgroundColor: '#000000',
+  },
+  inviteButtonInactive: {
+    backgroundColor: '#666666',
+  },
+  inviteButtonDisabled: {
+    opacity: 0.5,
+  },
 });

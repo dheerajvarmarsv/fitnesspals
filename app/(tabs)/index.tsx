@@ -258,9 +258,16 @@ const formatMetricValue = (activity: any, useKilometers: boolean): string => {
   
   switch (activity.metric) {
     case 'time':
-      // Ensure duration is always displayed, even if 0
-      const durationMin = activity.duration ? Math.round(activity.duration / 60) : 0;
-      displayValue = `${durationMin} min`;
+      // Convert minutes to hours with proper formatting
+      const durationMinutes = activity.duration || 0;
+      if (durationMinutes < 60) {
+        // For activities less than 1 hour, show minutes
+        displayValue = `${durationMinutes} min`;
+      } else {
+        // For activities >= 1 hour, show hours with 1 decimal place 
+        const hours = (durationMinutes / 60).toFixed(1);
+        displayValue = `${hours} hr`;
+      }
       break;
     case 'distance_km':
       // Ensure distance is always displayed, even if 0
