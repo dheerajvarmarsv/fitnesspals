@@ -14,9 +14,10 @@ type NotificationData = {
 interface NotificationPayload {
   title: string;
   body: string;
+  channelId?: string;
   screen?: string;
   params?: Record<string, any>;
-  channelId?: string;
+  data?: Record<string, any>;
 }
 
 /**
@@ -24,126 +25,45 @@ interface NotificationPayload {
  */
 export async function sendNotificationToUser(
   userId: string,
-  notification: NotificationPayload
+  payload: NotificationPayload
 ) {
   try {
-    // Get user's notification settings and profile
-    const { data: settings, error: settingsError } = await supabase
+    // Get user's push token
+    const { data: settings } = await supabase
       .from('profile_settings')
-      .select('push_token, notifications_enabled, id')
+      .select('push_token, notifications_enabled')
       .eq('id', userId)
       .single();
 
-    if (settingsError) {
-      // Try to create settings if they don't exist
-      const { data: newSettings, error: createError } = await supabase
-        .from('profile_settings')
-        .insert({ id: userId, notifications_enabled: true })
-        .select()
-        .single();
-
-      if (createError) {
-        return false;
-      }
-
-      // Use the newly created settings
-      if (newSettings) {
-        // await logNotificationEvent('notification_settings_created', 
-        //   'Created new notification settings', {
-        //     payload: { userId }
-        //   });
-      }
+    // Check if user has notifications enabled and has a push token
+    if (!settings?.notifications_enabled || !settings?.push_token) {
+      console.log('User has notifications disabled or no push token');
+      return;
     }
 
-    // For immediate testing, send a local notification
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: notification.title,
-        body: notification.body,
-        data: {
-          screen: notification.screen,
-          ...(notification.params || {})
-        },
-        sound: true,
+    // Send push notification
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-      trigger: { seconds: 1 },
-    });
-
-    // await logNotificationEvent('local_notification_sent', 
-    //   'Sent local notification', {
-    //     payload: notification
-    //   });
-
-    // If we have a push token, also try to send remote notification
-    if (settings?.push_token) {
-      // Prepare notification message
-      const message = {
+      body: JSON.stringify({
         to: settings.push_token,
-        title: notification.title,
-        body: notification.body,
+        title: payload.title,
+        body: payload.body,
         data: {
-          screen: notification.screen,
-          ...(notification.params || {})
+          screen: payload.screen,
+          params: payload.params,
+          ...payload.data
         },
         sound: 'default',
         badge: 1,
-        channelId: notification.channelId || 'default',
-        priority: 'high',
-        ttl: 60 * 60 * 24, // 24 hours
-      };
-
-      // Send remote notification
-      const response = await fetch(EXPO_PUSH_API, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Accept-encoding': 'gzip, deflate',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify([message]),
-      });
-
-      if (!response.ok) {
-        // await logNotificationEvent('remote_notification_error', 
-        //   'Error sending remote notification', {
-        //     error: errorText,
-        //     payload: message
-        //   });
-      } else {
-        // await logNotificationEvent('remote_notification_sent', 
-        //   'Sent remote notification', {
-        //     payload: message
-        //   });
-      }
-    }
-
-    // Log to notification_logs table
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase.from('notification_logs').insert({
-          event_type: 'notification_sent',
-          recipient_id: userId,
-          sender_id: user.id,
-          message: `${notification.title}: ${notification.body}`,
-          status: 'sent',
-          details: JSON.stringify({ notification })
-        });
-      }
-    } catch (logError) {
-      console.error('Error logging notification:', logError);
-    }
-
-    return true;
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    // await logNotificationEvent('notification_error', 
-    //   'Error sending notification', { 
-    //     error: errorMessage,
-    //     payload: { userId, notification }
-    //   });
+        channelId: payload.channelId,
+      }),
+    });
+  } catch (error) {
     console.error('Error sending notification:', error);
-    return false;
+    throw error;
   }
 }
 

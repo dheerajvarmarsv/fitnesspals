@@ -855,7 +855,8 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
               onPress={() => setShowInviteModal(true)} 
               style={styles.inviteButtonHeader}
             >
-              <Ionicons name="person-add" size={24} color="#fff" />
+              <Ionicons name="person-add-outline" size={18} color="#fff" />
+              <Text style={styles.inviteButtonText}>Invite</Text>
             </TouchableOpacity>
           </View>
 
@@ -1161,29 +1162,53 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
         >
           <View style={styles.modalContainer}>
             <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>{challenge.challenge_type === 'race' ? 'Race Challenge' : 'Survival Challenge'}</Text>
+              <Text style={styles.modalTitle}>{
+                challenge.challenge_type === 'race' ? 'Race Challenge' : 
+                challenge.challenge_type === 'survival' ? 'Survival Challenge' : 
+                challenge.challenge_type === 'streak' ? 'Streak Challenge' : 
+                'Challenge'
+              }</Text>
               <Text style={styles.modalBodyText}>
                 {challenge.challenge_type === 'race' ? (
                   <>
                     <Text style={styles.modalBodyTextBold}>How Race Challenges Work:</Text>{'\n\n'}
-                    In a race challenge, participants compete to reach the finish line first by completing activities and earning points.{'\n\n'}
-                    • Each activity awards points when completed{'\n'}
-                    • Points move you forward on the race track{'\n'}
-                    • First to reach the end wins!{'\n\n'}
+                    Race to the finish line by completing activities and earning points! {'\n\n'}
+                    <Text style={styles.modalBodyTextBold}>What You Need to Know:</Text>{'\n'}
+                    • Each activity completed = points earned based on target values{'\n'}
+                    • Points automatically move you forward on the race track{'\n'}
+                    • Checkpoints mark your progress along the way{'\n'}
+                    • Everyone can see each other's positions in real-time{'\n'}
+                    • First to reach the finish line wins{'\n\n'}
+                    <Text style={styles.modalBodyTextBold}>Pro Tip:</Text> Focus on high-point activities to advance faster!
+                  </>
+                ) : challenge.challenge_type === 'survival' ? (
+                  <>
+                    <Text style={styles.modalBodyTextBold}>How Survival Challenges Work:</Text>{'\n\n'}
+                    Stay in the safe zone by remaining active - or risk elimination! {'\n\n'}
+                    <Text style={styles.modalBodyTextBold}>What You Need to Know:</Text>{'\n'}
+                    • The safe zone shrinks daily as the challenge progresses{'\n'}
+                    • Complete activities to move toward the center of the arena{'\n'}
+                    • Being outside the safe zone for consecutive days costs lives{'\n'}
+                    • When you lose all lives, you're eliminated{'\n'}
+                    • Last participant standing wins{'\n\n'}
+                    <Text style={styles.modalBodyTextBold}>Pro Tip:</Text> Don't miss more than 1-2 days in a row to stay safe!
                   </>
                 ) : (
                   <>
-                    <Text style={styles.modalBodyTextBold}>How Survival Challenges Work:</Text>{'\n\n'}
-                    In a survival challenge, participants must stay active to remain in the game.{'\n\n'}
-                    • Complete activities daily to stay in the "safe zone"{'\n'}
-                    • Missing activities moves you toward elimination{'\n'}
-                    • Last person standing wins!{'\n\n'}
+                    <Text style={styles.modalBodyTextBold}>How This Challenge Works:</Text>{'\n\n'}
+                    Complete activities to earn points and compete with friends! {'\n\n'}
+                    <Text style={styles.modalBodyTextBold}>What You Need to Know:</Text>{'\n'}
+                    • Complete listed activities to earn points{'\n'}
+                    • Track your progress on the leaderboard{'\n'}
+                    • Highest point total at the end wins{'\n\n'}
                   </>
                 )}
                 <Text style={styles.modalBodyTextBold}>Activity Frequency: {timeframeLabel}</Text>{'\n'}
                 Activities must be completed {timeframeLabel.toLowerCase()} to earn points.{'\n\n'}
-                <Text style={styles.modalBodyTextBold}>Workout Targets:</Text>{'\n'}
-                Each activity has a target value (distance, time, etc.) that you need to reach to earn the listed points.
+                <Text style={styles.modalBodyTextBold}>Activity Targets & Points:</Text>{'\n'}
+                • Each activity has a specific target (time, distance, etc.){'\n'}
+                • Meet or exceed the target to earn the listed points{'\n'}
+                • Points are awarded automatically when you log activities
               </Text>
 
               <TouchableOpacity
@@ -1326,12 +1351,19 @@ const styles = StyleSheet.create({
   scrollContent: { paddingBottom: 16 },
   // Invite Button in header
   inviteButtonHeader: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    flexDirection: 'row',
+    height: 32,
+    paddingHorizontal: 12,
+    borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  inviteButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
   },
   connectionWarning: {
     position: 'absolute',
@@ -1620,23 +1652,25 @@ const styles = StyleSheet.create({
 
   // Modal
   modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20,
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20,
   },
   modalContainer: {
     width: '90%', maxWidth: 450, backgroundColor: '#fff', borderRadius: 16, padding: 20,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5,
   },
   modalContent: {},
   modalTitle: {
-    fontSize: 18, fontWeight: '700', color: '#333', marginBottom: 16, textAlign: 'center',
+    fontSize: 20, fontWeight: '700', color: '#333', marginBottom: 16, textAlign: 'center', 
+    paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#eee',
   },
   modalBodyText: {
-    fontSize: 14, color: '#555', lineHeight: 20, marginBottom: 20, textAlign: 'left',
+    fontSize: 14, color: '#555', lineHeight: 22, marginBottom: 20, textAlign: 'left',
   },
   modalBodyTextBold: {
-    fontSize: 15, fontWeight: 'bold', color: '#333', 
+    fontSize: 16, fontWeight: 'bold', color: '#333', 
   },
   modalCloseButton: {
-    backgroundColor: '#00000', paddingVertical: 10, borderRadius: 8, alignItems: 'center',
+    backgroundColor: '#00000', paddingVertical: 12, borderRadius: 8, alignItems: 'center',
   },
   modalCloseButtonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
 });

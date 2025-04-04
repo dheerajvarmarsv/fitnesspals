@@ -47,6 +47,14 @@ const ACTIVITY_COLORS: { [key: string]: { light: string; primary: string; gradie
   'High Intensity': { light: '#FFEBEE', primary: '#F44336', gradient: ['#F44336', '#B71C1C'], text: '#B71C1C' },
   Yoga:           { light: '#F3E5F5', primary: '#9C27B0', gradient: ['#9C27B0', '#4A148C'], text: '#4A148C' },
   Count:          { light: '#ECEFF1', primary: '#607D8B', gradient: ['#607D8B', '#263238'], text: '#263238' },
+  Walking:        { light: '#E8F5E9', primary: '#8BC34A', gradient: ['#8BC34A', '#33691E'], text: '#33691E' },
+  Running:        { light: '#FFF8E1', primary: '#FFC107', gradient: ['#FFC107', '#FF6F00'], text: '#FF6F00' },
+  Cycling:        { light: '#E3F2FD', primary: '#2196F3', gradient: ['#2196F3', '#0D47A1'], text: '#0D47A1' },
+  Swimming:       { light: '#E1F5FE', primary: '#03A9F4', gradient: ['#03A9F4', '#01579B'], text: '#01579B' },
+  Hiking:         { light: '#F1F8E9', primary: '#689F38', gradient: ['#689F38', '#33691E'], text: '#33691E' },
+  Meditation:     { light: '#F3E5F5', primary: '#9C27B0', gradient: ['#9C27B0', '#4A148C'], text: '#4A148C' },
+  'Weight Training': { light: '#FFEBEE', primary: '#F44336', gradient: ['#F44336', '#B71C1C'], text: '#B71C1C' },
+  'Cardio Workout': { light: '#FFEBEE', primary: '#F44336', gradient: ['#F44336', '#B71C1C'], text: '#B71C1C' },
   Custom:         { light: '#E8EAF6', primary: '#3F51B5', gradient: ['#3F51B5', '#1A237E'], text: '#1A237E' },
 };
 
@@ -59,6 +67,18 @@ const ACTIVITY_ICONS: { [key: string]: string } = {
   'High Intensity': 'fire',
   Yoga: 'pray',
   Count: 'hashtag',
+  Walking: 'walking',
+  Running: 'running',
+  Cycling: 'biking',
+  Swimming: 'swimmer',
+  Hiking: 'mountain',
+  'Sleep Quality': 'bed',
+  Meditation: 'brain',
+  'Weight Training': 'dumbbell',
+  'Cardio Workout': 'heartbeat',
+  'High-Intensity': 'fire',
+  Stretching: 'child',
+  'Bonus Points': 'star',
   Custom: 'plus-circle',
 };
 
@@ -510,10 +530,7 @@ export default function AddActivityModal({
         <TouchableOpacity onPress={() => toggleActivityExpansion(activity.id, isChallenge, isCustom)} activeOpacity={0.7}>
           <LinearGradient
             colors={activity.isExpanded ? 
-              (activity.activityType === 'Walking' ? ['#8BC34A', '#33691E'] :
-               activity.activityType === 'Running' ? ['#FFC107', '#FF6F00'] :
-               activity.activityType === 'Workout' ? ['#2196F3', '#0D47A1'] :
-               ['#3F51B5', '#1A237E']) : 
+              (colorSet.gradient) : 
               ['#f5f5f5', '#e0e0e0']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
@@ -587,7 +604,9 @@ export default function AddActivityModal({
           <LinearGradient colors={GRADIENT_COLORS.header} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.header}>
             <Text style={styles.headerTitle}>Add Activity</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color="#fff" />
+              <View style={styles.closeButtonCircle}>
+                <Ionicons name="close" size={20} color="#fff" />
+              </View>
             </TouchableOpacity>
           </LinearGradient>
           <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -633,7 +652,7 @@ export default function AddActivityModal({
                 <TouchableOpacity style={styles.customActivityButtonContainer} onPress={() => setShowCustomForm(true)} activeOpacity={0.7}>
                   <LinearGradient colors={GRADIENT_COLORS.customActivity} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.customActivityButton}>
                     <Ionicons name="add-circle" size={20} color="#fff" style={styles.customActivityIcon} />
-                    <Text style={styles.customActivityButtonText}>+ Custom Activity</Text>
+                    <Text style={styles.customActivityButtonText}>Custom Activity</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               )}
@@ -737,7 +756,8 @@ const styles = StyleSheet.create({
   container: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, height: '90%', paddingBottom: Platform.OS === 'ios' ? 34 : 0, overflow: 'hidden' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.2)' },
   headerTitle: { fontSize: 20, fontWeight: '700', color: '#fff' },
-  closeButton: { padding: 8, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  closeButton: { padding: 8 },
+  closeButtonCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   content: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 40 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', marginTop: 16, marginBottom: 12, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },

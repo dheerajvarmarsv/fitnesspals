@@ -1,5 +1,5 @@
 // components/FriendSelectionModal.tsx
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -15,25 +15,41 @@ import {
   Platform,
   Modal,
   Animated,
-  Easing
+  Easing,
+  ScrollView,
+  ImageSourcePropType
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../lib/supabase';
-import { generateAvatarUrl } from './UserContext';
+import { sendChallengeInviteNotification } from '../lib/notificationService';
+import { generateAvatarUrl } from '../lib/utils';
+
+interface DatabaseFriend {
+  friend: {
+    id: string;
+    nickname: string;
+    avatar_url: string | null;
+  };
+}
+
+interface ChallengeInvite {
+  receiver_id: string;
+  status: string;
+}
 
 interface Friend {
   id: string;
   nickname: string;
-  avatar_url: string;
-  selected?: boolean;
-  inviteStatus?: 'pending' | 'accepted' | 'rejected' | 'not_invited';
+  avatar_url: string | null;
+  selected: boolean;
+  inviteStatus: string | null;
 }
 
 interface FriendSelectionModalProps {
   visible: boolean;
   onClose: () => void;
-  challengeId: string | null;
+  challengeId: string;
 }
 
 export default function FriendSelectionModal({ 
@@ -42,11 +58,11 @@ export default function FriendSelectionModal({
   challengeId
 }: FriendSelectionModalProps) {
   const [friends, setFriends] = useState<Friend[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Animation for spinner
   const spinValue = useRef(new Animated.Value(0)).current;
   const spin = spinValue.interpolate({
@@ -70,42 +86,19 @@ export default function FriendSelectionModal({
     }
   }, [inviting, spinValue]);
 
-  // Load friends when modal becomes visible
-  useEffect(() => {
-    if (visible && challengeId) {
-      loadFriendsWithInviteStatus();
-    } else {
-      // Reset when closing
-      setSearchQuery('');
-      setFriends([]);
-    }
-  }, [visible, challengeId]);
-
-  // Filter friends based on search query
-  const filteredFriends = searchQuery.trim() !== ''
-    ? friends.filter(friend => 
-        friend.nickname.toLowerCase().includes(searchQuery.toLowerCase()))
-    : friends;
-
-  // Load user's friends from database and check their invitation status
-  const loadFriendsWithInviteStatus = async () => {
+  // Load friends list and their invite status separately
+  const loadFriends = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Get current user
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setError('Not authenticated');
-        return;
-      }
+      if (!user) throw new Error('Not authenticated');
 
-      // Fetch friends
+      // First, get friends list
       const { data: friendsData, error: friendsError } = await supabase
         .from('friends')
         .select(`
-          id,
-          friend_id,
           friend:profiles!friends_friend_id_fkey (
             id,
             nickname,
@@ -116,72 +109,71 @@ export default function FriendSelectionModal({
 
       if (friendsError) throw friendsError;
 
-      if (!friendsData || friendsData.length === 0) {
-        setFriends([]);
-        setLoading(false);
-        return;
-      }
+      // Then, get existing invites for this challenge
+      const { data: invitesData, error: invitesError } = await supabase
+        .from('challenge_invites')
+        .select('receiver_id, status')
+        .eq('challenge_id', challengeId)
+        .eq('sender_id', user.id);
 
-      // If we have a challengeId, fetch existing invites for this challenge
-      let invitesMap = new Map();
-      
-      if (challengeId) {
-        const { data: invitesData, error: invitesError } = await supabase
-          .from('challenge_invites')
-          .select('receiver_id, status')
-          .eq('challenge_id', challengeId)
-          .eq('sender_id', user.id);
-          
-        if (invitesError) throw invitesError;
-        
-        // Create a map of receiver_id -> status
-        if (invitesData) {
-          invitesData.forEach(invite => {
-            invitesMap.set(invite.receiver_id, invite.status);
+      if (invitesError) throw invitesError;
+
+      // Create a map of friend ID to invite status
+      const inviteStatusMap = new Map(
+        (invitesData || []).map((invite: ChallengeInvite) => [invite.receiver_id, invite.status])
+      );
+
+      // Combine friends data with invite status
+      const processedFriends = (friendsData || []).reduce<Friend[]>((acc, item: any) => {
+        if (item?.friend?.id && item?.friend?.nickname) {
+          acc.push({
+            id: item.friend.id,
+            nickname: item.friend.nickname,
+            avatar_url: item.friend.avatar_url || null,
+            selected: false,
+            inviteStatus: inviteStatusMap.get(item.friend.id) || null
           });
         }
-      }
-      
-      // Format friend data with invite status
-      const formattedFriends = friendsData
-        .filter(item => item.friend) // Make sure friend data exists
-        .map(item => {
-          const friendId = item.friend_id;
-          const inviteStatus = invitesMap.has(friendId) 
-            ? invitesMap.get(friendId) 
-            : 'not_invited';
-            
-          const nickname = item.friend?.nickname || 'Unknown';
-          return {
-            id: friendId,
-            nickname: nickname,
-            avatar_url: generateAvatarUrl(nickname),
-            selected: false,
-            inviteStatus: inviteStatus
-          };
-        });
-        
-      setFriends(formattedFriends);
+        return acc;
+      }, []);
+
+      setFriends(processedFriends);
     } catch (e: any) {
       console.error('Error loading friends:', e);
       setError(e.message || 'Failed to load friends');
     } finally {
       setLoading(false);
     }
-  };
+  }, [challengeId]);
 
-  // Toggle friend selection (only for those who haven't been invited or rejected the invite)
-  const toggleFriendSelection = (id: string) => {
+  useEffect(() => {
+    if (visible) {
+      loadFriends();
+    } else {
+      // Reset state when modal closes
+      setSearchQuery('');
+      setError(null);
+    }
+  }, [visible, loadFriends]);
+
+  // Toggle friend selection
+  const toggleFriendSelection = useCallback((friendId: string) => {
     setFriends(prev => 
-      prev.map(friend => {
-        // Only toggle if the friend is not already invited and pending
-        if (friend.id === id && friend.inviteStatus !== 'pending' && friend.inviteStatus !== 'accepted') {
-          return { ...friend, selected: !friend.selected };
-        }
-        return friend;
-      })
+      prev.map(friend => 
+        friend.id === friendId 
+          ? { ...friend, selected: !friend.selected }
+          : friend
+      )
     );
-  };
+  }, []);
+
+  // Filter friends based on search
+  const filteredFriends = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    return friends.filter(friend => 
+      friend.nickname.toLowerCase().includes(query)
+    );
+  }, [friends, searchQuery]);
 
   // Invite selected friends
   const handleInvite = async () => {
@@ -201,34 +193,29 @@ export default function FriendSelectionModal({
       setInviting(true);
       setError(null);
 
-      // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // Get current user's nickname for notification
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('nickname')
-        .eq('id', user.id)
-        .single();
-        
-      if (profileError) throw profileError;
-      
-      const senderNickname = profile?.nickname || 'Someone';
-      
-      // Get challenge details
-      const { data: challenge, error: challengeError } = await supabase
+      // Get challenge details for notification
+      const { data: challenge } = await supabase
         .from('challenges')
         .select('title, challenge_type')
         .eq('id', challengeId)
         .single();
-        
-      if (challengeError) throw challengeError;
-      
-      // Use challenge title or fallback to type
-      const challengeName = challenge?.title || `${challenge?.challenge_type.toUpperCase()} Challenge`;
-      
-      // Create invites for each selected friend
+
+      if (!challenge) throw new Error('Challenge not found');
+
+      // Get sender's profile for notification
+      const { data: senderProfile } = await supabase
+        .from('profiles')
+        .select('nickname')
+        .eq('id', user.id)
+        .single();
+
+      const senderNickname = senderProfile?.nickname || 'Someone';
+      const challengeName = challenge.title || `${challenge.challenge_type} Challenge`;
+
+      // Create invites
       const invites = selectedFriends.map(friend => ({
         challenge_id: challengeId,
         sender_id: user.id,
@@ -236,19 +223,15 @@ export default function FriendSelectionModal({
         status: 'pending'
       }));
 
-      const { error } = await supabase
+      const { error: inviteError } = await supabase
         .from('challenge_invites')
         .insert(invites);
 
-      if (error) throw error;
-      
-      // Import notification service for sending notifications
-      const { sendChallengeInviteNotification } = await import('../lib/notificationService');
-      
-      // Send notifications to each invited friend
+      if (inviteError) throw inviteError;
+
+      // Send notifications
       for (const friend of selectedFriends) {
         try {
-          console.log(`Sending challenge invite notification to ${friend.nickname}`);
           await sendChallengeInviteNotification(
             friend.id,
             senderNickname,
@@ -260,40 +243,41 @@ export default function FriendSelectionModal({
           // Continue with other notifications even if one fails
         }
       }
-      
-      // Update local state to reflect the new invites
+
+      // Update local state
       setFriends(prev => 
-        prev.map(friend => {
-          if (friend.selected) {
-            return { ...friend, selected: false, inviteStatus: 'pending' };
-          }
-          return friend;
-        })
+        prev.map(friend => ({
+          ...friend,
+          selected: false,
+          inviteStatus: friend.selected ? 'pending' : friend.inviteStatus
+        }))
       );
-      
-      // Success
+
       Alert.alert(
         'Success', 
         `Invitations sent to ${selectedFriends.length} friend${selectedFriends.length > 1 ? 's' : ''}!`
       );
+
+      onClose();
     } catch (e: any) {
       setError(e.message || 'Failed to send invitations');
+      Alert.alert('Error', 'Failed to send invitations. Please try again.');
     } finally {
       setInviting(false);
     }
   };
 
   // Get the appropriate button text based on invite status
-  const getInviteStatusDisplay = (status: string | undefined) => {
-    switch(status) {
-      case 'pending': 
+  const getInviteStatusDisplay = (status: string) => {
+    switch (status) {
+      case 'pending':
         return 'Invited';
-      case 'accepted': 
+      case 'accepted':
         return 'Joined';
-      case 'rejected': 
-        return 'Invite Again';
-      default: 
-        return '';
+      case 'rejected':
+        return 'Declined';
+      default:
+        return status;
     }
   };
 
@@ -306,7 +290,8 @@ export default function FriendSelectionModal({
       <TouchableOpacity
         style={[
           styles.friendItem,
-          !isSelectable && styles.friendItemDisabled
+          !isSelectable && styles.friendItemDisabled,
+          item.selected && styles.friendItemSelected // Add this line to add background color
         ]}
         onPress={() => isSelectable && toggleFriendSelection(item.id)}
         disabled={!isSelectable}
@@ -314,7 +299,9 @@ export default function FriendSelectionModal({
         <View style={styles.friendInfo}>
           <View style={styles.avatarContainer}>
             <Image
-              source={{ uri: item.avatar_url }}
+              source={{ 
+                uri: item.avatar_url || generateAvatarUrl(item.nickname)
+              }}
               style={styles.avatar}
             />
           </View>
@@ -385,7 +372,7 @@ export default function FriendSelectionModal({
                   ) : (
                     <TouchableOpacity
                       style={styles.retryButton}
-                      onPress={loadFriendsWithInviteStatus}
+                      onPress={loadFriends}
                     >
                       <Text style={styles.retryButtonText}>Retry</Text>
                     </TouchableOpacity>
@@ -412,13 +399,45 @@ export default function FriendSelectionModal({
                   </Text>
                 </View>
               ) : (
-                <FlatList
-                  data={filteredFriends}
-                  renderItem={renderFriendItem}
-                  keyExtractor={(item) => item.id}
-                  contentContainerStyle={styles.friendsList}
-                  showsVerticalScrollIndicator={false}
-                />
+                <ScrollView style={styles.friendsList}>
+                  {filteredFriends.map(friend => (
+                    <TouchableOpacity
+                      key={friend.id}
+                      style={[
+                        styles.friendItem,
+                        friend.selected && styles.friendItemSelected,
+                        friend.inviteStatus && styles.friendItemDisabled
+                      ]}
+                      onPress={() => {
+                        if (!friend.inviteStatus) {
+                          toggleFriendSelection(friend.id);
+                        }
+                      }}
+                      disabled={!!friend.inviteStatus}
+                    >
+                      <Image
+                        source={{ 
+                          uri: friend.avatar_url || generateAvatarUrl(friend.nickname)
+                        }}
+                        style={styles.avatar}
+                      />
+                      <Text style={styles.friendName}>{friend.nickname}</Text>
+                      {friend.inviteStatus ? (
+                        <View style={[styles.statusBadge, getStatusStyle(friend.inviteStatus)]}>
+                          <Text style={styles.statusText}>
+                            {getInviteStatusDisplay(friend.inviteStatus)}
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={[styles.checkbox, friend.selected && styles.checkboxSelected]}>
+                          {friend.selected && (
+                            <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+                          )}
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               )}
 
               <View style={styles.footer}>
@@ -429,31 +448,18 @@ export default function FriendSelectionModal({
                 <TouchableOpacity
                   style={[
                     styles.inviteButton,
-                    (inviting || !friends.some(f => f.selected)) && 
-                      styles.inviteButtonDisabled
+                    friends.some(f => f.selected) ? styles.inviteButtonActive : styles.inviteButtonInactive,
+                    inviting && styles.inviteButtonDisabled
                   ]}
                   onPress={handleInvite}
-                  disabled={inviting || !friends.some(f => f.selected)}
+                  disabled={!friends.some(f => f.selected) || inviting}
                 >
-                  <LinearGradient
-                    colors={['#FF416C', '#FF4B2B']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.inviteButtonGradient}
-                  >
-                    {inviting ? (
-                      <View style={styles.invitingContainer}>
-                        <Animated.View style={{ transform: [{ rotate: spin }] }}>
-                          <Ionicons name="refresh" size={20} color="#fff" />
-                        </Animated.View>
-                        <Text style={styles.inviteButtonText}>Sending Invites...</Text>
-                      </View>
-                    ) : (
-                      <Text style={styles.inviteButtonText}>
-                        Send Invitations
-                      </Text>
-                    )}
-                  </LinearGradient>
+                  <Text style={[
+                    styles.inviteButtonText,
+                    friends.some(f => f.selected) ? styles.inviteButtonTextActive : styles.inviteButtonTextInactive
+                  ]}>
+                    {inviting ? 'Sending Invites...' : 'Send Invites'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -567,17 +573,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     marginBottom: 8,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
   },
   friendItemSelected: {
-    backgroundColor: '#EBF5FF',
+    backgroundColor: '#EBF5FF', // Light blue background
     borderWidth: 1,
-    borderColor: '#00000',
+    borderColor: '#4A90E2',
   },
   friendItemDisabled: {
-    opacity: 0.8,
-    backgroundColor: '#f0f0f0',
+    opacity: 0.6,
+    backgroundColor: '#F0F0F0',
   },
   avatar: {
     width: 50,
@@ -613,63 +621,64 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 4,
     borderWidth: 2,
-    borderColor: '#4CAF50',
+    borderColor: '#666666',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
+    marginLeft: 'auto',
   },
   checkboxSelected: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#000000',
+    borderColor: '#000000',
   },
   statusBadge: {
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 4,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  pendingBadge: {
-    backgroundColor: '#FEF3C7',
-  },
-  acceptedBadge: {
-    backgroundColor: '#D1FAE5',
-  },
-  statusBadgeText: {
+  statusText: {
     fontSize: 12,
-    fontWeight: '600',
+    color: 'white',
   },
   footer: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: '#E5E5E5',
+    backgroundColor: '#FFFFFF',
   },
   selectedCount: {
     textAlign: 'center',
-    color: '#666',
+    color: '#666666',
     marginBottom: 12,
+    fontSize: 14,
   },
   inviteButton: {
     borderRadius: 12,
-    overflow: 'hidden',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+  },
+  inviteButtonActive: {
+    backgroundColor: '#000000',
+  },
+  inviteButtonInactive: {
+    backgroundColor: '#666666',
   },
   inviteButtonDisabled: {
     opacity: 0.5,
   },
-  inviteButtonGradient: {
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  invitingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   inviteButtonText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
-    marginLeft: 8,
+  },
+  inviteButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  inviteButtonTextInactive: {
+    color: '#FFFFFF',
+    opacity: 0.8,
   },
   avatarContainer: {
     width: 50,
@@ -687,3 +696,16 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
 });
+
+const getStatusStyle = (status: string) => {
+  switch (status) {
+    case 'pending':
+      return { backgroundColor: '#FFA000' };
+    case 'accepted':
+      return { backgroundColor: '#4CAF50' };
+    case 'rejected':
+      return { backgroundColor: '#F44336' };
+    default:
+      return { backgroundColor: '#666' };
+  }
+};

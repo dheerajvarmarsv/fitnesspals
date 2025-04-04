@@ -159,79 +159,71 @@ export async function unregisterFromPushNotifications() {
   }
 }
 
-// Send a friend request notification
-export async function sendFriendRequestNotification(
+/**
+ * Send a notification when a user receives a friend request
+ */
+export const sendFriendRequestNotification = async (
   receiverId: string,
   senderNickname: string
-) {
+): Promise<void> => {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
-
-    // Insert into notifications table to trigger webhook
-    const { error } = await supabase
-      .from('notifications')
-      .insert({
-        recipient_id: receiverId,
-        sender_id: user.id,
-        type: 'friend_request',
-        title: 'New Friend Request',
-        body: `${senderNickname} sent you a friend request`,
-        data: {
-          screen: 'friends',
-          senderNickname
-        }
-      });
-
-    if (error) {
-      return false;
-    }
-
-    return true;
-  } catch (error) {
-    console.error('Exception in sendFriendRequestNotification:', error instanceof Error ? error.message : String(error));
-    return false;
+    await sendNotificationToUser(receiverId, {
+      title: 'New Friend Request',
+      body: `${senderNickname} sent you a friend request`,
+      channelId: 'friend-requests',
+      screen: 'friends',
+      data: { senderNickname }
+    });
+  } catch (e) {
+    console.error('Error sending friend request notification:', e);
+    throw e;
   }
-}
+};
 
-// Send a challenge invite notification
-export async function sendChallengeInviteNotification(
+/**
+ * Send a notification when a friend request is accepted
+ */
+export const sendFriendRequestAcceptedNotification = async (
+  receiverId: string,
+  accepterNickname: string
+): Promise<void> => {
+  try {
+    await sendNotificationToUser(receiverId, {
+      title: 'Friend Request Accepted',
+      body: `${accepterNickname} accepted your friend request`,
+      channelId: 'friend-requests',
+      screen: 'friends',
+      data: { accepterNickname }
+    });
+  } catch (e) {
+    console.error('Error sending friend request accepted notification:', e);
+    throw e;
+  }
+};
+
+/**
+ * Send a notification when a user is invited to a challenge
+ */
+export const sendChallengeInviteNotification = async (
   receiverId: string,
   senderNickname: string,
   challengeId: string,
   challengeName: string
-) {
+): Promise<void> => {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
-
-    // Insert into notifications table to trigger webhook
-    const { error } = await supabase
-      .from('notifications')
-      .insert({
-        recipient_id: receiverId,
-        sender_id: user.id,
-        type: 'challenge_invite',
-        title: 'Challenge Invite',
-        body: `${senderNickname} invited you to join "${challengeName}"`,
-        data: {
-          screen: 'challengedetails',
-          params: { id: challengeId },
-          senderNickname,
-          challengeName
-        }
-      });
-
-    if (error) {
-      return false;
-    }
-
-    return true;
-  } catch (error) {
-    console.error('Exception in sendChallengeInviteNotification:', error instanceof Error ? error.message : String(error));
-    return false;
+    await sendNotificationToUser(receiverId, {
+      title: 'Challenge Invite',
+      body: `${senderNickname} invited you to join "${challengeName}"`,
+      channelId: 'challenge-invites',
+      screen: 'challengedetails',
+      params: { id: challengeId },
+      data: { senderNickname, challengeName }
+    });
+  } catch (e) {
+    console.error('Error sending challenge invite notification:', e);
+    throw e;
   }
-}
+};
 
 // Set up notification listeners
 export function setupNotificationListeners(
