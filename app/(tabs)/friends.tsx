@@ -12,6 +12,7 @@ import {
   Alert,
   RefreshControl,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
@@ -177,6 +178,54 @@ export default function Friends() {
   const copyToClipboard = async () => {
     await Clipboard.setStringAsync(uniqueProfileLink);
     Alert.alert('Success', 'Profile link copied to clipboard!');
+  };
+
+  const renderSearchResult = ({ item }: { item: any }) => {
+    const getStatusDisplay = () => {
+      switch (item.status) {
+        case 'friend':
+          return (
+            <View style={styles.statusBadge}>
+              <Text style={styles.statusText}>Already Friends</Text>
+            </View>
+          );
+        case 'request_sent':
+          return (
+            <View style={[styles.statusBadge, { backgroundColor: '#F59E0B' }]}>
+              <Text style={styles.statusText}>Request Sent</Text>
+            </View>
+          );
+        case 'request_received':
+          return (
+            <View style={[styles.statusBadge, { backgroundColor: '#10B981' }]}>
+              <Text style={styles.statusText}>Request Received</Text>
+            </View>
+          );
+        default:
+          return (
+            <TouchableOpacity
+              style={[styles.addFriendButton, { backgroundColor: '#4776E6' }]}
+              onPress={() => handleSendRequest(item.nickname)}
+              disabled={loading}
+            >
+              <Text style={styles.addFriendButtonText}>Add Friend</Text>
+            </TouchableOpacity>
+          );
+      }
+    };
+
+    return (
+      <View style={styles.searchResultItem}>
+        <View style={styles.userInfo}>
+          <Image
+            source={{ uri: item.avatar_url || generateAvatarUrl(item.nickname) }}
+            style={styles.searchAvatar}
+          />
+          <Text style={styles.searchNickname}>{item.nickname}</Text>
+        </View>
+        {getStatusDisplay()}
+      </View>
+    );
   };
 
   return (
@@ -391,108 +440,60 @@ export default function Friends() {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* SEARCH MODAL */}
-      {showSearchModal && (
-        <TouchableWithoutFeedback onPress={() => setShowSearchModal(false)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Find Friends</Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setShowSearchModal(false);
-                      setSearchQuery('');
-                      setSearchResults([]);
-                    }}
-                    style={styles.closeButton}
-                  >
-                    <Ionicons name="close" size={24} color="#000" />
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.searchModalContainer}>
-                  <TextInput
-                    style={styles.searchModalInput}
-                    placeholder="Search by nickname"
-                    value={searchQuery}
-                    onChangeText={(text) => {
-                      setSearchQuery(text);
-                      handleSearch(text);
-                    }}
-                    autoFocus
-                  />
-                </View>
-                <ScrollView style={styles.searchResults}>
-                  {loading ? (
-                    <Text style={styles.searchMessage}>Searching...</Text>
-                  ) : searchResults.length > 0 ? (
-                    searchResults.map((user) => {
-                      // Already a friend?
-                      const isFriend = friends.some((f) => f.friend_id === user.id);
-                      // Pending request? (the SENDER sees "Pending")
-                      const isPending = friendRequests.some(
-                        (r) =>
-                          (r.sender_id === user.id || r.receiver_id === user.id) &&
-                          r.status === 'pending'
-                      );
-                      let actionComponent: JSX.Element | null = null;
-                      if (isFriend) {
-                        actionComponent = <Text style={styles.friendStatus}>Friends</Text>;
-                      } else if (isPending) {
-                        actionComponent = <Text style={styles.pendingStatus}>Pending</Text>;
-                      } else {
-                        actionComponent = (
-                          <TouchableOpacity
-                            style={styles.inviteButton}
-                            onPress={() => handleSendRequest(user.nickname)}
-                            disabled={loading}
-                          >
-                            <Text style={styles.inviteButtonText}>Invite</Text>
-                          </TouchableOpacity>
-                        );
-                      }
-                      return (
-                        <View key={user.id} style={styles.searchResultItem}>
-                          <Image
-                            source={{ uri: generateAvatarUrl(user.nickname || 'User') }}
-                            style={styles.searchResultAvatar}
-                          />
-                          <Text style={styles.searchResultName}>{user.nickname}</Text>
-                          {isFriend ? (
-                            <View style={styles.friendBadge}>
-                              <Text style={styles.friendStatus}>Friends</Text>
-                            </View>
-                          ) : isPending ? (
-                            <View style={styles.pendingBadge}>
-                              <Text style={styles.pendingStatus}>Pending</Text>
-                            </View>
-                          ) : (
-                            <TouchableOpacity
-                              style={styles.inviteButton}
-                              onPress={() => handleSendRequest(user.nickname)}
-                              disabled={loading}
-                            >
-                              <LinearGradient
-                                colors={['#4776E6', '#8E54E9']}
-                                style={styles.inviteButtonGradient}
-                              >
-                                <Ionicons name="person-add" size={16} color="#fff" style={{ marginRight: 4 }} />
-                                <Text style={styles.inviteButtonText}>Add Friend</Text>
-                              </LinearGradient>
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      );
-                    })
-                  ) : searchQuery ? (
-                    <Text style={styles.searchMessage}>No users found</Text>
-                  ) : null}
-                </ScrollView>
+      {/* Search Modal */}
+      <Modal
+        visible={showSearchModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowSearchModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Find Friends</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowSearchModal(false);
+                  setSearchQuery('');
+                  setSearchResults([]);
+                }}
+              >
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.searchInputContainer}>
+              <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search by exact nickname..."
+                value={searchQuery}
+                onChangeText={handleSearch}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+
+            {loading ? (
+              <View style={styles.centerContainer}>
+                <ActivityIndicator size="large" color="#4776E6" />
               </View>
-            </TouchableWithoutFeedback>
+            ) : searchResults.length === 0 && searchQuery.trim() !== '' ? (
+              <View style={styles.centerContainer}>
+                <Text style={styles.noResultsText}>No users found</Text>
+              </View>
+            ) : (
+              <ScrollView style={styles.searchResults}>
+                {searchResults.map((result) => (
+                  <View key={result.id}>
+                    {renderSearchResult({ item: result })}
+                  </View>
+                ))}
+              </ScrollView>
+            )}
           </View>
-        </TouchableWithoutFeedback>
-      )}
+        </View>
+      </Modal>
     </SharedLayout>
   );
 }
@@ -604,20 +605,16 @@ const styles = StyleSheet.create({
   },
   retryButtonText: { color: '#fff', fontWeight: '600' },
   modalOverlay: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center',
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    width: '90%',
-    maxWidth: 400,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 15,
-    elevation: 10,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    height: '80%',
+    padding: 20,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -625,7 +622,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
   },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#333',
+  },
   closeButton: { padding: 5 },
   modalText: { fontSize: 16, color: '#666', marginBottom: 20 },
   linkContainer: {
@@ -660,65 +661,69 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   shareButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  searchModalContainer: { marginBottom: 20 },
-  searchModalInput: {
-    backgroundColor: '#f5f5f5', borderRadius: 10, padding: 15, fontSize: 16, color: '#333',
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    marginBottom: 20,
   },
-  searchResults: { maxHeight: 300 },
-  searchMessage: { textAlign: 'center', color: '#666', padding: 20 },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  noResultsText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+  searchResults: {
+    flex: 1,
+  },
   searchResultItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    justifyContent: 'space-between',
+    padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: '#eee',
   },
-  searchResultAvatar: { 
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 16,
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  searchResultName: { 
-    flex: 1,
+  searchAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
+  },
+  searchNickname: {
     fontSize: 16,
     fontWeight: '500',
     color: '#333',
   },
-  friendBadge: {
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-    paddingVertical: 6,
+  statusBadge: {
     paddingHorizontal: 12,
-    borderRadius: 8,
-  },
-  friendStatus: { 
-    color: '#4CAF50',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  pendingBadge: {
-    backgroundColor: 'rgba(255, 152, 0, 0.1)',
     paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: 16,
+    backgroundColor: '#666666',
   },
-  pendingStatus: { 
-    color: '#FF9800',
-    fontWeight: '600',
+  statusText: {
+    color: '#FFFFFF',
     fontSize: 14,
+    fontWeight: '500',
   },
-  inviteButton: {
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  inviteButtonGradient: {
-    paddingVertical: 8,
+  addFriendButton: {
     paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: '#4776E6',
   },
-  inviteButtonText: { 
-    color: '#fff',
+  addFriendButtonText: {
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
   },

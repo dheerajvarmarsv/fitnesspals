@@ -322,11 +322,22 @@ export const blockUser = async (targetId: string): Promise<void> => {
   }
 };
 
+// Add interface for search results
+interface SearchResult {
+  id: string;
+  nickname: string;
+  avatar_url: string | null;
+  profile_settings: {
+    privacy_mode?: 'public' | 'private';
+  }[];
+  status?: 'friend' | 'request_sent' | 'request_received' | 'not_friend';
+}
+
 /**
  * 7) EXACT match search => excludes current user, existing friends, pending requests, private profiles.
  *    SENDER sees "Pending" if they've sent a request. RECEIVER won't see it in 'friend_requests' because we only fetch if user=receiver.
  */
-export const searchUsers = async (query: string): Promise<any[]> => {
+export const searchUsers = async (query: string): Promise<SearchResult[]> => {
   try {
     const searchTerm = query.trim().toLowerCase();
     if (!searchTerm) return [];
@@ -364,20 +375,30 @@ export const searchUsers = async (query: string): Promise<any[]> => {
       .select('friend_id')
       .eq('user_id', user.id);
 
-    // 4) Filter out private, existing friends, or pending requests
-    return found.filter((u) => {
+    // 4) Filter out private profiles and add status for others
+    return found.filter((u: SearchResult) => {
       const mode = (Array.isArray(u.profile_settings)
         ? u.profile_settings[0]?.privacy_mode
         : u.profile_settings?.privacy_mode) || 'public';
       if (mode === 'private') return false;
 
       const isFriend = friendRows?.some((f) => f.friend_id === u.id);
-      const hasActiveRequest = requests?.some(
+      const pendingRequest = requests?.find(
         (r) =>
           (r.sender_id === u.id || r.receiver_id === u.id) &&
-          r.status !== 'rejected'
+          r.status === 'pending'
       );
-      return !isFriend && !hasActiveRequest;
+
+      // Add status to the user object
+      if (isFriend) {
+        u.status = 'friend';
+      } else if (pendingRequest) {
+        u.status = pendingRequest.sender_id === user.id ? 'request_sent' : 'request_received';
+      } else {
+        u.status = 'not_friend';
+      }
+
+      return true; // Show all users except private
     });
   } catch (err) {
     console.error('searchUsers error:', err);

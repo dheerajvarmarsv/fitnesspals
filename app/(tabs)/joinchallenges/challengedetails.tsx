@@ -1264,7 +1264,11 @@ const handleMoveParticipant = async (participantUserId: string, step: number, ch
                     />
                     <Text style={styles.friendName}>{item.nickname || 'Unknown User'}</Text>
                     {selectedFriends.includes(item.id) && (
-                      <Ionicons name="checkmark-circle" size={24} color="#00000" />
+                      <Ionicons
+                      name={selectedFriends.includes(item.id) ? "checkbox" : "checkbox-outline"}
+                      size={24}
+                      color={selectedFriends.includes(item.id) ? "#000" : "#A9A9A9"}
+                    />
                     )}
                   </TouchableOpacity>
                 )}
@@ -1391,9 +1395,9 @@ const styles = StyleSheet.create({
   },
   // Invite Friends Modal
   inviteModalContainer: {
-    flex: 1,
+    height: '50%', // This sets the height to 50% of the screen
     backgroundColor: '#fff',
-    marginTop: 60,
+    marginTop: 'auto',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     overflow: 'hidden',
@@ -1418,12 +1422,12 @@ const styles = StyleSheet.create({
   },
   inviteModalContent: {
     flex: 1,
-    padding: 16,
+    padding: 12,
   },
   friendRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
+    padding: 8, // Reduced padding
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
@@ -1431,10 +1435,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(74, 144, 226, 0.1)',
   },
   friendAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
+    width: 32, // Smaller size
+    height: 32, // Smaller size
+    borderRadius: 16, // Adjusted for smaller size
+    marginRight: 8, // Less margin
   },
   friendName: {
     flex: 1,
@@ -1472,8 +1476,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   disabledButton: {
-    backgroundColor: '#B0BEC5',
-    opacity: 0.8,
+    backgroundColor: '#A9A9A9',
   },
 
   // Loading / Error
