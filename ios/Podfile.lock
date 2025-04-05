@@ -1922,8 +1922,6 @@ PODS:
     - React-logger (= 0.76.7)
     - React-perflogger (= 0.76.7)
     - React-utils (= 0.76.7)
-  - RNAppleHealthKit (1.7.0):
-    - React
   - RNCAsyncStorage (1.23.1):
     - DoubleConversion
     - glog
@@ -2307,7 +2305,6 @@ DEPENDENCIES:
   - React-utils (from `../node_modules/react-native/ReactCommon/react/utils`)
   - ReactCodegen (from `build/generated/ios`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
-  - RNAppleHealthKit (from `../node_modules/react-native-health`)
   - "RNCAsyncStorage (from `../node_modules/@react-native-async-storage/async-storage`)"
   - "RNCPicker (from `../node_modules/@react-native-picker/picker`)"
   - "RNDateTimePicker (from `../node_modules/@react-native-community/datetimepicker`)"
@@ -2516,8 +2513,6 @@ EXTERNAL SOURCES:
     :path: build/generated/ios
   ReactCommon:
     :path: "../node_modules/react-native/ReactCommon"
-  RNAppleHealthKit:
-    :path: "../node_modules/react-native-health"
   RNCAsyncStorage:
     :path: "../node_modules/@react-native-async-storage/async-storage"
   RNCPicker:
@@ -2635,7 +2630,6 @@ SPEC CHECKSUMS:
   React-utils: 72cb4a2db18c087d09ec80079524e1fcb27b29a0
   ReactCodegen: 807cff999d1705af15b99363e2cc37ca9fae4761
   ReactCommon: 043f537fa4c5366bb960a760bc626fb50c4eb84f
-  RNAppleHealthKit: 60a6beefdd89a75811e9a8873a5e24f351dee681
   RNCAsyncStorage: 722620dc87fb48ad321505fcfccd1782455c7448
   RNCPicker: f8be04ea7b8b4503ddb6ca3526ac839fc86772df
   RNDateTimePicker: b4dbbbe7a49cf4c9d9c01179f6d30242018e20da
