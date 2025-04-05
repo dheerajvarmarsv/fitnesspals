@@ -1,256 +1,72 @@
-import React, { useEffect, useState } from 'react';
-import { View, Platform, StyleSheet, TouchableOpacity, Text, ActivityIndicator, Alert, Linking } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { supabase } from '../../../../lib/supabase';
-import { 
-  saveFitnessConnection, 
-  FitnessDataSource, 
-  initHealthKit,
-  initAndroidHealth,
-  fetchAndStoreDailyHealthData,
-  checkHealthPermissions
-} from '../../../../lib/fitness';
-import { useUser } from '../../../../components/UserContext';
-import { Ionicons } from '@expo/vector-icons';
+import { FitnessDataSource } from '../../../../lib/fitness';
 
-export default function HealthServicesScreen() {
-  const { user } = useUser();
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
-  const [hasPermissions, setHasPermissions] = useState(false);
+export default function FitnessConnections() {
+  const [connections, setConnections] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user?.id) {
-      initializeHealthServices();
-      checkConnection();
-      checkPermissionStatus();
-    }
-  }, [user]);
+    loadConnections();
+  }, []);
 
-  // Add periodic permission check
-  useEffect(() => {
-    if (isConnected) {
-      const checkInterval = setInterval(checkPermissionStatus, 30000); // Check every 30 seconds
-      return () => clearInterval(checkInterval);
-    }
-  }, [isConnected]);
-
-  const checkPermissionStatus = async () => {
-    const hasPerms = await checkHealthPermissions();
-    setHasPermissions(hasPerms);
-    
-    // If permissions were revoked while connected, disconnect
-    if (!hasPerms && isConnected) {
-      await handleDisconnect();
-      Alert.alert(
-        'Health Permissions Revoked',
-        'Please re-enable health permissions in your device settings to continue tracking.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Open Settings', 
-            onPress: () => Platform.OS === 'ios' 
-              ? Linking.openURL('app-settings:')
-              : Linking.openSettings()
-          }
-        ]
-      );
-    }
-  };
-
-  const initializeHealthServices = async () => {
-    if (!user?.id) return;
-
+  const loadConnections = async () => {
     try {
-      let initialized = false;
-      if (Platform.OS === 'ios') {
-        initialized = await initHealthKit();
-      } else if (Platform.OS === 'android') {
-        initialized = await initAndroidHealth();
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setError('User not authenticated');
+        return;
       }
 
-      setIsInitialized(initialized);
-      if (!initialized) {
-        Alert.alert(
-          'Health Services Error',
-          `Failed to initialize ${Platform.OS === 'ios' ? 'Apple Health' : 'Google Fit'}. Please ensure the app has necessary permissions.`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { 
-              text: 'Open Settings', 
-              onPress: () => Platform.OS === 'ios' 
-                ? Linking.openURL('app-settings:')
-                : Linking.openSettings()
-            }
-          ]
-        );
-      } else {
-        // Check permissions after initialization
-        await checkPermissionStatus();
-      }
-    } catch (error) {
-      console.error('[Health] Error initializing health services:', error);
-      setIsInitialized(false);
-    }
-  };
-
-  const checkConnection = async () => {
-    if (!user?.id) return;
-
-    try {
       const { data, error } = await supabase
         .from('user_fitness_connections')
         .select('*')
-        .eq('user_id', user.id)
-        .eq('type', Platform.OS === 'ios' ? 'apple_health' : 'google_fit')
-        .eq('connected', true)
-        .single();
+        .eq('user_id', user.id);
 
-      if (error) {
-        console.error('[Health] Error checking connection:', error);
-        return;
-      }
-
-      setIsConnected(!!data);
-    } catch (error) {
-      console.error('[Health] Exception checking connection:', error);
-    }
-  };
-
-  const handleConnect = async () => {
-    if (!user?.id) {
-      console.error('[Health] User not authenticated');
-      return;
-    }
-
-    if (!isInitialized) {
-      Alert.alert(
-        'Health Services Not Available',
-        'Please ensure health services are properly initialized and try again.'
-      );
-      return;
-    }
-
-    setIsConnecting(true);
-    try {
-      const source: FitnessDataSource = Platform.OS === 'ios' ? 'apple_health' : 'google_fit';
-      const success = await saveFitnessConnection(user.id, {
-        type: source,
-        connected: true,
-        status: 'connected',
-        permissions: []
-      });
-      
-      if (success) {
-        // Fetch initial health data
-        await fetchAndStoreDailyHealthData(user.id, new Date());
-        setIsConnected(true);
-        await checkConnection();
-      }
-    } catch (error) {
-      console.error('[Health] Error connecting to health services:', error);
-      Alert.alert(
-        'Connection Error',
-        'Failed to connect to health services. Please try again.'
-      );
+      if (error) throw error;
+      setConnections(data || []);
+    } catch (err) {
+      console.error('Error loading connections:', err);
+      setError('Failed to load fitness connections');
     } finally {
-      setIsConnecting(false);
+      setLoading(false);
     }
   };
 
-  const handleDisconnect = async () => {
-    if (!user?.id) return;
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <Text>Loading connections...</Text>
+      </View>
+    );
+  }
 
-    try {
-      const { error } = await supabase
-        .from('user_fitness_connections')
-        .update({ 
-          connected: false,
-          status: 'disconnected',
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', user.id)
-        .eq('type', Platform.OS === 'ios' ? 'apple_health' : 'google_fit');
-
-      if (error) {
-        console.error('[Health] Error disconnecting:', error);
-        Alert.alert(
-          'Disconnection Error',
-          'Failed to disconnect from health services. Please try again.'
-        );
-        return;
-      }
-
-      setIsConnected(false);
-    } catch (error) {
-      console.error('[Health] Exception disconnecting:', error);
-      Alert.alert(
-        'Error',
-        'An unexpected error occurred while disconnecting. Please try again.'
-      );
-    }
-  };
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <View style={styles.card}>
-        <View style={styles.header}>
-          <Ionicons 
-            name="heart" 
-            size={24} 
-            color={isConnected && hasPermissions ? '#4CAF50' : '#757575'} 
-          />
-          <Text style={styles.title}>
-            {Platform.OS === 'ios' ? 'Apple Health' : 'Google Fit'}
-          </Text>
-        </View>
-
-        <Text style={styles.description}>
-          Connect to {Platform.OS === 'ios' ? 'Apple Health' : 'Google Fit'} to track your daily activity and progress.
-        </Text>
-
-        {!isInitialized && (
-          <Text style={styles.warning}>
-            Health services are not available. Please check your device settings.
-          </Text>
-        )}
-
-        {isInitialized && !hasPermissions && (
-          <Text style={styles.warning}>
-            Health permissions are required. Please grant permissions in your device settings.
-          </Text>
-        )}
-
-        <TouchableOpacity
-          style={[
-            styles.button,
-            isConnected ? styles.disconnectButton : styles.connectButton,
-            (!isInitialized || !hasPermissions) && styles.disabledButton
-          ]}
-          onPress={isConnected ? handleDisconnect : handleConnect}
-          disabled={isConnecting || !isInitialized || !hasPermissions}
-        >
-          {isConnecting ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.buttonText}>
-              {isConnected ? 'Disconnect' : 'Connect'}
+      <Text style={styles.title}>Fitness Connections</Text>
+      {connections.length === 0 ? (
+        <Text style={styles.message}>No fitness connections found</Text>
+      ) : (
+        connections.map((connection) => (
+          <View key={connection.id} style={styles.connectionItem}>
+            <Text style={styles.connectionName}>{connection.type}</Text>
+            <Text style={styles.connectionStatus}>
+              Status: {connection.status}
             </Text>
-          )}
-        </TouchableOpacity>
-
-        {(!isInitialized || !hasPermissions) && (
-          <TouchableOpacity
-            style={styles.settingsButton}
-            onPress={() => Platform.OS === 'ios' 
-              ? Linking.openURL('app-settings:')
-              : Linking.openSettings()
-            }
-          >
-            <Text style={styles.settingsButtonText}>Open Settings</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+          </View>
+        ))
+      )}
     </View>
   );
 }
@@ -259,75 +75,33 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-    backgroundColor: '#f5f5f5',
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
   },
   title: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginLeft: 8,
-    color: '#212121',
-  },
-  description: {
-    fontSize: 14,
-    color: '#757575',
+    fontSize: 20,
+    fontWeight: 'bold',
     marginBottom: 16,
-    lineHeight: 20,
   },
-  warning: {
-    fontSize: 14,
-    color: '#f44336',
-    marginBottom: 16,
-    fontStyle: 'italic',
-  },
-  button: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  connectButton: {
-    backgroundColor: '#4CAF50',
-  },
-  disconnectButton: {
-    backgroundColor: '#f44336',
-  },
-  disabledButton: {
-    backgroundColor: '#9E9E9E',
-    opacity: 0.7,
-  },
-  buttonText: {
-    color: '#FFFFFF',
+  message: {
     fontSize: 16,
-    fontWeight: '600',
+    color: '#666',
   },
-  settingsButton: {
-    marginTop: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    alignItems: 'center',
+  errorText: {
+    color: 'red',
+    fontSize: 16,
   },
-  settingsButtonText: {
-    color: '#2196F3',
+  connectionItem: {
+    padding: 16,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  connectionName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  connectionStatus: {
     fontSize: 14,
-    fontWeight: '500',
+    color: '#666',
+    marginTop: 4,
   },
 }); 

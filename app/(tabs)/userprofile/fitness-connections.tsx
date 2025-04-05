@@ -1,548 +1,119 @@
 // app/(tabs)/userprofile/health-services.tsx
 
-import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Platform,
-  Alert,
-  ActivityIndicator,
-  ScrollView,
-  SafeAreaView,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useUser } from '../../../components/UserContext';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { supabase } from '../../../lib/supabase';
-import { initHealthKit, initAndroidHealth } from '../../../lib/fitness';
 import { FitnessDataSource } from '../../../lib/fitness';
-import { useTheme } from '../../../lib/ThemeContext';
-import SharedLayout from '../../../components/SharedLayout';
-import { router } from 'expo-router';
 
-export default function HealthServicesScreen() {
-  const { user } = useUser();
-  const { theme } = useTheme();
-  
-  // Define all state hooks at the top
+export default function FitnessConnections() {
+  const [connections, setConnections] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [connections, setConnections] = useState<{
-    apple_health?: boolean;
-    health_connect?: boolean;
-  }>({});
-  const [syncing, setSyncing] = useState(false);
-  const [permissionError, setPermissionError] = useState<string | null>(null);
-  const [authInitialized, setAuthInitialized] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // First useEffect - Check authentication
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const { data } = await supabase.auth.getUser();
-        if (data?.user?.id) {
-          setCurrentUserId(data.user.id);
-          console.log('User authenticated with ID:', data.user.id);
-        } else {
-          console.warn('No authenticated user found');
-        }
-      } catch (error) {
-        console.error('Auth check error:', error);
-      } finally {
-        setAuthInitialized(true);
-      }
-    };
-    
-    checkAuth();
+    loadConnections();
   }, []);
-
-  // Second useEffect - Load connections when auth is initialized and user ID is available
-  useEffect(() => {
-    if (authInitialized && currentUserId) {
-      loadConnections();
-    }
-  }, [authInitialized, currentUserId]);
 
   const loadConnections = async () => {
     try {
-      if (!currentUserId) return;
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setError('User not authenticated');
+        return;
+      }
 
       const { data, error } = await supabase
         .from('user_fitness_connections')
-        .select('type, connected, last_synced')
-        .eq('user_id', currentUserId);
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('type', 'manual');
 
       if (error) throw error;
-
-      const connectionState = data?.reduce(
-        (acc, curr) => ({
-          ...acc,
-          [curr.type]: curr.connected,
-        }),
-        {}
-      ) || {};
-
-      setConnections(connectionState);
+      setConnections(data || []);
     } catch (err) {
       console.error('Error loading connections:', err);
-      Alert.alert('Error', 'Failed to load fitness connections');
+      setError('Failed to load fitness connections');
     } finally {
       setLoading(false);
     }
   };
-
-  const handleConnect = async (source: FitnessDataSource) => {
-    try {
-      if (!currentUserId) {
-        Alert.alert('Error', 'User ID not available. Please log in again.');
-        return;
-      }
-      
-      setLoading(true);
-      setPermissionError(null);
-      
-      let success = false;
-      if (source === 'apple_health') {
-        success = await initHealthKit();
-      } else if (source === 'health_connect') {
-        success = await initAndroidHealth();
-      }
-      
-      if (!success) {
-        setPermissionError('Failed to initialize health service.');
-        return;
-      }
-      
-      const { error } = await supabase
-        .from('user_fitness_connections')
-        .upsert({
-          user_id: currentUserId,
-          type: source,
-          connected: true,
-          status: 'connected',
-          updated_at: new Date().toISOString(),
-          created_at: new Date().toISOString()
-        });
-      
-      if (error) throw error;
-      
-      setConnections(prev => ({
-        ...prev,
-        [source]: true
-      }));
-      
-      Alert.alert('Success', 'Connected to health service successfully!');
-      
-    } catch (err) {
-      console.error('Error connecting:', err);
-      Alert.alert('Error', 'Failed to connect to health services');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDisconnect = async (source: FitnessDataSource) => {
-    if (!currentUserId) return;
-    
-    Alert.alert(
-      'Disconnect Health Service',
-      'Are you sure you want to disconnect? Your existing health data will be preserved.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Disconnect',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setLoading(true);
-              const { error } = await supabase
-                .from('user_fitness_connections')
-                .update({
-                  connected: false,
-                  status: 'disconnected',
-                  updated_at: new Date().toISOString(),
-                })
-                .eq('user_id', currentUserId)
-                .eq('type', source);
-              if (error) throw error;
-
-              setConnections((prev) => ({
-                ...prev,
-                [source]: false,
-              }));
-            } catch (disconnectErr) {
-              console.error('Error disconnecting:', disconnectErr);
-              Alert.alert('Error', 'Failed to disconnect health service');
-            } finally {
-              setLoading(false);
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const handleSync = async () => {
-    if (!currentUserId) return;
-    
-    try {
-      setSyncing(true);
-      
-      const { fetchAndStoreDailyHealthData } = await import('../../../lib/fitness');
-
-      // Sync last 7 days
-      const promises = [];
-      for (let i = 0; i < 7; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        promises.push(fetchAndStoreDailyHealthData(currentUserId, date));
-      }
-
-      await Promise.all(promises);
-      Alert.alert('Success', 'Health data synced successfully');
-    } catch (err) {
-      console.error('Error syncing:', err);
-      Alert.alert('Error', 'Failed to sync health data');
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  // Conditionally render based on authentication status
-  if (!authInitialized) {
-    return (
-      <SharedLayout>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#000" />
-          <Text style={styles.loadingText}>Initializing...</Text>
-        </View>
-      </SharedLayout>
-    );
-  }
-
-  if (!currentUserId) {
-    return (
-      <SharedLayout>
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={64} color="#FF3B30" />
-          <Text style={styles.errorTitle}>Authentication Required</Text>
-          <Text style={styles.errorMessage}>
-            Please log in to access fitness connections.
-          </Text>
-          <TouchableOpacity 
-            style={styles.primaryButton}
-            onPress={() => router.replace('/login')}
-          >
-            <Text style={styles.primaryButtonText}>Go to Login</Text>
-          </TouchableOpacity>
-        </View>
-      </SharedLayout>
-    );
-  }
 
   if (loading) {
     return (
-      <SharedLayout>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
-      </SharedLayout>
+      <View style={styles.container}>
+        <Text>Loading connections...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
     );
   }
 
   return (
-    <SharedLayout>
-      <SafeAreaView style={styles.container}>
-        <ScrollView
-          style={styles.content}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {permissionError && (
-            <View style={styles.errorCard}>
-              <Ionicons name="alert-circle" size={24} color="#FF3B30" />
-              <Text style={styles.errorCardText}>{permissionError}</Text>
-            </View>
-          )}
-          
-          {Platform.OS === 'ios' && (
-            <View
-              style={[
-                styles.connectionCard,
-                {
-                  backgroundColor: theme.colors.card,
-                  borderColor: theme.colors.border,
-                  ...theme.elevation.small,
-                },
-              ]}
-            >
-              <View style={styles.cardHeader}>
-                <Ionicons name="heart" size={24} color="#FF2D55" />
-                <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
-                  Apple Health
-                </Text>
-              </View>
-              <Text style={[styles.cardDescription, { color: theme.colors.textSecondary }]}>
-                Sync your activities, workouts, and health data from Apple Health
-              </Text>
-
-              {connections.apple_health ? (
-                <>
-                  <View style={styles.connectedBadge}>
-                    <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-                    <Text style={styles.connectedText}>Connected</Text>
-                  </View>
-
-                  <View style={styles.buttonContainer}>
-                    <TouchableOpacity
-                      style={[styles.button, styles.syncButton]}
-                      onPress={handleSync}
-                      disabled={syncing}
-                    >
-                      {syncing ? (
-                        <ActivityIndicator color="#fff" />
-                      ) : (
-                        <>
-                          <Ionicons name="sync" size={20} color="#fff" />
-                          <Text style={styles.buttonText}>Sync Now</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.button, styles.disconnectButton]}
-                      onPress={() => handleDisconnect('apple_health')}
-                    >
-                      <Text style={styles.buttonText}>Disconnect</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              ) : (
-                <TouchableOpacity
-                  style={[styles.button, styles.connectButton]}
-                  onPress={() => handleConnect('apple_health')}
-                >
-                  <Text style={styles.buttonText}>Connect</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
-
-          {Platform.OS === 'android' && (
-            <View
-              style={[
-                styles.connectionCard,
-                {
-                  backgroundColor: theme.colors.card,
-                  borderColor: theme.colors.border,
-                  ...theme.elevation.small,
-                },
-              ]}
-            >
-              <View style={styles.cardHeader}>
-                <Ionicons name="fitness" size={24} color="#4CAF50" />
-                <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
-                  Health Connect
-                </Text>
-              </View>
-              <Text style={[styles.cardDescription, { color: theme.colors.textSecondary }]}>
-                Sync your activities and health data from Android Health Connect
-              </Text>
-
-              {connections.health_connect ? (
-                <>
-                  <View style={styles.connectedBadge}>
-                    <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-                    <Text style={styles.connectedText}>Connected</Text>
-                  </View>
-
-                  <View style={styles.buttonContainer}>
-                    <TouchableOpacity
-                      style={[styles.button, styles.syncButton]}
-                      onPress={handleSync}
-                      disabled={syncing}
-                    >
-                      {syncing ? (
-                        <ActivityIndicator color="#fff" />
-                      ) : (
-                        <>
-                          <Ionicons name="sync" size={20} color="#fff" />
-                          <Text style={styles.buttonText}>Sync Now</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.button, styles.disconnectButton]}
-                      onPress={() => handleDisconnect('health_connect')}
-                    >
-                      <Text style={styles.buttonText}>Disconnect</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              ) : (
-                <TouchableOpacity
-                  style={[styles.button, styles.connectButton]}
-                  onPress={() => handleConnect('health_connect')}
-                >
-                  <Text style={styles.buttonText}>Connect</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
-
-          <View style={[styles.infoCard, { backgroundColor: theme.colors.background }]}>
-            <Ionicons name="information-circle" size={24} color={theme.colors.textSecondary} />
-            <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
-              Your health data is stored securely and is only used to track your progress in challenges.
-              You can disconnect these services at any time.
+    <View style={styles.container}>
+      <Text style={styles.title}>Activity Tracking</Text>
+      <Text style={styles.description}>
+        Track your activities manually by adding them through the app.
+      </Text>
+      {connections.length === 0 ? (
+        <Text style={styles.message}>No fitness data available</Text>
+      ) : (
+        connections.map((connection) => (
+          <View key={connection.id} style={styles.connectionItem}>
+            <Text style={styles.connectionName}>{connection.type}</Text>
+            <Text style={styles.connectionStatus}>
+              Status: {connection.status}
             </Text>
           </View>
-        </ScrollView>
-      </SafeAreaView>
-    </SharedLayout>
+        ))
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  content: {
-    flex: 1,
-  },
-  scrollContent: {
     padding: 16,
+    backgroundColor: '#fff',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#666',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  errorTitle: {
-    fontSize: 22,
+  title: {
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#FF3B30',
-    marginTop: 16,
     marginBottom: 8,
   },
-  errorMessage: {
+  description: {
     fontSize: 16,
     color: '#666',
-    textAlign: 'center',
     marginBottom: 24,
-    lineHeight: 22,
   },
-  errorCard: {
-    flexDirection: 'row',
-    backgroundColor: '#FEE2E2',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  errorCardText: {
-    color: '#DC2626',
-    marginLeft: 12,
-    flex: 1,
-    fontSize: 14,
-  },
-  primaryButton: {
-    backgroundColor: '#000000',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  primaryButtonText: {
-    color: '#fff',
+  message: {
     fontSize: 16,
-    fontWeight: '600',
+    color: '#666',
   },
-  connectionCard: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: Platform.OS === 'ios' ? 0 : 1,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginLeft: 12,
-  },
-  cardDescription: {
-    fontSize: 14,
-    marginBottom: 16,
-  },
-  connectedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E8F5E9',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    alignSelf: 'flex-start',
-    marginBottom: 16,
-  },
-  connectedText: {
-    marginLeft: 6,
-    color: '#4CAF50',
-    fontWeight: '600',
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    flex: 1,
-  },
-  connectButton: {
-    backgroundColor: '#000',
-  },
-  syncButton: {
-    backgroundColor: '#2196F3',
-  },
-  disconnectButton: {
-    backgroundColor: '#FF3B30',
-  },
-  buttonText: {
-    color: '#fff',
+  errorText: {
+    color: 'red',
     fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
   },
-  infoCard: {
-    flexDirection: 'row',
+  connectionItem: {
     padding: 16,
-    borderRadius: 12,
-    marginTop: 8,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    marginBottom: 8,
   },
-  infoText: {
-    flex: 1,
-    marginLeft: 12,
+  connectionName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  connectionStatus: {
     fontSize: 14,
+    color: '#666',
+    marginTop: 4,
   },
 });

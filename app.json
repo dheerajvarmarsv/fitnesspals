@@ -19,22 +19,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.dheshadev.ctp",
+      "buildNumber": "1",
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"],
-        "NSHealthShareUsageDescription": "This app requires access to your health data to track your fitness activities and provide personalized insights.",
-        "NSHealthUpdateUsageDescription": "This app requires access to your health data to track your fitness activities and provide personalized insights.",
-        "GADApplicationIdentifier": "ca-app-pub-6833157133488263~6430444881",
-        "SKAdNetworkItems": [
-          {
-            "SKAdNetworkIdentifier": "cstr6suwn9.skadnetwork"
-          }
-        ]
-      },
-      "entitlements": {
-        "com.apple.developer.healthkit": true,
-        "com.apple.developer.healthkit.access": []
-      },
-      "googleServicesFile": "./GoogleService-Info.plist"
+        "UIBackgroundModes": ["remote-notification"]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -74,14 +62,6 @@
             "targetSdkVersion": 33,
             "buildToolsVersion": "33.0.0"
           }
-        }
-      ],
-      [
-        "react-native-health",
-        {
-          "isClinicalDataEnabled": false,
-          "healthSharePermission": "This app requires access to your health data to track your fitness activities and provide personalized insights.",
-          "healthUpdatePermission": "This app requires access to your health data to track your fitness activities and provide personalized insights."
         }
       ],
       "expo-notifications",
