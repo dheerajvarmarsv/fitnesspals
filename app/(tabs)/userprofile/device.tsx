@@ -6,7 +6,7 @@ import SharedLayout from '../../../components/SharedLayout';
 import { useUser } from '../../../components/UserContext';
 
 type DeviceInfo = {
-  type: 'apple' | 'google' | 'fitbit';
+  type: 'smartwatch' | 'tracker' | 'other';
   name: string;
   icon: string;
   platform: 'ios' | 'android' | 'all';
@@ -14,20 +14,20 @@ type DeviceInfo = {
 
 const DEVICES: DeviceInfo[] = [
   {
-    type: 'apple',
-    name: 'Apple Health',
+    type: 'smartwatch',
+    name: 'Smart Watch',
     icon: 'https://cdn-icons-png.flaticon.com/128/831/831515.png',
-    platform: 'ios',
+    platform: 'all',
   },
   {
-    type: 'google',
-    name: 'Google Fit',
+    type: 'tracker',
+    name: 'Activity Tracker',
     icon: 'https://cdn-icons-png.flaticon.com/128/2702/2702154.png',
-    platform: 'android',
+    platform: 'all',
   },
   {
-    type: 'fitbit',
-    name: 'Fitbit',
+    type: 'other',
+    name: 'Other Device',
     icon: 'https://cdn-icons-png.flaticon.com/128/2702/2702134.png',
     platform: 'all',
   },
@@ -71,7 +71,7 @@ export default function DeviceConnection() {
       <ScrollView style={styles.content}>
         <Text style={styles.title}>Connect Device</Text>
         <Text style={styles.description}>
-          Connect your fitness tracker to automatically sync your activities.
+          Connect your device to enhance your experience with the app.
         </Text>
 
         {error && (
@@ -101,18 +101,13 @@ export default function DeviceConnection() {
               />
               <View style={styles.deviceInfo}>
                 <Text style={styles.deviceName}>{device.name}</Text>
-                <Text style={styles.deviceStatus}>
-                  {connecting ? 'Connecting...' : 'Tap to connect'}
+                <Text style={styles.deviceDescription}>
+                  Connect your {device.name.toLowerCase()} to the app
                 </Text>
               </View>
-              <Ionicons 
-                name="chevron-forward" 
-                size={24} 
-                color="#666"
-              />
+              <Ionicons name="chevron-forward" size={24} color="#999" />
             </TouchableOpacity>
-          ))
-        }
+          ))}
       </ScrollView>
     </SharedLayout>
   );
@@ -121,43 +116,43 @@ export default function DeviceConnection() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
   content: {
     flex: 1,
-    padding: 20,
+    padding: 16,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
     marginBottom: 8,
   },
   description: {
     fontSize: 16,
     color: '#666',
     marginBottom: 24,
-    lineHeight: 24,
   },
   errorContainer: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#ffebee',
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
   },
   errorText: {
-    color: '#DC2626',
-    textAlign: 'center',
+    color: '#d32f2f',
+    fontSize: 14,
   },
   deviceOption: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 8,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#eee',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   deviceOptionDisabled: {
     opacity: 0.5,
@@ -172,11 +167,10 @@ const styles = StyleSheet.create({
   },
   deviceName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: 'bold',
     marginBottom: 4,
   },
-  deviceStatus: {
+  deviceDescription: {
     fontSize: 14,
     color: '#666',
   },

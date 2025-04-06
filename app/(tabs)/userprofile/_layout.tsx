@@ -25,13 +25,13 @@ export default function UserProfileLayout() {
           headerShown: false,
         }}
       />
-      <Stack.Screen
+      {/* <Stack.Screen
         name="fitness-connections"
         options={{
           title: "Health Services",
           headerTitle: "Health Services",
         }}
-      />
+      /> */}
       <Stack.Screen
         name="profilesettings"
         options={{
