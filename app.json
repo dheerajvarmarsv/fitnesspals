@@ -7,6 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "light",
+    "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "contain",
@@ -21,7 +22,8 @@
       "bundleIdentifier": "com.dheshadev.ctp",
       "buildNumber": "1",
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": ["remote-notification"],
+        "GADApplicationIdentifier": "ca-app-pub-6833157133488263~6430444881"
       }
     },
     "android": {
@@ -33,16 +35,11 @@
       "permissions": [
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
-        "android.permission.SCHEDULE_EXACT_ALARM",
-        "android.permission.health.READ_STEPS",
-        "android.permission.health.READ_DISTANCE",
-        "android.permission.health.READ_HEART_RATE",
-        "android.permission.health.READ_EXERCISE",
-        "android.permission.health.READ_SLEEP",
-        "android.permission.health.READ_FLOORS_CLIMBED",
-        "android.permission.health.READ_ACTIVE_CALORIES_BURNED"
+        "android.permission.SCHEDULE_EXACT_ALARM"
       ],
-      "googleServicesFile": "./google-services.json"
+      "config": {
+        "googleMobileAdsAppId": "ca-app-pub-6833157133488263~9820424352"
+      }
     },
     "web": {
       "bundler": "metro",
@@ -53,14 +50,14 @@
       [
         "expo-build-properties",
         {
-          "ios": {
-            "useFrameworks": "static"
-          },
           "android": {
             "minSdkVersion": 26,
             "compileSdkVersion": 33,
             "targetSdkVersion": 33,
             "buildToolsVersion": "33.0.0"
+          },
+          "ios": {
+            "useFrameworks": "static"
           }
         }
       ],
@@ -79,7 +76,12 @@
         }
       ]
     ],
+    "experiments": {
+      "typedRoutes": true
+    },
     "extra": {
+      "supabaseUrl": "https://xqjvxvxvxvxvxvxvxvxv.supabase.co",
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhxanZ4dnZ4dnZ4dnZ4dnZ4dnYiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTczOTI5NjE5MCwiZXhwIjoyMDU0ODcyMTkwfQ.2QZQZQZQZQZQZQZQZQZQZQZQZQZQZQZQZQZQZQZQ",
       "eas": {
         "projectId": "ace5179f-9d07-4a93-86cb-af3735bf01ef"
       },
