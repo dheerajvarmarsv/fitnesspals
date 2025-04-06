@@ -1,36 +1,42 @@
-// app/(tabs)/userprofile/health-services.tsx
+// app/(tabs)/userprofile/fitness-connections.tsx
 
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../../lib/auth';
-import { getFitnessConnectionStatus } from '../../../lib/fitness';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 
 export default function FitnessConnections() {
   const router = useRouter();
-  const { user } = useAuth();
-  const [connections, setConnections] = React.useState<any[]>([]);
-  const [loading, setLoading] = React.useState(true);
+  const { user, loading } = useAuth();
 
-  React.useEffect(() => {
-    if (user) {
-      loadConnections();
-    }
-  }, [user]);
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#000" />
+      </View>
+    );
+  }
 
-  const loadConnections = async () => {
-    try {
-      setLoading(true);
-      const data = await getFitnessConnectionStatus(user!.id);
-      setConnections(data);
-    } catch (error) {
-      console.error('Error loading connections:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (!user) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.content}>
+          <Text style={styles.title}>Sign In Required</Text>
+          <Text style={styles.description}>
+            Please sign in to access activity tracking features.
+          </Text>
+          <Button
+            onPress={() => router.push('/(auth)/sign-in' as any)}
+            style={styles.button}
+          >
+            Sign In
+          </Button>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
@@ -46,7 +52,7 @@ export default function FitnessConnections() {
             You can manually log your activities like steps, distance, and workouts to track your progress.
           </Text>
           <Button
-            onPress={() => router.push('/activity-log')}
+            onPress={() => router.push('/(tabs)/activity-log' as any)}
             style={styles.button}
           >
             Log Activity
@@ -59,7 +65,7 @@ export default function FitnessConnections() {
             View your activity history and track your progress over time.
           </Text>
           <Button
-            onPress={() => router.push('/activity-history')}
+            onPress={() => router.push('/(tabs)/activity-history' as any)}
             style={styles.button}
           >
             View History
@@ -73,6 +79,12 @@ export default function FitnessConnections() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: '#f5f5f5',
   },
   content: {
