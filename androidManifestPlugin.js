@@ -1,19 +1,11 @@
 const { withAndroidManifest } = require('@expo/config-plugins');
 
-module.exports = function androidManifestPlugin(config) {
+module.exports = function withCustomAndroidManifest(config) {
   return withAndroidManifest(config, async (config) => {
-    let androidManifest = config.modResults.manifest;
+    const androidManifest = config.modResults;
 
-    // Add intent filter for Health Connect permissions
-    androidManifest.application[0].activity[0]['intent-filter'].push({
-      action: [
-        {
-          $: {
-            'android:name': 'androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE',
-          },
-        },
-      ],
-    });
+    // Add any custom manifest modifications here
+    // For example, adding permissions or modifying application attributes
 
     return config;
   });
