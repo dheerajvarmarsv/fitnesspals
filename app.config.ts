@@ -24,7 +24,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: "com.dheshadev.ctp",
     infoPlist: {
       UIBackgroundModes: ["remote-notification"],
-      GADApplicationIdentifier: "ca-app-pub-6833157133488263~6430444881"
+      GADApplicationIdentifier: "ca-app-pub-6833157133488263~6430444881",
+      NSHealthShareUsageDescription: "This app requires access to your health data to track and display your fitness activities.",
+      NSHealthUpdateUsageDescription: "This app requires permission to save health data to keep your fitness tracking up to date."
     }
   },
   android: {
@@ -83,6 +85,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         sk_ad_network_items: [
           "cstr6suwn9.skadnetwork"
         ]
+      }
+    ],
+    [
+      "react-native-health",
+      {
+        healthSharePermission: "This app requires access to your health data to track and display your fitness activities.",
+        healthUpdatePermission: "This app requires permission to save health data to keep your fitness tracking up to date."
       }
     ],
     "expo-notifications"
