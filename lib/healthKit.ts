@@ -46,8 +46,19 @@ export interface HealthKitStatus {
 }
 
 // Check if HealthKit is available
-export function isHealthKitAvailable(): boolean {
-  return Platform.OS === 'ios';
+export async function isHealthKitAvailable(): Promise<boolean> {
+  if (Platform.OS !== 'ios') return false;
+  
+  return new Promise((resolve) => {
+    AppleHealthKit.isAvailable((error: Object, available: boolean) => {
+      if (error) {
+        console.error('Error checking HealthKit availability:', error);
+        resolve(false);
+        return;
+      }
+      resolve(available);
+    });
+  });
 }
 
 // Check if HealthKit is enabled in app settings
@@ -71,8 +82,29 @@ export function initHealthKit(): Promise<boolean> {
     return Promise.resolve(false);
   }
 
+  const permissions = {
+    permissions: {
+      read: [
+        AppleHealthKit.Constants.Permissions.StepCount,
+        AppleHealthKit.Constants.Permissions.DistanceWalkingRunning,
+        AppleHealthKit.Constants.Permissions.ActiveEnergyBurned,
+        AppleHealthKit.Constants.Permissions.BasalEnergyBurned,
+        AppleHealthKit.Constants.Permissions.HeartRate,
+        AppleHealthKit.Constants.Permissions.RestingHeartRate,
+        AppleHealthKit.Constants.Permissions.SleepAnalysis,
+        AppleHealthKit.Constants.Permissions.Workout,
+      ],
+      write: [
+        AppleHealthKit.Constants.Permissions.StepCount,
+        AppleHealthKit.Constants.Permissions.DistanceWalkingRunning,
+        AppleHealthKit.Constants.Permissions.ActiveEnergyBurned,
+        AppleHealthKit.Constants.Permissions.Workout,
+      ],
+    },
+  };
+
   return new Promise((resolve) => {
-    AppleHealthKit.initHealthKit(HEALTHKIT_PERMISSIONS, async (error) => {
+    AppleHealthKit.initHealthKit(permissions, async (error: Object) => {
       if (error) {
         console.error('Error initializing HealthKit:', error);
         resolve(false);
@@ -108,11 +140,26 @@ export async function getHealthKitStatus(): Promise<HealthKitStatus> {
   }
 
   return new Promise((resolve) => {
-    AppleHealthKit.getAuthStatus(HEALTHKIT_PERMISSIONS, (error, result) => {
+    const options = {
+      permissions: {
+        read: [
+          AppleHealthKit.Constants.Permissions.StepCount,
+          AppleHealthKit.Constants.Permissions.DistanceWalkingRunning,
+          AppleHealthKit.Constants.Permissions.ActiveEnergyBurned,
+          AppleHealthKit.Constants.Permissions.BasalEnergyBurned,
+          AppleHealthKit.Constants.Permissions.HeartRate,
+          AppleHealthKit.Constants.Permissions.RestingHeartRate,
+          AppleHealthKit.Constants.Permissions.SleepAnalysis,
+        ],
+        write: [],
+      },
+    };
+
+    AppleHealthKit.isAvailable((error: Object, available: boolean) => {
       if (error) {
-        console.error('Error getting auth status:', error);
+        console.error('Error checking HealthKit availability:', error);
         resolve({
-          isAvailable: true,
+          isAvailable: false,
           isAuthorized: false,
           permissions: {
             steps: false,
@@ -125,24 +172,68 @@ export async function getHealthKitStatus(): Promise<HealthKitStatus> {
         return;
       }
 
-      // Check permissions status (2 = authorized)
-      const permissions = result.permissions.read;
-      const hasStepsPermission = permissions[0] === 2;
-      const hasDistancePermission = permissions[1] === 2;
-      const hasCaloriesPermission = permissions[2] === 2 || permissions[3] === 2;
-      const hasHeartRatePermission = permissions[4] === 2 || permissions[5] === 2;
-      const hasSleepPermission = permissions[6] === 2;
+      if (!available) {
+        resolve({
+          isAvailable: false,
+          isAuthorized: false,
+          permissions: {
+            steps: false,
+            calories: false,
+            distance: false,
+            heartRate: false,
+            sleep: false,
+          },
+        });
+        return;
+      }
 
-      resolve({
-        isAvailable: true,
-        isAuthorized: hasStepsPermission || hasCaloriesPermission || hasDistancePermission || hasHeartRatePermission || hasSleepPermission,
-        permissions: {
-          steps: hasStepsPermission,
-          calories: hasCaloriesPermission,
-          distance: hasDistancePermission,
-          heartRate: hasHeartRatePermission,
-          sleep: hasSleepPermission,
-        },
+      AppleHealthKit.initHealthKit(options, (error: Object) => {
+        if (error) {
+          console.error('Error initializing HealthKit:', error);
+          resolve({
+            isAvailable: true,
+            isAuthorized: false,
+            permissions: {
+              steps: false,
+              calories: false,
+              distance: false,
+              heartRate: false,
+              sleep: false,
+            },
+          });
+          return;
+        }
+
+        // Check individual permissions
+        const checkPermission = (type: any) => {
+          return new Promise<boolean>((resolve) => {
+            AppleHealthKit.getAuthStatus({ permissions: { read: [type], write: [] } }, 
+              (err: Object, result: any) => {
+                resolve(!err && result.permissions.read[0] === 2);
+              }
+            );
+          });
+        };
+
+        Promise.all([
+          checkPermission(AppleHealthKit.Constants.Permissions.StepCount),
+          checkPermission(AppleHealthKit.Constants.Permissions.ActiveEnergyBurned),
+          checkPermission(AppleHealthKit.Constants.Permissions.DistanceWalkingRunning),
+          checkPermission(AppleHealthKit.Constants.Permissions.HeartRate),
+          checkPermission(AppleHealthKit.Constants.Permissions.SleepAnalysis),
+        ]).then(([steps, calories, distance, heartRate, sleep]) => {
+          resolve({
+            isAvailable: true,
+            isAuthorized: steps || calories || distance || heartRate || sleep,
+            permissions: {
+              steps,
+              calories,
+              distance,
+              heartRate,
+              sleep,
+            },
+          });
+        });
       });
     });
   });

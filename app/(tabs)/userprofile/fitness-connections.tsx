@@ -62,7 +62,7 @@ export default function FitnessConnections() {
       setHasError(false);
       setErrorMessage('');
       
-      const available = isHealthKitAvailable();
+      const available = await isHealthKitAvailable();
       console.log("HealthKit available:", available);
       
       if (available) {
@@ -328,30 +328,28 @@ export default function FitnessConnections() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f5f5f5',
   },
   scrollContainer: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    padding: 16,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '600',
-    marginHorizontal: 20,
-    marginTop: 20,
-    marginBottom: 10,
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: '#000',
   },
   description: {
     fontSize: 16,
     color: '#666',
-    marginHorizontal: 20,
-    marginBottom: 20,
+    marginBottom: 24,
   },
   card: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    marginHorizontal: 16,
-    marginVertical: 8,
     padding: 16,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -361,6 +359,7 @@ const styles = StyleSheet.create({
   connectionRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 16,
   },
   iconContainer: {
     width: 40,
@@ -373,11 +372,13 @@ const styles = StyleSheet.create({
   },
   connectionInfo: {
     flex: 1,
+    marginRight: 12,
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 4,
+    color: '#000',
   },
   cardDescription: {
     fontSize: 14,
@@ -396,10 +397,36 @@ const styles = StyleSheet.create({
     marginTop: 10,
     color: '#666',
   },
+  errorActions: {
+    flexDirection: 'column',
+    gap: 8,
+  },
+  retryButton: {
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  retryText: {
+    color: '#2196F3',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  settingsButton: {
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  settingsText: {
+    color: '#666',
+    fontSize: 14,
+    fontWeight: '500',
+  },
   permissionsContainer: {
     marginTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: '#f0f0f0',
     paddingTop: 16,
   },
   permissionItem: {
@@ -413,7 +440,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   permissionIcon: {
-    marginRight: 8,
+    marginRight: 12,
   },
   permissionText: {
     fontSize: 16,
@@ -421,15 +448,15 @@ const styles = StyleSheet.create({
   },
   syncButton: {
     backgroundColor: '#2196F3',
-    borderRadius: 8,
-    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 16,
   },
   syncButtonDisabled: {
-    opacity: 0.7,
+    opacity: 0.6,
   },
   syncIcon: {
     marginRight: 8,
@@ -438,30 +465,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
-  },
-  retryButton: {
-    backgroundColor: '#f0f0f0',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  retryText: {
-    color: '#666',
-    fontSize: 14,
-  },
-  errorActions: {
-    flexDirection: 'row',
-  },
-  settingsButton: {
-    backgroundColor: '#2196F3',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  settingsText: {
-    color: '#fff',
-    fontSize: 14,
   },
   comingSoonTag: {
     backgroundColor: '#f0f0f0',

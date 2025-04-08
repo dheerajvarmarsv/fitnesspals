@@ -2,7 +2,7 @@
 
 #import <React/RCTBundleURLProvider.h>
 #import <React/RCTLinkingManager.h>
-#import <RCTAppleHealthKit/RCTAppleHealthKit.h>
+#import "RCTAppleHealthKit.h"
 
 @implementation AppDelegate
 
