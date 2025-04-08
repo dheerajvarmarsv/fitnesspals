@@ -122,12 +122,13 @@ export default function FitnessConnections() {
   };
 
   const handleHealthKitToggle = async (value: boolean) => {
-    if (!isHealthKitAvailable()) {
-      Alert.alert('Not Available', 'HealthKit is not available on this device.');
-      return;
-    }
-
     try {
+      const available = await isHealthKitAvailable();
+      if (!available) {
+        Alert.alert('Not Available', 'HealthKit is not available on this device.');
+        return;
+      }
+
       if (value) {
         setIsLoading(true);
         setHasError(false);

@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import AppleHealthKit, { 
-  HealthInputOptions, 
+import AppleHealthKit, {
+  HealthInputOptions,
   HealthKitPermissions,
   HealthValue,
 } from 'react-native-health';
@@ -13,7 +13,7 @@ const HEALTHKIT_ENABLED_KEY = 'healthkit_enabled';
 const HEALTHKIT_LAST_SYNC_KEY = 'healthkit_last_sync';
 
 // Define all permissions we need
-const HEALTHKIT_PERMISSIONS: HealthKitPermissions = {
+const PERMISSIONS: HealthKitPermissions = {
   permissions: {
     read: [
       AppleHealthKit.Constants.Permissions.StepCount,
@@ -26,7 +26,9 @@ const HEALTHKIT_PERMISSIONS: HealthKitPermissions = {
       AppleHealthKit.Constants.Permissions.Workout,
     ],
     write: [
-      AppleHealthKit.Constants.Permissions.Steps,
+      AppleHealthKit.Constants.Permissions.StepCount,
+      AppleHealthKit.Constants.Permissions.DistanceWalkingRunning,
+      AppleHealthKit.Constants.Permissions.ActiveEnergyBurned,
       AppleHealthKit.Constants.Permissions.Workout,
     ],
   },
@@ -50,9 +52,9 @@ export async function isHealthKitAvailable(): Promise<boolean> {
   if (Platform.OS !== 'ios') return false;
   
   return new Promise((resolve) => {
-    AppleHealthKit.isAvailable((error: Object, available: boolean) => {
-      if (error) {
-        console.error('Error checking HealthKit availability:', error);
+    AppleHealthKit.isAvailable((err: any, available: boolean) => {
+      if (err) {
+        console.error('Error checking HealthKit availability:', err);
         resolve(false);
         return;
       }
@@ -78,35 +80,12 @@ export async function isHealthKitEnabled(): Promise<boolean> {
 
 // Initialize HealthKit with required permissions
 export function initHealthKit(): Promise<boolean> {
-  if (!isHealthKitAvailable()) {
-    return Promise.resolve(false);
-  }
-
-  const permissions = {
-    permissions: {
-      read: [
-        AppleHealthKit.Constants.Permissions.StepCount,
-        AppleHealthKit.Constants.Permissions.DistanceWalkingRunning,
-        AppleHealthKit.Constants.Permissions.ActiveEnergyBurned,
-        AppleHealthKit.Constants.Permissions.BasalEnergyBurned,
-        AppleHealthKit.Constants.Permissions.HeartRate,
-        AppleHealthKit.Constants.Permissions.RestingHeartRate,
-        AppleHealthKit.Constants.Permissions.SleepAnalysis,
-        AppleHealthKit.Constants.Permissions.Workout,
-      ],
-      write: [
-        AppleHealthKit.Constants.Permissions.StepCount,
-        AppleHealthKit.Constants.Permissions.DistanceWalkingRunning,
-        AppleHealthKit.Constants.Permissions.ActiveEnergyBurned,
-        AppleHealthKit.Constants.Permissions.Workout,
-      ],
-    },
-  };
+  if (Platform.OS !== 'ios') return Promise.resolve(false);
 
   return new Promise((resolve) => {
-    AppleHealthKit.initHealthKit(permissions, async (error: Object) => {
-      if (error) {
-        console.error('Error initializing HealthKit:', error);
+    AppleHealthKit.initHealthKit(PERMISSIONS, async (err: any) => {
+      if (err) {
+        console.error('Error initializing HealthKit:', err);
         resolve(false);
         return;
       }
