@@ -1,7 +1,8 @@
 // lib/fitness.ts
 import { supabase } from './supabase';
+import { Platform } from 'react-native';
 
-export type ActivitySource = 'manual';
+export type ActivitySource = 'manual' | 'healthkit';
 
 export interface Activity {
   id: string;
@@ -10,6 +11,7 @@ export interface Activity {
   duration: number;
   distance: number;
   calories: number;
+  steps: number;
   date: string;
   source: ActivitySource;
   created_at: string;
@@ -27,7 +29,7 @@ export async function saveActivity(
       .insert({
         ...activity,
         user_id: userId,
-        source: 'manual' as ActivitySource,
+        source: activity.source || 'manual',
       })
       .select()
       .single();
@@ -97,5 +99,29 @@ export async function deleteActivity(activityId: string): Promise<boolean> {
   } catch (error) {
     console.error('Error deleting activity:', error);
     return false;
+  }
+}
+
+// Function to get fitness connection status
+export async function getFitnessConnectionStatus(userId: string): Promise<any[]> {
+  try {
+    const result = [];
+    
+    // Check if iOS and HealthKit is available
+    if (Platform.OS === 'ios') {
+      const { isHealthKitEnabled } = await import('./healthKit');
+      const healthKitEnabled = await isHealthKitEnabled();
+      result.push({
+        id: 'apple-health',
+        name: 'Apple Health',
+        connected: healthKitEnabled,
+        platform: 'ios',
+      });
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('Error getting fitness connection status:', error);
+    return [];
   }
 }

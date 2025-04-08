@@ -93,13 +93,13 @@ export default function ProfileSettings() {
       title: 'HEALTH & FITNESS',
       items: [
         {
-          id: 'health-connections',
+          id: 'fitness-connections',
           icon: 'fitness',
           iconBgColor: theme.colors.success,
           iconColor: '#fff',
-          title: 'Health Connections',
-          description: Platform.OS === 'ios' ? 'Connect to Apple Health' : 'Connect to Google Fit',
-          path: '/health-connections',
+          title: 'Health Services',
+          description: 'Connect to Apple Health or Google Fit',
+          path: '/fitness-connections',
           hasChevron: true,
         },
       ],

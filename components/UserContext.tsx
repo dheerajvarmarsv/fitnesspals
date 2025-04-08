@@ -3,6 +3,7 @@ import { supabase, clearAuthStorage } from '../lib/supabase';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
+import { isHealthKitEnabled, setupBackgroundObservers } from '../lib/healthKit';
 
 declare global {
   interface Window {
@@ -76,7 +77,28 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<UserSettings>(defaultSettings);
   const [isOnline, setIsOnline] = useState(true);
   const [hasLoadedInitialSettings, setHasLoadedInitialSettings] = useState(false);
+  const [user, setUser] = useState<any>(null);
   
+  // Initialize HealthKit if enabled
+  useEffect(() => {
+    const initializeHealthKit = async () => {
+      try {
+        if (user && Platform.OS === 'ios') {
+          const healthKitEnabled = await isHealthKitEnabled();
+          if (healthKitEnabled) {
+            setupBackgroundObservers(user.id);
+          }
+        }
+      } catch (error) {
+        console.error('Error initializing HealthKit:', error);
+      }
+    };
+
+    if (user) {
+      initializeHealthKit();
+    }
+  }, [user]);
+
   // Set up notification handling
   useEffect(() => {
     if (Platform.OS !== 'web') {
@@ -281,6 +303,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
       setSettings(updatedSettings);
       setHasLoadedInitialSettings(true);
+      setUser(user);
     } catch (e) {
       console.error('Error loading settings:', e);
       setSettings(defaultSettings);
@@ -394,7 +417,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     <UserContext.Provider
       value={{
         settings,
-        user: null,
+        user,
         updateSettings,
         refreshUserProfile,
         clearSettings,

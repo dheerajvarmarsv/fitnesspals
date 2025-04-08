@@ -23,10 +23,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supportsTablet: true,
     bundleIdentifier: "com.dheshadev.ctp",
     infoPlist: {
-      UIBackgroundModes: ["remote-notification"],
+      UIBackgroundModes: ["remote-notification", "processing"],
       GADApplicationIdentifier: "ca-app-pub-6833157133488263~6430444881",
-      NSHealthShareUsageDescription: "This app requires access to your health data to track and display your fitness activities.",
-      NSHealthUpdateUsageDescription: "This app requires permission to save health data to keep your fitness tracking up to date."
+      NSHealthShareUsageDescription: "Allow CTP to read your health data to track your activities",
+      NSHealthUpdateUsageDescription: "Allow CTP to write your health data to track your activities"
     }
   },
   android: {
@@ -90,8 +90,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "react-native-health",
       {
-        healthSharePermission: "This app requires access to your health data to track and display your fitness activities.",
-        healthUpdatePermission: "This app requires permission to save health data to keep your fitness tracking up to date."
+        healthSharePermission: "Allow CTP to read your health data to track your activities",
+        healthUpdatePermission: "Allow CTP to write your health data to track your activities"
       }
     ],
     "expo-notifications"

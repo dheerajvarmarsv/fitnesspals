@@ -146,3 +146,41 @@ Database Schema - Complete Tables and Columns
 * last_sync_status: TEXT
 * last_sync_error: TEXT
 * last_sync_count: INTEGER
+
+# HealthKit Integration
+
+The app now supports Apple HealthKit integration for iOS devices, enabling automatic tracking of:
+
+- Steps
+- Active Energy Burned (calories)
+
+## Setup
+
+HealthKit integration requires:
+
+1. iOS device (not available on Android or simulator)
+2. User permissions for reading health data
+3. Background delivery capability for real-time updates
+
+## Usage
+
+Users can enable/disable HealthKit integration in Profile Settings → Health Services.
+
+When enabled, the app will:
+- Automatically sync steps and calories from HealthKit
+- Update the activity summary with the latest data
+- Store synced data in the activities table with source="healthkit"
+
+## Technical Implementation
+
+The integration uses react-native-health package and includes:
+- Background observers for real-time data updates
+- Proper handling of permissions
+- Automatic conversion of units based on user preferences
+
+## Database Impact
+
+HealthKit activities are stored in the existing activities table with:
+- source: "healthkit"
+- type: "Steps" or "Workout"
+- Appropriate values for steps, calories, duration and distance
