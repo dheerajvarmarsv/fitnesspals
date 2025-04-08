@@ -1,23 +1,9 @@
-import { Platform, NativeEventEmitter, NativeModules } from 'react-native';
+import { Platform, NativeEventEmitter, NativeModules, InteractionManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
 
 // Only import AppleHealthKit on iOS to prevent errors on Android
 let AppleHealthKit: any = null;
-
-// Try to load the module (this will be properly initialized when used)
-if (Platform.OS === 'ios') {
-  try {
-    AppleHealthKit = require('react-native-health').default;
-    
-    // Check if the module is available
-    if (!NativeModules.AppleHealthKit) {
-      console.warn('NativeModules.AppleHealthKit is not available');
-    }
-  } catch (error) {
-    console.error('Failed to import AppleHealthKit:', error);
-  }
-}
 
 // Constants for permissions - hardcoded as fallback
 const HEALTHKIT_PERMISSIONS = {
@@ -28,6 +14,35 @@ const HEALTHKIT_PERMISSIONS = {
 // Constants
 const HEALTHKIT_ENABLED_KEY = 'healthkit_enabled';
 const HEALTHKIT_LAST_SYNC_KEY = 'healthkit_last_sync';
+
+// Lazy-load the AppleHealthKit module to ensure it's fully initialized
+function getHealthKit() {
+  if (AppleHealthKit === null && Platform.OS === 'ios') {
+    try {
+      // Dynamic import with direct access to module
+      const RNHealth = require('react-native-health');
+      AppleHealthKit = RNHealth.default;
+
+      // Force initialize the module with empty options if needed
+      if (AppleHealthKit && !AppleHealthKit.initHealthKit) {
+        console.log('Health module needs initialization');
+        
+        // This is a workaround for simulator issues where the module isn't fully initialized
+        InteractionManager.runAfterInteractions(() => {
+          // Give the JS engine a moment to fully initialize the module
+          setTimeout(() => {
+            console.log('Re-initializing AppleHealthKit module');
+            AppleHealthKit = require('react-native-health').default;
+          }, 100);
+        });
+      }
+    } catch (error) {
+      console.error('Failed to import AppleHealthKit:', error);
+      AppleHealthKit = null;
+    }
+  }
+  return AppleHealthKit;
+}
 
 // Type definition
 export interface HealthKitStatus {
@@ -42,19 +57,24 @@ export interface HealthKitStatus {
 // Check if HealthKit is available on this device
 export function isHealthKitAvailable(): boolean {
   // Make sure both the JS module and native module are available
-  return Platform.OS === 'ios' && 
-         AppleHealthKit !== null && 
-         NativeModules.AppleHealthKit !== undefined;
+  const healthKit = getHealthKit();
+  const isAvailable = Platform.OS === 'ios' && 
+                      healthKit !== null && 
+                      NativeModules.AppleHealthKit !== undefined;
+  
+  console.log('HealthKit available:', isAvailable);
+  return isAvailable;
 }
 
 // Safely get permissions constants
 function getPermissions() {
+  const healthKit = getHealthKit();
   try {
-    if (!AppleHealthKit?.Constants?.Permissions) {
+    if (!healthKit?.Constants?.Permissions) {
       console.warn('Using fallback permissions as AppleHealthKit.Constants.Permissions is not available');
       return HEALTHKIT_PERMISSIONS;
     }
-    return AppleHealthKit.Constants.Permissions;
+    return healthKit.Constants.Permissions;
   } catch (e) {
     console.log('Error accessing permissions:', e);
     return HEALTHKIT_PERMISSIONS;
@@ -98,7 +118,18 @@ export async function getHealthKitStatus(): Promise<HealthKitStatus> {
 
   return new Promise((resolve) => {
     try {
-      AppleHealthKit.isAvailable((error: Object, available: boolean) => {
+      const healthKit = getHealthKit();
+      if (!healthKit || typeof healthKit.isAvailable !== 'function') {
+        console.error('HealthKit.isAvailable is not a function');
+        resolve({
+          isAvailable: false,
+          isAuthorized: false,
+          permissions: { steps: false, calories: false },
+        });
+        return;
+      }
+
+      healthKit.isAvailable((error: Object, available: boolean) => {
         if (error) {
           console.error('Error checking if HealthKit is available:', error);
           resolve({
@@ -133,7 +164,17 @@ export async function getHealthKitStatus(): Promise<HealthKitStatus> {
             },
           };
 
-          AppleHealthKit.getAuthStatus(permissions, (err: any, result: any) => {
+          if (!healthKit.getAuthStatus) {
+            console.error('HealthKit.getAuthStatus is not a function');
+            resolve({
+              isAvailable: true,
+              isAuthorized: false,
+              permissions: { steps: false, calories: false },
+            });
+            return;
+          }
+
+          healthKit.getAuthStatus(permissions, (err: any, result: any) => {
             if (err) {
               console.error('Error getting auth status:', err);
               resolve({
@@ -185,10 +226,29 @@ export function initHealthKit(): Promise<boolean> {
     return Promise.resolve(false);
   }
 
-  // Additional verification to avoid the undefined error
-  if (!AppleHealthKit || typeof AppleHealthKit.initHealthKit !== 'function') {
+  const healthKit = getHealthKit();
+  
+  // Re-require the module as a last resort if initHealthKit is missing
+  if (!healthKit || typeof healthKit.initHealthKit !== 'function') {
     console.error('AppleHealthKit.initHealthKit is not a function');
-    return Promise.resolve(false);
+    
+    // Last attempt to get a fresh instance
+    try {
+      console.log('Attempting to reload the health module...');
+      // Force re-import
+      delete require.cache[require.resolve('react-native-health')];
+      const freshModule = require('react-native-health').default;
+      AppleHealthKit = freshModule;
+      
+      // If still not working, give up
+      if (!AppleHealthKit || typeof AppleHealthKit.initHealthKit !== 'function') {
+        console.error('Still not able to access initHealthKit after reload');
+        return Promise.resolve(false);
+      }
+    } catch (e) {
+      console.error('Error reloading health module:', e);
+      return Promise.resolve(false);
+    }
   }
 
   try {
@@ -208,7 +268,7 @@ export function initHealthKit(): Promise<boolean> {
     console.log('Initializing HealthKit with permissions:', permissions);
 
     return new Promise((resolve) => {
-      AppleHealthKit.initHealthKit(permissions, (error: string) => {
+      healthKit.initHealthKit(permissions, (error: string) => {
         if (error) {
           console.log('Error initializing HealthKit:', error);
           resolve(false);
@@ -258,13 +318,14 @@ export function getStepCount(date: string): Promise<number> {
     return Promise.resolve(0);
   }
 
+  const healthKit = getHealthKit();
   const options = {
     date: date,
     includeManuallyAdded: true,
   };
 
   return new Promise((resolve) => {
-    AppleHealthKit.getStepCount(options, (error: string, results: any) => {
+    healthKit.getStepCount(options, (error: string, results: any) => {
       if (error) {
         console.log('Error getting step count:', error);
         resolve(0);
@@ -282,6 +343,7 @@ export function getActiveEnergyBurned(startDate: string, endDate: string): Promi
     return Promise.resolve(0);
   }
 
+  const healthKit = getHealthKit();
   const options = {
     startDate,
     endDate,
@@ -289,7 +351,7 @@ export function getActiveEnergyBurned(startDate: string, endDate: string): Promi
   };
 
   return new Promise((resolve) => {
-    AppleHealthKit.getActiveEnergyBurned(options, (error: string, results: any) => {
+    healthKit.getActiveEnergyBurned(options, (error: string, results: any) => {
       if (error) {
         console.log('Error getting active energy burned:', error);
         resolve(0);
