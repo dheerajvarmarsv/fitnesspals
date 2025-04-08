@@ -8,15 +8,8 @@ if (Platform.OS === 'ios') {
   try {
     // Dynamic import to avoid Android issues
     AppleHealthKit = require('react-native-health').default;
-    
-    // Verify that the module is properly initialized
-    if (!AppleHealthKit?.Constants?.Permissions) {
-      console.error('AppleHealthKit imported but Constants.Permissions is missing');
-      AppleHealthKit = null;
-    }
   } catch (error) {
     console.error('Failed to import AppleHealthKit:', error);
-    AppleHealthKit = null;
   }
 }
 
@@ -43,6 +36,18 @@ export interface HealthKitStatus {
 // Check if HealthKit is available on this device
 export function isHealthKitAvailable(): boolean {
   return Platform.OS === 'ios' && AppleHealthKit !== null;
+}
+
+// Safely get permissions constants
+function getPermissions() {
+  try {
+    // In some cases, the Constants might not be immediately available
+    // Use the hardcoded fallback if necessary
+    return AppleHealthKit?.Constants?.Permissions || HEALTHKIT_PERMISSIONS;
+  } catch (e) {
+    console.log('Error accessing permissions:', e);
+    return HEALTHKIT_PERMISSIONS;
+  }
 }
 
 // Get current status of HealthKit permissions
@@ -78,71 +83,83 @@ export async function getHealthKitStatus(): Promise<HealthKitStatus> {
   }
 
   return new Promise((resolve) => {
-    AppleHealthKit.isAvailable((error: Object, available: boolean) => {
-      if (!available) {
-        resolve({
-          isAvailable: false,
-          isAuthorized: false,
-          permissions: {
-            steps: false,
-            calories: false,
-          },
-        });
-        return;
-      }
-
-      try {
-        // Define permission options
-        const permissionsList = AppleHealthKit.Constants?.Permissions || HEALTHKIT_PERMISSIONS;
-        
-        const permissions = {
-          permissions: {
-            read: [
-              permissionsList.StepCount,
-              permissionsList.ActiveEnergyBurned,
-            ],
-            write: [],
-          },
-        };
-
-        AppleHealthKit.getAuthStatus(permissions, (err: any, result: any) => {
-          if (err) {
-            resolve({
-              isAvailable: true,
-              isAuthorized: false,
-              permissions: {
-                steps: false,
-                calories: false,
-              },
-            });
-            return;
-          }
-
-          // Check permissions status (SharingAuthorized = 2)
-          const stepsAuthorized = result.permissions.read[0] === 2;
-          const caloriesAuthorized = result.permissions.read[1] === 2;
-
+    try {
+      AppleHealthKit.isAvailable((error: Object, available: boolean) => {
+        if (!available) {
           resolve({
-            isAvailable: true,
-            isAuthorized: stepsAuthorized || caloriesAuthorized,
+            isAvailable: false,
+            isAuthorized: false,
             permissions: {
-              steps: stepsAuthorized,
-              calories: caloriesAuthorized,
+              steps: false,
+              calories: false,
             },
           });
-        });
-      } catch (error) {
-        console.error('Error in getAuthStatus:', error);
-        resolve({
-          isAvailable: true,
-          isAuthorized: false,
-          permissions: {
-            steps: false,
-            calories: false,
-          },
-        });
-      }
-    });
+          return;
+        }
+
+        try {
+          // Get permissions in a safe way
+          const permissionsList = getPermissions();
+          
+          const permissions = {
+            permissions: {
+              read: [
+                permissionsList.StepCount,
+                permissionsList.ActiveEnergyBurned,
+              ],
+              write: [],
+            },
+          };
+
+          AppleHealthKit.getAuthStatus(permissions, (err: any, result: any) => {
+            if (err) {
+              resolve({
+                isAvailable: true,
+                isAuthorized: false,
+                permissions: {
+                  steps: false,
+                  calories: false,
+                },
+              });
+              return;
+            }
+
+            // Check permissions status (SharingAuthorized = 2)
+            const stepsAuthorized = result.permissions.read[0] === 2;
+            const caloriesAuthorized = result.permissions.read[1] === 2;
+
+            resolve({
+              isAvailable: true,
+              isAuthorized: stepsAuthorized || caloriesAuthorized,
+              permissions: {
+                steps: stepsAuthorized,
+                calories: caloriesAuthorized,
+              },
+            });
+          });
+        } catch (error) {
+          console.error('Error in getAuthStatus:', error);
+          resolve({
+            isAvailable: true,
+            isAuthorized: false,
+            permissions: {
+              steps: false,
+              calories: false,
+            },
+          });
+        }
+      });
+    } catch (error) {
+      console.error('Error checking HealthKit availability:', error);
+      resolve({
+        isAvailable: false,
+        isAuthorized: false,
+        permissions: {
+          steps: false,
+          calories: false,
+        },
+      });
+    }
   });
 }
 
@@ -154,8 +171,8 @@ export function initHealthKit(): Promise<boolean> {
   }
 
   try {
-    // Define permission options
-    const permissionsList = AppleHealthKit.Constants?.Permissions || HEALTHKIT_PERMISSIONS;
+    // Get permissions in a safe way
+    const permissionsList = getPermissions();
     
     const permissions = {
       permissions: {
