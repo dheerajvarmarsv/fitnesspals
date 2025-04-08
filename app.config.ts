@@ -22,11 +22,24 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     supportsTablet: true,
     bundleIdentifier: "com.dheshadev.ctp",
+    buildNumber: "2",
     infoPlist: {
-      UIBackgroundModes: ["remote-notification", "processing"],
-      GADApplicationIdentifier: "ca-app-pub-6833157133488263~6430444881",
+      UIBackgroundModes: [
+        "remote-notification",
+        "processing",
+        "fetch"
+      ],
+      BGTaskSchedulerPermittedIdentifiers: [
+        "com.dheshadev.ctp.healthkitprocessing",
+        "com.dheshadev.ctp.healthkitfetch"
+      ],
       NSHealthShareUsageDescription: "Allow CTP to read your health data to track your activities",
-      NSHealthUpdateUsageDescription: "Allow CTP to write your health data to track your activities"
+      NSHealthUpdateUsageDescription: "Allow CTP to write your health data to track your activities",
+      GADApplicationIdentifier: "ca-app-pub-6833157133488263~6430444881",
+      UIRequiredDeviceCapabilities: [
+        "arm64",
+        "healthkit"
+      ]
     }
   },
   android: {
@@ -48,17 +61,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundler: "metro",
     favicon: "./assets/images/icon.png"
   },
-  extra: {
-    supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
-    supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
-    eas: {
-      projectId: "ace5179f-9d07-4a93-86cb-af3735bf01ef"
-    },
-    "react-native-google-mobile-ads": {
-      androidAppId: "ca-app-pub-6833157133488263~9820424352",
-      iosAppId: "ca-app-pub-6833157133488263~6430444881" 
-    }
-  },
   plugins: [
     "expo-router",
     [
@@ -71,10 +73,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           buildToolsVersion: "33.0.0"
         },
         ios: {
-          useFrameworks: "static"
+          useFrameworks: "static",
+          deploymentTarget: "15.1" // Changed to 15.1 as per the error
         }
       }
     ],
+    "./androidManifestPlugin.js",
     [
       "react-native-google-mobile-ads",
       {
@@ -95,5 +99,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       }
     ],
     "expo-notifications"
-  ]
+  ],
+  extra: {
+    supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
+    supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    eas: {
+      projectId: "ace5179f-9d07-4a93-86cb-af3735bf01ef"
+    }
+  }
 });
