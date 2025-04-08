@@ -74,7 +74,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         },
         ios: {
           useFrameworks: "static",
-          deploymentTarget: "15.1" // Changed to 15.1 as per the error
+          deploymentTarget: "12.0"
         }
       }
     ],
@@ -105,6 +105,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
     eas: {
       projectId: "ace5179f-9d07-4a93-86cb-af3735bf01ef"
+    },
+    "react-native-google-mobile-ads": {
+      androidAppId: "ca-app-pub-6833157133488263~9820424352",
+      iosAppId: "ca-app-pub-6833157133488263~6430444881" 
     }
   }
 });

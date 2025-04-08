@@ -2,6 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
   <dict>
+    <key>BGTaskSchedulerPermittedIdentifiers</key>
+    <array>
+      <string>com.dheshadev.ctp.healthkitprocessing</string>
+      <string>com.dheshadev.ctp.healthkitfetch</string>
+    </array>
     <key>CADisableMinimumFrameDurationOnPhone</key>
     <true/>
     <key>CFBundleDevelopmentRegion</key>
@@ -19,7 +24,7 @@
     <key>CFBundlePackageType</key>
     <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.5</string>
+    <string>1.6</string>
     <key>CFBundleSignature</key>
     <string>????</string>
     <key>CFBundleURLTypes</key>
@@ -39,7 +44,7 @@
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>2</string>
     <key>GADApplicationIdentifier</key>
     <string>ca-app-pub-6833157133488263~6430444881</string>
     <key>GADDelayAppMeasurementInit</key>
@@ -67,12 +72,14 @@
     <array>
       <string>remote-notification</string>
       <string>processing</string>
+      <string>fetch</string>
     </array>
     <key>UILaunchStoryboardName</key>
     <string>SplashScreen</string>
     <key>UIRequiredDeviceCapabilities</key>
     <array>
       <string>arm64</string>
+      <string>healthkit</string>
     </array>
     <key>UIRequiresFullScreen</key>
     <false/>
