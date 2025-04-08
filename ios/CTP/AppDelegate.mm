@@ -2,7 +2,6 @@
 
 #import <React/RCTBundleURLProvider.h>
 #import <React/RCTLinkingManager.h>
-#import <HealthKit/HealthKit.h>
 
 @implementation AppDelegate
 
@@ -15,22 +14,6 @@
   self.initialProps = @{};
 
   return [super application:application didFinishLaunchingWithOptions:launchOptions];
-}
-
-// Add background delivery handler for HealthKit updates
-- (void)application:(UIApplication *)application handleEventsForBackgroundURLSession:(NSString *)identifier completionHandler:(void (^)(void))completionHandler {
-  if ([identifier hasPrefix:@"healthkit"]) {
-    // Handle health kit background updates
-    completionHandler();
-  } else {
-    [super application:application handleEventsForBackgroundURLSession:identifier completionHandler:completionHandler];
-  }
-}
-
-// Handle background fetch for health data
-- (void)application:(UIApplication *)application performFetchWithCompletionHandler:(void (^)(UIBackgroundFetchResult))completionHandler {
-  // Delegate to super implementation
-  [super application:application performFetchWithCompletionHandler:completionHandler];
 }
 
 - (NSURL *)sourceURLForBridge:(RCTBridge *)bridge
