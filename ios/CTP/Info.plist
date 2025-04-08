@@ -67,12 +67,14 @@
     <array>
       <string>remote-notification</string>
       <string>processing</string>
+      <string>fetch</string>
     </array>
     <key>UILaunchStoryboardName</key>
     <string>SplashScreen</string>
     <key>UIRequiredDeviceCapabilities</key>
     <array>
       <string>arm64</string>
+      <string>healthkit</string>
     </array>
     <key>UIRequiresFullScreen</key>
     <false/>
