@@ -2,7 +2,6 @@
 
 #import <React/RCTBundleURLProvider.h>
 #import <React/RCTLinkingManager.h>
-#import <RCTAppleHealthKit.h>
 
 @implementation AppDelegate
 
@@ -13,10 +12,6 @@
   // You can add your custom initial props in the dictionary below.
   // They will be passed down to the ViewController used by React Native.
   self.initialProps = @{};
-  
-  // Initialize background observers for HealthKit
-  RCTBridge *bridge = [[RCTBridge alloc] initWithDelegate:self launchOptions:launchOptions];
-  [[RCTAppleHealthKit new] initializeBackgroundObservers:bridge];
 
   return [super application:application didFinishLaunchingWithOptions:launchOptions];
 }

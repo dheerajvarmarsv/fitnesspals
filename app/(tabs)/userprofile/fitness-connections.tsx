@@ -7,7 +7,7 @@ import { useAuth } from '../../../lib/auth';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
-import { getHealthKitStatus, initHealthKit, disableHealthKit, syncHealthData, setupBackgroundObservers } from '../../../lib/healthKit';
+import { getHealthKitStatus, initHealthKit, disableHealthKit, syncHealthData, setupBackgroundObservers, isHealthKitAvailable } from '../../../lib/healthKit';
 
 export default function FitnessConnections() {
   const router = useRouter();
@@ -20,31 +20,77 @@ export default function FitnessConnections() {
   const [healthKitEnabled, setHealthKitEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  // Check availability immediately, but keep in state to avoid re-renders
+  const [healthKitIsAvailable, setHealthKitIsAvailable] = useState(false);
+  const [hasError, setHasError] = useState(false);
 
+  // Initialize and check availability
   useEffect(() => {
-    checkHealthKitStatus();
+    const checkAvailability = async () => {
+      try {
+        const available = isHealthKitAvailable();
+        console.log("HealthKit available:", available);
+        setHealthKitIsAvailable(available);
+        if (available) {
+          await checkHealthKitStatus();
+        } else {
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error("Error checking HealthKit availability:", error);
+        setHealthKitIsAvailable(false);
+        setIsLoading(false);
+        setHasError(true);
+      }
+    };
+    
+    checkAvailability();
   }, []);
 
   const checkHealthKitStatus = async () => {
     setIsLoading(true);
-    if (Platform.OS === 'ios') {
+    setHasError(false);
+    
+    try {
       const status = await getHealthKitStatus();
+      console.log("HealthKit status:", status);
       setHealthKitStatus(status);
       setHealthKitEnabled(status.isAuthorized);
+      setIsLoading(false);
+    } catch (error) {
+      console.error('Error checking HealthKit status:', error);
+      setIsLoading(false);
+      setHasError(true);
     }
-    setIsLoading(false);
   };
 
   const handleHealthKitToggle = async (value: boolean) => {
+    if (!healthKitIsAvailable) {
+      Alert.alert('Not Available', 'HealthKit is not available on this device.');
+      return;
+    }
+
     try {
       if (value) {
+        setIsLoading(true);
+        setHasError(false);
+        
+        console.log("Initializing HealthKit...");
         const success = await initHealthKit();
+        console.log("HealthKit initialization result:", success);
+        
+        setIsLoading(false);
+        
         if (success) {
           if (user) {
+            console.log("Setting up background observers...");
             setupBackgroundObservers(user.id);
+            
+            console.log("Syncing health data...");
             const today = new Date().toISOString().split('T')[0];
-            syncHealthData(user.id, today);
+            await syncHealthData(user.id, today);
           }
+          
           await checkHealthKitStatus();
           Alert.alert(
             "Success",
@@ -65,7 +111,9 @@ export default function FitnessConnections() {
         );
       }
     } catch (error) {
+      setIsLoading(false);
       console.error("Error toggling HealthKit:", error);
+      setHasError(true);
       Alert.alert(
         "Error",
         "There was a problem setting up the health data connection. Please try again."
@@ -74,7 +122,7 @@ export default function FitnessConnections() {
   };
 
   const handleManualSync = async () => {
-    if (!user) return;
+    if (!user || !healthKitIsAvailable) return;
     
     setIsSyncing(true);
     try {
@@ -87,6 +135,10 @@ export default function FitnessConnections() {
     } finally {
       setIsSyncing(false);
     }
+  };
+
+  const handleRetry = () => {
+    checkHealthKitStatus();
   };
 
   if (loading || isLoading) {
@@ -133,18 +185,33 @@ export default function FitnessConnections() {
               <View style={styles.connectionInfo}>
                 <Text style={styles.cardTitle}>Apple Health</Text>
                 <Text style={styles.cardDescription}>
-                  Sync steps, workouts, and calories with Apple Health
+                  {hasError 
+                    ? "There was a problem connecting to Apple Health" 
+                    : healthKitIsAvailable 
+                      ? "Sync steps, workouts, and calories with Apple Health" 
+                      : "Apple Health is not available on this device"}
                 </Text>
               </View>
-              <Switch
-                value={healthKitEnabled}
-                onValueChange={handleHealthKitToggle}
-                trackColor={{ false: "#d1d1d1", true: "#81b0ff" }}
-                thumbColor={healthKitEnabled ? "#2196F3" : "#f4f3f4"}
-              />
+              
+              {hasError ? (
+                <TouchableOpacity 
+                  style={styles.retryButton} 
+                  onPress={handleRetry}
+                >
+                  <Text style={styles.retryText}>Retry</Text>
+                </TouchableOpacity>
+              ) : (
+                <Switch
+                  value={healthKitEnabled}
+                  onValueChange={handleHealthKitToggle}
+                  trackColor={{ false: "#d1d1d1", true: "#81b0ff" }}
+                  thumbColor={healthKitEnabled ? "#2196F3" : "#f4f3f4"}
+                  disabled={!healthKitIsAvailable}
+                />
+              )}
             </View>
 
-            {healthKitEnabled && (
+            {healthKitEnabled && healthKitIsAvailable && !hasError && (
               <View style={styles.permissionsContainer}>
                 <View style={styles.permissionItem}>
                   <Text style={styles.permissionText}>Steps</Text>
@@ -308,5 +375,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
     color: '#5D4037',
+  },
+  retryButton: {
+    backgroundColor: '#2196F3',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  retryText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 12,
   },
 });

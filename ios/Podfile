@@ -16,6 +16,9 @@ prepare_react_native_project!
 target 'CTP' do
   use_expo_modules!
 
+  # Add RNAppleHealthKit pod
+  pod 'RNAppleHealthKit', :path => '../node_modules/react-native-health/RNAppleHealthKit.podspec'
+
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
   else

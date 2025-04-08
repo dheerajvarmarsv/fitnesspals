@@ -1,11 +1,30 @@
-import { Platform } from 'react-native';
-import AppleHealthKit, {
-  HealthValue,
-  HealthKitPermissions,
-  HealthInputOptions,
-} from 'react-native-health';
-import { supabase } from './supabase';
+import { Platform, NativeEventEmitter, NativeModules } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from './supabase';
+
+// Only import AppleHealthKit on iOS to prevent errors on Android
+let AppleHealthKit: any = null;
+if (Platform.OS === 'ios') {
+  try {
+    // Dynamic import to avoid Android issues
+    AppleHealthKit = require('react-native-health').default;
+    
+    // Verify that the module is properly initialized
+    if (!AppleHealthKit?.Constants?.Permissions) {
+      console.error('AppleHealthKit imported but Constants.Permissions is missing');
+      AppleHealthKit = null;
+    }
+  } catch (error) {
+    console.error('Failed to import AppleHealthKit:', error);
+    AppleHealthKit = null;
+  }
+}
+
+// Constants for permissions - hardcoded as fallback
+const HEALTHKIT_PERMISSIONS = {
+  StepCount: 'StepCount',
+  ActiveEnergyBurned: 'ActiveEnergyBurned'
+};
 
 // Constants
 const HEALTHKIT_ENABLED_KEY = 'healthkit_enabled';
@@ -21,9 +40,14 @@ export interface HealthKitStatus {
   };
 }
 
+// Check if HealthKit is available on this device
+export function isHealthKitAvailable(): boolean {
+  return Platform.OS === 'ios' && AppleHealthKit !== null;
+}
+
 // Get current status of HealthKit permissions
 export async function getHealthKitStatus(): Promise<HealthKitStatus> {
-  if (Platform.OS !== 'ios') {
+  if (!isHealthKitAvailable()) {
     return {
       isAvailable: false,
       isAuthorized: false,
@@ -67,75 +91,103 @@ export async function getHealthKitStatus(): Promise<HealthKitStatus> {
         return;
       }
 
-      const permissions = {
-        permissions: {
-          read: [
-            AppleHealthKit.Constants.Permissions.StepCount,
-            AppleHealthKit.Constants.Permissions.ActiveEnergyBurned,
-          ],
-          write: [],
-        },
-      } as HealthKitPermissions;
+      try {
+        // Define permission options
+        const permissionsList = AppleHealthKit.Constants?.Permissions || HEALTHKIT_PERMISSIONS;
+        
+        const permissions = {
+          permissions: {
+            read: [
+              permissionsList.StepCount,
+              permissionsList.ActiveEnergyBurned,
+            ],
+            write: [],
+          },
+        };
 
-      AppleHealthKit.getAuthStatus(permissions, (err, result) => {
-        if (err) {
+        AppleHealthKit.getAuthStatus(permissions, (err: any, result: any) => {
+          if (err) {
+            resolve({
+              isAvailable: true,
+              isAuthorized: false,
+              permissions: {
+                steps: false,
+                calories: false,
+              },
+            });
+            return;
+          }
+
+          // Check permissions status (SharingAuthorized = 2)
+          const stepsAuthorized = result.permissions.read[0] === 2;
+          const caloriesAuthorized = result.permissions.read[1] === 2;
+
           resolve({
             isAvailable: true,
-            isAuthorized: false,
+            isAuthorized: stepsAuthorized || caloriesAuthorized,
             permissions: {
-              steps: false,
-              calories: false,
+              steps: stepsAuthorized,
+              calories: caloriesAuthorized,
             },
           });
-          return;
-        }
-
-        // Check permissions status (SharingAuthorized = 2)
-        const stepsAuthorized = result.permissions.read[0] === 2;
-        const caloriesAuthorized = result.permissions.read[1] === 2;
-
+        });
+      } catch (error) {
+        console.error('Error in getAuthStatus:', error);
         resolve({
           isAvailable: true,
-          isAuthorized: stepsAuthorized || caloriesAuthorized,
+          isAuthorized: false,
           permissions: {
-            steps: stepsAuthorized,
-            calories: caloriesAuthorized,
+            steps: false,
+            calories: false,
           },
         });
-      });
+      }
     });
   });
 }
 
 // Initialize HealthKit with the required permissions
 export function initHealthKit(): Promise<boolean> {
-  if (Platform.OS !== 'ios') {
+  if (!isHealthKitAvailable()) {
+    console.log('HealthKit not available');
     return Promise.resolve(false);
   }
 
-  const permissions = {
-    permissions: {
-      read: [
-        AppleHealthKit.Constants.Permissions.StepCount,
-        AppleHealthKit.Constants.Permissions.ActiveEnergyBurned,
-      ],
-      write: [],
-    },
-  } as HealthKitPermissions;
+  try {
+    // Define permission options
+    const permissionsList = AppleHealthKit.Constants?.Permissions || HEALTHKIT_PERMISSIONS;
+    
+    const permissions = {
+      permissions: {
+        read: [
+          permissionsList.StepCount,
+          permissionsList.ActiveEnergyBurned,
+        ],
+        write: [],
+      },
+    };
 
-  return new Promise((resolve) => {
-    AppleHealthKit.initHealthKit(permissions, (error: string) => {
-      if (error) {
-        console.log('Error initializing HealthKit:', error);
-        resolve(false);
-        return;
-      }
-      
-      // Save that HealthKit is enabled
-      AsyncStorage.setItem(HEALTHKIT_ENABLED_KEY, 'true');
-      resolve(true);
+    return new Promise((resolve) => {
+      AppleHealthKit.initHealthKit(permissions, (error: string) => {
+        if (error) {
+          console.log('Error initializing HealthKit:', error);
+          resolve(false);
+          return;
+        }
+        
+        // Save that HealthKit is enabled
+        AsyncStorage.setItem(HEALTHKIT_ENABLED_KEY, 'true')
+          .then(() => resolve(true))
+          .catch((error) => {
+            console.error('Error saving HealthKit status:', error);
+            resolve(false);
+          });
+      });
     });
-  });
+  } catch (error) {
+    console.error('Exception in initHealthKit:', error);
+    return Promise.resolve(false);
+  }
 }
 
 // Disable HealthKit integration
@@ -145,7 +197,7 @@ export async function disableHealthKit(): Promise<void> {
 
 // Check if HealthKit is enabled in user preferences
 export async function isHealthKitEnabled(): Promise<boolean> {
-  if (Platform.OS !== 'ios') {
+  if (!isHealthKitAvailable()) {
     return false;
   }
   
@@ -160,7 +212,7 @@ export async function isHealthKitEnabled(): Promise<boolean> {
 
 // Get the user's step count for a specific day
 export function getStepCount(date: string): Promise<number> {
-  if (Platform.OS !== 'ios') {
+  if (!isHealthKitAvailable()) {
     return Promise.resolve(0);
   }
 
@@ -170,7 +222,7 @@ export function getStepCount(date: string): Promise<number> {
   };
 
   return new Promise((resolve) => {
-    AppleHealthKit.getStepCount(options, (error: string, results: HealthValue) => {
+    AppleHealthKit.getStepCount(options, (error: string, results: any) => {
       if (error) {
         console.log('Error getting step count:', error);
         resolve(0);
@@ -184,7 +236,7 @@ export function getStepCount(date: string): Promise<number> {
 
 // Get active energy burned for a time period
 export function getActiveEnergyBurned(startDate: string, endDate: string): Promise<number> {
-  if (Platform.OS !== 'ios') {
+  if (!isHealthKitAvailable()) {
     return Promise.resolve(0);
   }
 
@@ -195,7 +247,7 @@ export function getActiveEnergyBurned(startDate: string, endDate: string): Promi
   };
 
   return new Promise((resolve) => {
-    AppleHealthKit.getActiveEnergyBurned(options, (error: string, results: HealthValue[]) => {
+    AppleHealthKit.getActiveEnergyBurned(options, (error: string, results: any) => {
       if (error) {
         console.log('Error getting active energy burned:', error);
         resolve(0);
@@ -203,7 +255,7 @@ export function getActiveEnergyBurned(startDate: string, endDate: string): Promi
       }
       
       // Sum up all calories burned in this period
-      const totalCalories = results.reduce((sum, item) => sum + item.value, 0);
+      const totalCalories = results.reduce((sum: number, item: any) => sum + item.value, 0);
       resolve(totalCalories);
     });
   });
@@ -211,30 +263,35 @@ export function getActiveEnergyBurned(startDate: string, endDate: string): Promi
 
 // Set up background observers for step count and active energy burned
 export function setupBackgroundObservers(userId: string): void {
-  if (Platform.OS !== 'ios') {
+  if (!isHealthKitAvailable()) {
     return;
   }
 
   // This is handled in AppDelegate.m but we also need to listen for events
-  const { NativeEventEmitter, NativeModules } = require('react-native');
-  const healthKitEmitter = new NativeEventEmitter(NativeModules.AppleHealthKit);
-  
-  // Listen for step count updates
-  healthKitEmitter.addListener('healthKit:StepCount:new', async () => {
-    const today = new Date().toISOString().split('T')[0];
-    await syncHealthData(userId, today);
-  });
-  
-  // Listen for active energy updates
-  healthKitEmitter.addListener('healthKit:ActiveEnergyBurned:new', async () => {
-    const today = new Date().toISOString().split('T')[0];
-    await syncHealthData(userId, today);
-  });
+  try {
+    const healthKitEmitter = new NativeEventEmitter(NativeModules.AppleHealthKit);
+    
+    // Listen for step count updates
+    healthKitEmitter.addListener('healthKit:StepCount:new', async () => {
+      console.log('Received HealthKit step count update');
+      const today = new Date().toISOString().split('T')[0];
+      await syncHealthData(userId, today);
+    });
+    
+    // Listen for active energy updates
+    healthKitEmitter.addListener('healthKit:ActiveEnergyBurned:new', async () => {
+      console.log('Received HealthKit active energy update');
+      const today = new Date().toISOString().split('T')[0];
+      await syncHealthData(userId, today);
+    });
+  } catch (error) {
+    console.error('Error setting up HealthKit observers:', error);
+  }
 }
 
 // Sync health data for a specific day
 export async function syncHealthData(userId: string, date: string): Promise<void> {
-  if (!userId || Platform.OS !== 'ios') {
+  if (!userId || !isHealthKitAvailable()) {
     return;
   }
   
@@ -270,7 +327,7 @@ export async function syncHealthData(userId: string, date: string): Promise<void
     
     // Check if we need to update steps
     if (steps > 0) {
-      const stepsActivity = existingActivities?.find(a => a.type === 'Steps');
+      const stepsActivity = existingActivities?.find((a: any) => a.type === 'Steps');
       
       if (stepsActivity) {
         // Update existing activity
@@ -300,7 +357,7 @@ export async function syncHealthData(userId: string, date: string): Promise<void
     
     // Check if we need to update calories
     if (calories > 0) {
-      const caloriesActivity = existingActivities?.find(a => a.type === 'Workout' && a.source === 'healthkit');
+      const caloriesActivity = existingActivities?.find((a: any) => a.type === 'Workout' && a.source === 'healthkit');
       
       if (caloriesActivity) {
         // Update existing activity

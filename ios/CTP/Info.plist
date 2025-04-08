@@ -55,6 +55,10 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
+    <key>NSHealthShareUsageDescription</key>
+    <string>Allow CTP to read your health data to track your activities</string>
+    <key>NSHealthUpdateUsageDescription</key>
+    <string>Allow CTP to write your health data to track your activities</string>
     <key>NSUserActivityTypes</key>
     <array>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
@@ -62,6 +66,7 @@
     <key>UIBackgroundModes</key>
     <array>
       <string>remote-notification</string>
+      <string>processing</string>
     </array>
     <key>UILaunchStoryboardName</key>
     <string>SplashScreen</string>

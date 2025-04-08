@@ -3,7 +3,7 @@ import { supabase, clearAuthStorage } from '../lib/supabase';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
-import { isHealthKitEnabled, setupBackgroundObservers } from '../lib/healthKit';
+import { isHealthKitAvailable, isHealthKitEnabled, setupBackgroundObservers } from '../lib/healthKit';
 
 declare global {
   interface Window {
@@ -83,11 +83,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const initializeHealthKit = async () => {
       try {
-        if (user && Platform.OS === 'ios') {
-          const healthKitEnabled = await isHealthKitEnabled();
-          if (healthKitEnabled) {
-            setupBackgroundObservers(user.id);
-          }
+        if (user && isHealthKitAvailable() && await isHealthKitEnabled()) {
+          console.log('Setting up HealthKit background observers');
+          setupBackgroundObservers(user.id);
         }
       } catch (error) {
         console.error('Error initializing HealthKit:', error);
