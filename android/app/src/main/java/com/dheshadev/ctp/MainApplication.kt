@@ -1,4 +1,4 @@
-package com.ctp
+package com.dheshadev.ctp
 
 import android.app.Application
 import android.content.res.Configuration

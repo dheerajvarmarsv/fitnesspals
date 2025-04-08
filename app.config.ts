@@ -68,6 +68,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     "expo-router",
     "react-native-google-mobile-ads",
+    [
+      "react-native-health",
+      {
+        isClinicalDataEnabled: false,
+        healthSharePermission: "Allow CTPs to read your health data",
+        healthUpdatePermission: "Allow CTPs to update your health data",
+      },
+    ],
     "./plugins/ios-healthkit-config",
     [
       "expo-build-properties",
@@ -96,14 +104,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           "cstr6suwn9.skadnetwork"
         ]
       }
-    ],
-    [
-      "react-native-health",
-      {
-        isClinicalDataEnabled: false,
-        healthSharePermission: "Allow CTPs to read your health data",
-        healthUpdatePermission: "Allow CTPs to update your health data",
-      },
     ],
     "expo-notifications"
   ],

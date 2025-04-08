@@ -7,7 +7,7 @@ module.exports = function withHealthKitConfig(config) {
     }
 
     // Add import statement if it doesn't exist
-    const importStatement = `#import <RCTAppleHealthKit/RCTAppleHealthKit.h>`;
+    const importStatement = `#import "RCTAppleHealthKit.h"`;
     if (!config.modResults.contents.includes(importStatement)) {
       config.modResults.contents = config.modResults.contents.replace(
         '#import <React/RCTLinkingManager.h>',
