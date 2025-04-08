@@ -74,7 +74,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         },
         ios: {
           useFrameworks: "static",
-          deploymentTarget: "12.0"
+          deploymentTarget: "15.1"
         }
       }
     ],
