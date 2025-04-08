@@ -68,7 +68,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     "expo-router",
     "react-native-google-mobile-ads",
-   "./plugins/ios-healthkit-config/plugin",
+    "./plugins/ios-healthkit-config",
     [
       "expo-build-properties",
       {

@@ -1,10 +1,14 @@
 const fs = require('fs');
 const path = require('path');
+const { withDangerousMod } = require('@expo/config-plugins');
 
-module.exports = {
-  name: 'ios-healthkit-config',
-  ios: {
-    modifyAppDelegate(appDelegateContent) {
+module.exports = function withHealthKitConfig(config) {
+  return withDangerousMod(config, [
+    'ios',
+    async (config) => {
+      const appDelegatePath = path.join(config.modRequest.platformProjectRoot, 'AppDelegate.mm');
+      let appDelegateContent = fs.readFileSync(appDelegatePath, 'utf-8');
+
       // Look for the didFinishLaunchingWithOptions method
       if (!appDelegateContent.includes('initializeBackgroundObservers')) {
         // Add the RCTAppleHealthKit import if it doesn't exist
@@ -22,7 +26,8 @@ module.exports = {
         );
       }
       
-      return appDelegateContent;
+      fs.writeFileSync(appDelegatePath, appDelegateContent);
+      return config;
     },
-  },
+  ]);
 };
