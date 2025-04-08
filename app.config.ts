@@ -33,8 +33,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         "com.dheshadev.ctp.healthkitprocessing",
         "com.dheshadev.ctp.healthkitfetch"
       ],
-      NSHealthShareUsageDescription: "Allow CTP to read your health data to track your activities",
-      NSHealthUpdateUsageDescription: "Allow CTP to write your health data to track your activities",
+      NSHealthShareUsageDescription: "Allow CTP to read your health data to track your activities including steps, calories, and workouts.",
+      NSHealthUpdateUsageDescription: "Allow CTP to write your health data to track your activities and sync with Apple Health.",
       GADApplicationIdentifier: "ca-app-pub-6833157133488263~6430444881",
       UIRequiredDeviceCapabilities: [
         "arm64",
@@ -94,8 +94,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "react-native-health",
       {
-        healthSharePermission: "Allow CTP to read your health data to track your activities",
-        healthUpdatePermission: "Allow CTP to write your health data to track your activities"
+        healthSharePermission: "Allow CTP to read your health data to track your activities including steps, calories, and workouts.",
+        healthUpdatePermission: "Allow CTP to write your health data to track your activities and sync with Apple Health."
       }
     ],
     "expo-notifications"
@@ -108,7 +108,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     "react-native-google-mobile-ads": {
       androidAppId: "ca-app-pub-6833157133488263~9820424352",
-      iosAppId: "ca-app-pub-6833157133488263~6430444881" 
+      iosAppId: "ca-app-pub-6833157133488263~6430444881"
     }
   }
 });

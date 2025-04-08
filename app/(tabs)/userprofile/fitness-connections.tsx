@@ -1,17 +1,30 @@
-// app/(tabs)/userprofile/fitness-connections.tsx
-
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Switch, Platform, TouchableOpacity, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useAuth } from '../../../lib/auth';
-import { Card } from '../../../components/ui/Card';
-import { Button } from '../../../components/ui/Button';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  Switch,
+  Platform,
+  Alert
+} from 'react-native';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
-import { getHealthKitStatus, initHealthKit, disableHealthKit, syncHealthData, setupBackgroundObservers, isHealthKitAvailable } from '../../../lib/healthKit';
+import { router } from 'expo-router';
+import SharedLayout from '../../../components/SharedLayout';
+import { useUser } from '../../../components/UserContext';
+import {
+  isHealthKitAvailable,
+  getHealthKitStatus,
+  initHealthKit,
+  disableHealthKit,
+  syncHealthData,
+  setupBackgroundObservers
+} from '../../../lib/healthKit';
 
 export default function FitnessConnections() {
-  const router = useRouter();
-  const { user, loading } = useAuth();
+  const { settings, user } = useUser();
   const [healthKitStatus, setHealthKitStatus] = useState({ 
     isAvailable: false,
     isAuthorized: false,
@@ -20,52 +33,65 @@ export default function FitnessConnections() {
   const [healthKitEnabled, setHealthKitEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
-  // Check availability immediately, but keep in state to avoid re-renders
-  const [healthKitIsAvailable, setHealthKitIsAvailable] = useState(false);
   const [hasError, setHasError] = useState(false);
 
-  // Initialize and check availability
+  // Check availability on component mount
   useEffect(() => {
-    const checkAvailability = async () => {
-      try {
-        const available = isHealthKitAvailable();
-        console.log("HealthKit available:", available);
-        setHealthKitIsAvailable(available);
-        if (available) {
-          await checkHealthKitStatus();
-        } else {
-          setIsLoading(false);
-        }
-      } catch (error) {
-        console.error("Error checking HealthKit availability:", error);
-        setHealthKitIsAvailable(false);
-        setIsLoading(false);
-        setHasError(true);
-      }
-    };
-    
     checkAvailability();
   }, []);
 
-  const checkHealthKitStatus = async () => {
-    setIsLoading(true);
-    setHasError(false);
-    
+  const checkAvailability = async () => {
     try {
-      const status = await getHealthKitStatus();
-      console.log("HealthKit status:", status);
-      setHealthKitStatus(status);
-      setHealthKitEnabled(status.isAuthorized);
-      setIsLoading(false);
+      setIsLoading(true);
+      setHasError(false);
+      
+      const available = isHealthKitAvailable();
+      console.log("HealthKit available:", available);
+      
+      if (available) {
+        await checkHealthKitStatus();
+      } else {
+        setIsLoading(false);
+      }
     } catch (error) {
-      console.error('Error checking HealthKit status:', error);
+      console.error("Error checking HealthKit availability:", error);
       setIsLoading(false);
       setHasError(true);
     }
   };
 
+  const checkHealthKitStatus = async () => {
+    try {
+      const status = await getHealthKitStatus();
+      console.log("HealthKit status:", status);
+      setHealthKitStatus(status);
+      setHealthKitEnabled(status.isAuthorized);
+    } catch (error) {
+      console.error('Error checking HealthKit status:', error);
+      setHasError(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleManualSync = async () => {
+    if (!user?.id) return;
+    
+    setIsSyncing(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      await syncHealthData(user.id, today);
+      Alert.alert("Success", "Your health data has been synced successfully.");
+    } catch (error) {
+      console.error("Error syncing data:", error);
+      Alert.alert("Error", "There was a problem syncing your health data. Please try again.");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const handleHealthKitToggle = async (value: boolean) => {
-    if (!healthKitIsAvailable) {
+    if (!isHealthKitAvailable()) {
       Alert.alert('Not Available', 'HealthKit is not available on this device.');
       return;
     }
@@ -79,10 +105,8 @@ export default function FitnessConnections() {
         const success = await initHealthKit();
         console.log("HealthKit initialization result:", success);
         
-        setIsLoading(false);
-        
         if (success) {
-          if (user) {
+          if (user?.id) {
             console.log("Setting up background observers...");
             setupBackgroundObservers(user.id);
             
@@ -99,7 +123,10 @@ export default function FitnessConnections() {
         } else {
           Alert.alert(
             "Permission Denied",
-            "You need to allow access to health data in order to sync activities."
+            "You need to allow access to health data in order to sync activities. Please go to your iPhone's Settings > Privacy > Health to grant access.",
+            [
+              { text: "OK" }
+            ]
           );
         }
       } else {
@@ -111,29 +138,14 @@ export default function FitnessConnections() {
         );
       }
     } catch (error) {
-      setIsLoading(false);
       console.error("Error toggling HealthKit:", error);
       setHasError(true);
       Alert.alert(
         "Error",
         "There was a problem setting up the health data connection. Please try again."
       );
-    }
-  };
-
-  const handleManualSync = async () => {
-    if (!user || !healthKitIsAvailable) return;
-    
-    setIsSyncing(true);
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      await syncHealthData(user.id, today);
-      Alert.alert("Success", "Your health data has been synced successfully.");
-    } catch (error) {
-      console.error("Error syncing data:", error);
-      Alert.alert("Error", "There was a problem syncing your health data. Please try again.");
     } finally {
-      setIsSyncing(false);
+      setIsLoading(false);
     }
   };
 
@@ -141,143 +153,122 @@ export default function FitnessConnections() {
     checkHealthKitStatus();
   };
 
-  if (loading || isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#000" />
-      </View>
-    );
-  }
-
-  if (!user) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.content}>
-          <Text style={styles.title}>Sign In Required</Text>
-          <Text style={styles.description}>
-            Please sign in to access health tracking features.
-          </Text>
-          <Button
-            onPress={() => router.push('/(auth)/sign-in' as any)}
-            style={styles.button}
-          >
-            Sign In
-          </Button>
-        </View>
-      </View>
-    );
-  }
-
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.content}>
+    <SharedLayout style={styles.container}>
+      <ScrollView style={styles.scrollContainer}>
         <Text style={styles.title}>Health Tracking</Text>
         <Text style={styles.description}>
           Connect to your device's health services to automatically track your activities.
         </Text>
 
-        {Platform.OS === 'ios' && (
-          <Card style={styles.card}>
-            <View style={styles.connectionRow}>
-              <View style={styles.iconContainer}>
-                <FontAwesome5 name="apple" size={24} color="#000" />
-              </View>
-              <View style={styles.connectionInfo}>
-                <Text style={styles.cardTitle}>Apple Health</Text>
-                <Text style={styles.cardDescription}>
-                  {hasError 
-                    ? "There was a problem connecting to Apple Health" 
-                    : healthKitIsAvailable 
-                      ? "Sync steps, workouts, and calories with Apple Health" 
-                      : "Apple Health is not available on this device"}
-                </Text>
-              </View>
-              
-              {hasError ? (
-                <TouchableOpacity 
-                  style={styles.retryButton} 
-                  onPress={handleRetry}
-                >
-                  <Text style={styles.retryText}>Retry</Text>
-                </TouchableOpacity>
-              ) : (
-                <Switch
-                  value={healthKitEnabled}
-                  onValueChange={handleHealthKitToggle}
-                  trackColor={{ false: "#d1d1d1", true: "#81b0ff" }}
-                  thumbColor={healthKitEnabled ? "#2196F3" : "#f4f3f4"}
-                  disabled={!healthKitIsAvailable}
-                />
-              )}
-            </View>
-
-            {healthKitEnabled && healthKitIsAvailable && !hasError && (
-              <View style={styles.permissionsContainer}>
-                <View style={styles.permissionItem}>
-                  <Text style={styles.permissionText}>Steps</Text>
-                  <Ionicons 
-                    name={healthKitStatus.permissions.steps ? "checkmark-circle" : "close-circle"} 
-                    size={22} 
-                    color={healthKitStatus.permissions.steps ? "#4CAF50" : "#F44336"} 
-                  />
-                </View>
-                <View style={styles.permissionItem}>
-                  <Text style={styles.permissionText}>Calories</Text>
-                  <Ionicons 
-                    name={healthKitStatus.permissions.calories ? "checkmark-circle" : "close-circle"} 
-                    size={22} 
-                    color={healthKitStatus.permissions.calories ? "#4CAF50" : "#F44336"} 
-                  />
-                </View>
-                <TouchableOpacity 
-                  style={styles.syncButton} 
-                  onPress={handleManualSync}
-                  disabled={isSyncing}
-                >
-                  {isSyncing ? (
-                    <ActivityIndicator size="small" color="#fff" />
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#00000" />
+            <Text style={styles.loadingText}>Checking health services...</Text>
+          </View>
+        ) : (
+          <>
+            {Platform.OS === 'ios' && (
+              <View style={styles.card}>
+                <View style={styles.connectionRow}>
+                  <View style={styles.iconContainer}>
+                    <FontAwesome5 name="apple" size={24} color="#000" />
+                  </View>
+                  <View style={styles.connectionInfo}>
+                    <Text style={styles.cardTitle}>Apple Health</Text>
+                    <Text style={styles.cardDescription}>
+                      {hasError 
+                        ? "There was a problem connecting to Apple Health" 
+                        : "Sync steps, workouts, and calories with Apple Health"}
+                    </Text>
+                  </View>
+                  
+                  {hasError ? (
+                    <TouchableOpacity 
+                      style={styles.retryButton} 
+                      onPress={handleRetry}
+                    >
+                      <Text style={styles.retryText}>Retry</Text>
+                    </TouchableOpacity>
                   ) : (
-                    <Text style={styles.syncButtonText}>Sync Now</Text>
+                    <Switch
+                      value={healthKitEnabled}
+                      onValueChange={handleHealthKitToggle}
+                      trackColor={{ false: "#d1d1d1", true: "#81b0ff" }}
+                      thumbColor={healthKitEnabled ? "#2196F3" : "#f4f3f4"}
+                    />
                   )}
-                </TouchableOpacity>
+                </View>
+
+                {healthKitEnabled && !hasError && (
+                  <View style={styles.permissionsContainer}>
+                    <View style={styles.permissionItem}>
+                      <Text style={styles.permissionText}>Steps</Text>
+                      <Ionicons 
+                        name={healthKitStatus.permissions.steps ? "checkmark-circle" : "close-circle"} 
+                        size={22} 
+                        color={healthKitStatus.permissions.steps ? "#4CAF50" : "#F44336"} 
+                      />
+                    </View>
+                    <View style={styles.permissionItem}>
+                      <Text style={styles.permissionText}>Calories</Text>
+                      <Ionicons 
+                        name={healthKitStatus.permissions.calories ? "checkmark-circle" : "close-circle"} 
+                        size={22} 
+                        color={healthKitStatus.permissions.calories ? "#4CAF50" : "#F44336"} 
+                      />
+                    </View>
+                    <TouchableOpacity 
+                      style={styles.syncButton} 
+                      onPress={handleManualSync}
+                      disabled={isSyncing}
+                    >
+                      {isSyncing ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.syncButtonText}>Sync Now</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             )}
-          </Card>
-        )}
 
-        {Platform.OS === 'android' && (
-          <Card style={styles.card}>
-            <View style={styles.connectionRow}>
-              <View style={styles.iconContainer}>
-                <FontAwesome5 name="google" size={24} color="#4285F4" />
+            {Platform.OS === 'android' && (
+              <View style={styles.card}>
+                <View style={styles.connectionRow}>
+                  <View style={styles.iconContainer}>
+                    <FontAwesome5 name="google" size={24} color="#4285F4" />
+                  </View>
+                  <View style={styles.connectionInfo}>
+                    <Text style={styles.cardTitle}>Google Fit</Text>
+                    <Text style={styles.cardDescription}>
+                      Google Fit integration is coming soon
+                    </Text>
+                  </View>
+                  <View style={styles.comingSoonTag}>
+                    <Text style={styles.comingSoonText}>Soon</Text>
+                  </View>
+                </View>
               </View>
-              <View style={styles.connectionInfo}>
-                <Text style={styles.cardTitle}>Google Fit</Text>
-                <Text style={styles.cardDescription}>
-                  Google Fit integration is coming soon
-                </Text>
-              </View>
-              <View style={styles.comingSoonTag}>
-                <Text style={styles.comingSoonText}>Soon</Text>
-              </View>
+            )}
+
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Manual Activity Tracking</Text>
+              <Text style={styles.cardDescription}>
+                You can always log your activities manually even if you don't connect to health services.
+              </Text>
+              <TouchableOpacity
+                style={styles.button}
+                onPress={() => router.push('/(tabs)/')}
+              >
+                <Text style={styles.buttonText}>Go to Activity Tracking</Text>
+              </TouchableOpacity>
             </View>
-          </Card>
+          </>
         )}
-
-        <Card style={styles.card}>
-          <Text style={styles.cardTitle}>Manual Activity Tracking</Text>
-          <Text style={styles.cardDescription}>
-            You can always log your activities manually even if you don't connect to health services.
-          </Text>
-          <Button
-            onPress={() => router.push('/(tabs)/' as any)}
-            style={styles.button}
-          >
-            Go to Activity Tracking
-          </Button>
-        </Card>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </SharedLayout>
   );
 }
 
@@ -286,28 +277,44 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  scrollContainer: {
+    flex: 1,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    padding: 40,
   },
-  content: {
-    padding: 16,
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 8,
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   description: {
     fontSize: 16,
     color: '#666',
     marginBottom: 24,
+    paddingHorizontal: 16,
   },
   card: {
-    marginBottom: 16,
+    backgroundColor: '#fff',
+    borderRadius: 12,
     padding: 16,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   cardTitle: {
     fontSize: 18,
@@ -317,7 +324,7 @@ const styles = StyleSheet.create({
   cardDescription: {
     fontSize: 14,
     color: '#666',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   connectionRow: {
     flexDirection: 'row',
@@ -336,14 +343,11 @@ const styles = StyleSheet.create({
   connectionInfo: {
     flex: 1,
   },
-  button: {
-    marginTop: 8,
-  },
   permissionsContainer: {
     marginTop: 16,
     borderTopWidth: 1,
     borderTopColor: '#eee',
-    paddingTop: 16,
+    paddingTop: 12,
   },
   permissionItem: {
     flexDirection: 'row',
@@ -353,17 +357,30 @@ const styles = StyleSheet.create({
   },
   permissionText: {
     fontSize: 16,
+    color: '#333',
   },
   syncButton: {
     backgroundColor: '#2196F3',
     borderRadius: 8,
-    padding: 10,
+    padding: 12,
     alignItems: 'center',
     marginTop: 8,
   },
   syncButtonText: {
     color: 'white',
     fontWeight: '600',
+    fontSize: 14,
+  },
+  button: {
+    backgroundColor: '#2196F3',
+    borderRadius: 8,
+    padding: 14,
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
   },
   comingSoonTag: {
     backgroundColor: '#FFD54F',
