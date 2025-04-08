@@ -4,10 +4,16 @@ import { supabase } from './supabase';
 
 // Only import AppleHealthKit on iOS to prevent errors on Android
 let AppleHealthKit: any = null;
+
+// Try to load the module (this will be properly initialized when used)
 if (Platform.OS === 'ios') {
   try {
-    // Dynamic import to avoid Android issues
     AppleHealthKit = require('react-native-health').default;
+    
+    // Check if the module is available
+    if (!NativeModules.AppleHealthKit) {
+      console.warn('NativeModules.AppleHealthKit is not available');
+    }
   } catch (error) {
     console.error('Failed to import AppleHealthKit:', error);
   }
@@ -35,15 +41,20 @@ export interface HealthKitStatus {
 
 // Check if HealthKit is available on this device
 export function isHealthKitAvailable(): boolean {
-  return Platform.OS === 'ios' && AppleHealthKit !== null;
+  // Make sure both the JS module and native module are available
+  return Platform.OS === 'ios' && 
+         AppleHealthKit !== null && 
+         NativeModules.AppleHealthKit !== undefined;
 }
 
 // Safely get permissions constants
 function getPermissions() {
   try {
-    // In some cases, the Constants might not be immediately available
-    // Use the hardcoded fallback if necessary
-    return AppleHealthKit?.Constants?.Permissions || HEALTHKIT_PERMISSIONS;
+    if (!AppleHealthKit?.Constants?.Permissions) {
+      console.warn('Using fallback permissions as AppleHealthKit.Constants.Permissions is not available');
+      return HEALTHKIT_PERMISSIONS;
+    }
+    return AppleHealthKit.Constants.Permissions;
   } catch (e) {
     console.log('Error accessing permissions:', e);
     return HEALTHKIT_PERMISSIONS;
@@ -52,7 +63,9 @@ function getPermissions() {
 
 // Get current status of HealthKit permissions
 export async function getHealthKitStatus(): Promise<HealthKitStatus> {
+  // Early return if not available
   if (!isHealthKitAvailable()) {
+    console.log('HealthKit is not available on this device');
     return {
       isAvailable: false,
       isAuthorized: false,
@@ -72,6 +85,7 @@ export async function getHealthKitStatus(): Promise<HealthKitStatus> {
   }
 
   if (!isEnabled) {
+    console.log('HealthKit is available but not enabled in app settings');
     return {
       isAvailable: true,
       isAuthorized: false,
@@ -85,14 +99,22 @@ export async function getHealthKitStatus(): Promise<HealthKitStatus> {
   return new Promise((resolve) => {
     try {
       AppleHealthKit.isAvailable((error: Object, available: boolean) => {
-        if (!available) {
+        if (error) {
+          console.error('Error checking if HealthKit is available:', error);
           resolve({
             isAvailable: false,
             isAuthorized: false,
-            permissions: {
-              steps: false,
-              calories: false,
-            },
+            permissions: { steps: false, calories: false },
+          });
+          return;
+        }
+        
+        if (!available) {
+          console.log('HealthKit is not available according to isAvailable method');
+          resolve({
+            isAvailable: false,
+            isAuthorized: false,
+            permissions: { steps: false, calories: false },
           });
           return;
         }
@@ -113,13 +135,11 @@ export async function getHealthKitStatus(): Promise<HealthKitStatus> {
 
           AppleHealthKit.getAuthStatus(permissions, (err: any, result: any) => {
             if (err) {
+              console.error('Error getting auth status:', err);
               resolve({
                 isAvailable: true,
                 isAuthorized: false,
-                permissions: {
-                  steps: false,
-                  calories: false,
-                },
+                permissions: { steps: false, calories: false },
               });
               return;
             }
@@ -142,10 +162,7 @@ export async function getHealthKitStatus(): Promise<HealthKitStatus> {
           resolve({
             isAvailable: true,
             isAuthorized: false,
-            permissions: {
-              steps: false,
-              calories: false,
-            },
+            permissions: { steps: false, calories: false },
           });
         }
       });
@@ -154,10 +171,7 @@ export async function getHealthKitStatus(): Promise<HealthKitStatus> {
       resolve({
         isAvailable: false,
         isAuthorized: false,
-        permissions: {
-          steps: false,
-          calories: false,
-        },
+        permissions: { steps: false, calories: false },
       });
     }
   });
@@ -165,8 +179,15 @@ export async function getHealthKitStatus(): Promise<HealthKitStatus> {
 
 // Initialize HealthKit with the required permissions
 export function initHealthKit(): Promise<boolean> {
+  // Double-check that HealthKit is available before trying to initialize
   if (!isHealthKitAvailable()) {
-    console.log('HealthKit not available');
+    console.log('HealthKit is not available, cannot initialize');
+    return Promise.resolve(false);
+  }
+
+  // Additional verification to avoid the undefined error
+  if (!AppleHealthKit || typeof AppleHealthKit.initHealthKit !== 'function') {
+    console.error('AppleHealthKit.initHealthKit is not a function');
     return Promise.resolve(false);
   }
 
@@ -184,6 +205,8 @@ export function initHealthKit(): Promise<boolean> {
       },
     };
 
+    console.log('Initializing HealthKit with permissions:', permissions);
+
     return new Promise((resolve) => {
       AppleHealthKit.initHealthKit(permissions, (error: string) => {
         if (error) {
@@ -191,6 +214,8 @@ export function initHealthKit(): Promise<boolean> {
           resolve(false);
           return;
         }
+        
+        console.log('HealthKit initialized successfully');
         
         // Save that HealthKit is enabled
         AsyncStorage.setItem(HEALTHKIT_ENABLED_KEY, 'true')
