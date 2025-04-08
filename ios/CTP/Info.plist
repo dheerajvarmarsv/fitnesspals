@@ -61,9 +61,9 @@
       <true/>
     </dict>
     <key>NSHealthShareUsageDescription</key>
-    <string>Allow CTP to read your health data to track your activities</string>
+    <string>Allow CTP to read your health data to track your activities including steps, calories, and workouts.</string>
     <key>NSHealthUpdateUsageDescription</key>
-    <string>Allow CTP to write your health data to track your activities</string>
+    <string>Allow CTP to write your health data to track your activities and sync with Apple Health.</string>
     <key>NSUserActivityTypes</key>
     <array>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>

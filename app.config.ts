@@ -33,14 +33,18 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         "com.dheshadev.ctp.healthkitprocessing",
         "com.dheshadev.ctp.healthkitfetch"
       ],
-      NSHealthShareUsageDescription: "Allow CTP to read your health data to track your activities including steps, calories, and workouts.",
-      NSHealthUpdateUsageDescription: "Allow CTP to write your health data to track your activities and sync with Apple Health.",
+      NSHealthShareUsageDescription: "Allow CTPs to read your health and fitness data for accurate activity tracking and insights.",
+      NSHealthUpdateUsageDescription: "Allow CTPs to save your workouts and activities to Apple Health for a complete health profile.",
       GADApplicationIdentifier: "ca-app-pub-6833157133488263~6430444881",
       UIRequiredDeviceCapabilities: [
         "arm64",
         "healthkit"
       ]
-    }
+    },
+    entitlements: {
+      "com.apple.developer.healthkit": true,
+      "com.apple.developer.healthkit.background-delivery": true,
+    },
   },
   android: {
     adaptiveIcon: {
@@ -91,12 +95,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         ]
       }
     ],
+    "./plugins/ios-healthkit-config",
     [
       "react-native-health",
       {
-        healthSharePermission: "Allow CTP to read your health data to track your activities including steps, calories, and workouts.",
-        healthUpdatePermission: "Allow CTP to write your health data to track your activities and sync with Apple Health."
-      }
+        isClinicalDataEnabled: false,
+        healthSharePermission: "Allow CTPs to read your health data",
+        healthUpdatePermission: "Allow CTPs to update your health data",
+      },
     ],
     "expo-notifications"
   ],
