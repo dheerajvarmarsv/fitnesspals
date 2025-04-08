@@ -2,7 +2,7 @@
   "expo": {
     "name": "CTP",
     "slug": "ctp",
-    "version": "1.5",
+    "version": "1.6",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
@@ -20,10 +20,24 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.dheshadev.ctp",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"],
-        "GADApplicationIdentifier": "ca-app-pub-6833157133488263~6430444881"
+        "UIBackgroundModes": [
+          "remote-notification",
+          "processing",
+          "fetch"
+        ],
+        "BGTaskSchedulerPermittedIdentifiers": [
+          "com.dheshadev.ctp.healthkitprocessing",
+          "com.dheshadev.ctp.healthkitfetch"
+        ],
+        "NSHealthShareUsageDescription": "Allow CTP to read your health data to track your activities",
+        "NSHealthUpdateUsageDescription": "Allow CTP to write your health data to track your activities",
+        "GADApplicationIdentifier": "ca-app-pub-6833157133488263~6430444881",
+        "UIRequiredDeviceCapabilities": [
+          "arm64",
+          "healthkit"
+        ]
       }
     },
     "android": {
