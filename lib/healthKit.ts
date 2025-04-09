@@ -1,3 +1,4 @@
+// lib/healthKit.ts
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppleHealthKit, {
@@ -6,7 +7,6 @@ import AppleHealthKit, {
   HealthValue,
 } from 'react-native-health';
 import { supabase } from './supabase';
-import { NativeEventEmitter, NativeModules } from 'react-native';
 
 // Constants for storage
 const HEALTHKIT_ENABLED_KEY = 'healthkit_enabled';
@@ -19,17 +19,13 @@ const PERMISSIONS: HealthKitPermissions = {
       AppleHealthKit.Constants.Permissions.StepCount,
       AppleHealthKit.Constants.Permissions.DistanceWalkingRunning,
       AppleHealthKit.Constants.Permissions.ActiveEnergyBurned,
-      AppleHealthKit.Constants.Permissions.BasalEnergyBurned,
       AppleHealthKit.Constants.Permissions.HeartRate,
-      AppleHealthKit.Constants.Permissions.RestingHeartRate,
       AppleHealthKit.Constants.Permissions.SleepAnalysis,
-      AppleHealthKit.Constants.Permissions.Workout,
     ],
     write: [
       AppleHealthKit.Constants.Permissions.StepCount,
       AppleHealthKit.Constants.Permissions.DistanceWalkingRunning,
       AppleHealthKit.Constants.Permissions.ActiveEnergyBurned,
-      AppleHealthKit.Constants.Permissions.Workout,
     ],
   },
 };
@@ -65,10 +61,6 @@ export async function isHealthKitAvailable(): Promise<boolean> {
 
 // Check if HealthKit is enabled in app settings
 export async function isHealthKitEnabled(): Promise<boolean> {
-  if (!isHealthKitAvailable()) {
-    return false;
-  }
-  
   try {
     const value = await AsyncStorage.getItem(HEALTHKIT_ENABLED_KEY);
     return value === 'true';
@@ -104,7 +96,7 @@ export function initHealthKit(): Promise<boolean> {
 
 // Get detailed HealthKit status
 export async function getHealthKitStatus(): Promise<HealthKitStatus> {
-  if (!isHealthKitAvailable()) {
+  if (!(await isHealthKitAvailable())) {
     return {
       isAvailable: false,
       isAuthorized: false,
@@ -118,27 +110,28 @@ export async function getHealthKitStatus(): Promise<HealthKitStatus> {
     };
   }
 
-  return new Promise((resolve) => {
-    const options = {
+  // Check if HealthKit is enabled
+  const enabled = await isHealthKitEnabled();
+  if (!enabled) {
+    return {
+      isAvailable: true,
+      isAuthorized: false,
       permissions: {
-        read: [
-          AppleHealthKit.Constants.Permissions.StepCount,
-          AppleHealthKit.Constants.Permissions.DistanceWalkingRunning,
-          AppleHealthKit.Constants.Permissions.ActiveEnergyBurned,
-          AppleHealthKit.Constants.Permissions.BasalEnergyBurned,
-          AppleHealthKit.Constants.Permissions.HeartRate,
-          AppleHealthKit.Constants.Permissions.RestingHeartRate,
-          AppleHealthKit.Constants.Permissions.SleepAnalysis,
-        ],
-        write: [],
+        steps: false,
+        calories: false,
+        distance: false,
+        heartRate: false,
+        sleep: false,
       },
     };
+  }
 
-    AppleHealthKit.isAvailable((error: Object, available: boolean) => {
-      if (error) {
-        console.error('Error checking HealthKit availability:', error);
+  return new Promise((resolve) => {
+    AppleHealthKit.getAuthStatus(PERMISSIONS, (err: any, result: any) => {
+      if (err) {
+        console.error('Error getting auth status:', err);
         resolve({
-          isAvailable: false,
+          isAvailable: true,
           isAuthorized: false,
           permissions: {
             steps: false,
@@ -150,69 +143,24 @@ export async function getHealthKitStatus(): Promise<HealthKitStatus> {
         });
         return;
       }
-
-      if (!available) {
-        resolve({
-          isAvailable: false,
-          isAuthorized: false,
-          permissions: {
-            steps: false,
-            calories: false,
-            distance: false,
-            heartRate: false,
-            sleep: false,
-          },
-        });
-        return;
-      }
-
-      AppleHealthKit.initHealthKit(options, (error: Object) => {
-        if (error) {
-          console.error('Error initializing HealthKit:', error);
-          resolve({
-            isAvailable: true,
-            isAuthorized: false,
-            permissions: {
-              steps: false,
-              calories: false,
-              distance: false,
-              heartRate: false,
-              sleep: false,
-            },
-          });
-          return;
-        }
-
-        // Check individual permissions
-        const checkPermission = (type: any) => {
-          return new Promise<boolean>((resolve) => {
-            AppleHealthKit.getAuthStatus({ permissions: { read: [type], write: [] } }, 
-              (err: Object, result: any) => {
-                resolve(!err && result.permissions.read[0] === 2);
-              }
-            );
-          });
-        };
-
-        Promise.all([
-          checkPermission(AppleHealthKit.Constants.Permissions.StepCount),
-          checkPermission(AppleHealthKit.Constants.Permissions.ActiveEnergyBurned),
-          checkPermission(AppleHealthKit.Constants.Permissions.DistanceWalkingRunning),
-          checkPermission(AppleHealthKit.Constants.Permissions.HeartRate),
-          checkPermission(AppleHealthKit.Constants.Permissions.SleepAnalysis),
-        ]).then(([steps, calories, distance, heartRate, sleep]) => {
-          resolve({
-            isAvailable: true,
-            isAuthorized: steps || calories || distance || heartRate || sleep,
-            permissions: {
-              steps,
-              calories,
-              distance,
-              heartRate,
-              sleep,
-            },
-          });
-        });
+      
+      // Check status for each permission type
+      const hasStepsPermission = result.permissions.read.includes(AppleHealthKit.Constants.Permissions.StepCount);
+      const hasCaloriesPermission = result.permissions.read.includes(AppleHealthKit.Constants.Permissions.ActiveEnergyBurned);
+      const hasDistancePermission = result.permissions.read.includes(AppleHealthKit.Constants.Permissions.DistanceWalkingRunning);
+      const hasHeartRatePermission = result.permissions.read.includes(AppleHealthKit.Constants.Permissions.HeartRate);
+      const hasSleepPermission = result.permissions.read.includes(AppleHealthKit.Constants.Permissions.SleepAnalysis);
+      
+      resolve({
+        isAvailable: true,
+        isAuthorized: hasStepsPermission || hasCaloriesPermission || hasDistancePermission,
+        permissions: {
+          steps: hasStepsPermission,
+          calories: hasCaloriesPermission,
+          distance: hasDistancePermission,
+          heartRate: hasHeartRatePermission,
+          sleep: hasSleepPermission,
+        },
       });
     });
   });
@@ -220,68 +168,33 @@ export async function getHealthKitStatus(): Promise<HealthKitStatus> {
 
 // Disable HealthKit integration
 export async function disableHealthKit(): Promise<void> {
-  await AsyncStorage.multiRemove([HEALTHKIT_ENABLED_KEY, HEALTHKIT_LAST_SYNC_KEY]);
+  await AsyncStorage.removeItem(HEALTHKIT_ENABLED_KEY);
+  await AsyncStorage.removeItem(HEALTHKIT_LAST_SYNC_KEY);
 }
 
-// Set up background observers
+// Get last sync time
+export async function getLastSyncTime(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(HEALTHKIT_LAST_SYNC_KEY);
+  } catch (error) {
+    console.error('Error getting last sync time:', error);
+    return null;
+  }
+}
+
+// Set up background observers for HealthKit data changes
 export function setupBackgroundObservers(userId: string): void {
-  if (!isHealthKitAvailable()) return;
+  if (Platform.OS !== 'ios') return;
   
   console.log('Setting up HealthKit background observers for user:', userId);
   
-  // Set up event listeners for real-time updates
-  try {
-    const healthKitEmitter = new NativeEventEmitter(NativeModules.AppleHealthKit);
-    
-    // Listen for step count updates
-    healthKitEmitter.addListener(
-      'healthKit:StepCount:new',
-      async () => {
-        console.log('New step count data detected');
-        const today = new Date().toISOString().split('T')[0];
-        await syncHealthData(userId, today);
-      }
-    );
-    
-    // Listen for active energy burned updates
-    healthKitEmitter.addListener(
-      'healthKit:ActiveEnergyBurned:new',
-      async () => {
-        console.log('New calories data detected');
-        const today = new Date().toISOString().split('T')[0];
-        await syncHealthData(userId, today);
-      }
-    );
-    
-    // Listen for distance updates
-    healthKitEmitter.addListener(
-      'healthKit:DistanceWalkingRunning:new',
-      async () => {
-        console.log('New distance data detected');
-        const today = new Date().toISOString().split('T')[0];
-        await syncHealthData(userId, today);
-      }
-    );
-    
-    // Listen for heart rate updates
-    healthKitEmitter.addListener(
-      'healthKit:HeartRate:new',
-      async () => {
-        console.log('New heart rate data detected');
-        const today = new Date().toISOString().split('T')[0];
-        await syncHealthData(userId, today);
-      }
-    );
-    
-    console.log('HealthKit listeners set up successfully');
-  } catch (error) {
-    console.error('Error setting up HealthKit listeners:', error);
-  }
+  // Set up event listeners for observers if needed
+  // This will depend on how you want to handle background updates
 }
 
 // Get step count for a specific day
 export function getStepCount(date: string): Promise<number> {
-  if (!isHealthKitAvailable()) return Promise.resolve(0);
+  if (Platform.OS !== 'ios') return Promise.resolve(0);
 
   const options = {
     date: date,
@@ -289,7 +202,7 @@ export function getStepCount(date: string): Promise<number> {
   };
 
   return new Promise((resolve) => {
-    AppleHealthKit.getStepCount(options, (error: string, results: { value: number }) => {
+    AppleHealthKit.getStepCount(options, (error: any, results: any) => {
       if (error) {
         console.error('Error getting step count:', error);
         resolve(0);
@@ -302,7 +215,7 @@ export function getStepCount(date: string): Promise<number> {
 
 // Get active energy burned
 export function getActiveEnergyBurned(startDate: string, endDate: string): Promise<number> {
-  if (!isHealthKitAvailable()) return Promise.resolve(0);
+  if (Platform.OS !== 'ios') return Promise.resolve(0);
 
   const options = {
     startDate,
@@ -311,7 +224,7 @@ export function getActiveEnergyBurned(startDate: string, endDate: string): Promi
   };
 
   return new Promise((resolve) => {
-    AppleHealthKit.getActiveEnergyBurned(options, (error: string, results: any) => {
+    AppleHealthKit.getActiveEnergyBurned(options, (error: any, results: any) => {
       if (error) {
         console.error('Error getting active energy burned:', error);
         resolve(0);
@@ -320,7 +233,7 @@ export function getActiveEnergyBurned(startDate: string, endDate: string): Promi
       
       let totalCalories = 0;
       if (Array.isArray(results)) {
-        totalCalories = results.reduce((sum, item: any) => sum + (item.value || 0), 0);
+        totalCalories = results.reduce((sum, item) => sum + (item.value || 0), 0);
       } else if (results && typeof results.value === 'number') {
         totalCalories = results.value;
       }
@@ -330,53 +243,9 @@ export function getActiveEnergyBurned(startDate: string, endDate: string): Promi
   });
 }
 
-// Get heart rate data
-export function getHeartRateData(startDate: string, endDate: string): Promise<HealthValue[]> {
-  if (!isHealthKitAvailable()) return Promise.resolve([]);
-
-  const options = {
-    startDate,
-    endDate,
-    ascending: false,
-    limit: 100,
-  };
-
-  return new Promise((resolve) => {
-    AppleHealthKit.getHeartRateSamples(options, (error, results) => {
-      if (error) {
-        console.error('Error getting heart rate data:', error);
-        resolve([]);
-        return;
-      }
-      resolve(results || []);
-    });
-  });
-}
-
-// Get sleep analysis data
-export function getSleepAnalysis(startDate: string, endDate: string): Promise<any[]> {
-  if (!isHealthKitAvailable()) return Promise.resolve([]);
-
-  const options = {
-    startDate,
-    endDate,
-  };
-
-  return new Promise((resolve) => {
-    AppleHealthKit.getSleepSamples(options, (error, results) => {
-      if (error) {
-        console.error('Error getting sleep data:', error);
-        resolve([]);
-        return;
-      }
-      resolve(results || []);
-    });
-  });
-}
-
 // Sync health data
 export async function syncHealthData(userId: string, date: string): Promise<void> {
-  if (!userId || !isHealthKitAvailable()) return;
+  if (!userId || Platform.OS !== 'ios') return;
   
   try {
     const enabled = await isHealthKitEnabled();
@@ -391,65 +260,58 @@ export async function syncHealthData(userId: string, date: string): Promise<void
     const startDateString = startOfDay.toISOString();
     const endDateString = endOfDay.toISOString();
     
-    // Fetch all health metrics in parallel
-    const [
-      steps,
-      calories,
-      heartRateData,
-      sleepData
-    ] = await Promise.all([
-      getStepCount(date),
-      getActiveEnergyBurned(startDateString, endDateString),
-      getHeartRateData(startDateString, endDateString),
-      getSleepAnalysis(startDateString, endDateString)
-    ]);
-
-    // Calculate derived metrics
-    const avgHeartRate = heartRateData.length > 0
-      ? Math.round(heartRateData.reduce((sum, item) => sum + item.value, 0) / heartRateData.length)
-      : null;
-
-    const totalSleepMinutes = sleepData.reduce((total, item) => {
-      const start = new Date(item.startDate);
-      const end = new Date(item.endDate);
-      return total + (end.getTime() - start.getTime()) / (1000 * 60);
-    }, 0);
-
-    // Prepare the activity data
-    const activityData = {
-      user_id: userId,
-      date,
-      source: 'healthkit',
-      steps,
-      calories,
-      avg_heart_rate: avgHeartRate,
-      sleep_minutes: Math.round(totalSleepMinutes),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    // Update the database
+    // Get step count
+    const steps = await getStepCount(date);
+    
+    // Get calories burned
+    const calories = await getActiveEnergyBurned(startDateString, endDateString);
+    
+    // Insert data to Supabase
     const { error } = await supabase
-      .from('activities')
-      .upsert(activityData);
+      .from('health_data')
+      .upsert({
+        user_id: userId,
+        date,
+        steps,
+        calories,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
 
-    if (error) throw new Error(`Error updating health data: ${error.message}`);
-
-    // Update last sync time
+    if (error) throw error;
+    
+    // Update user fitness connection
+    await supabase
+      .from('user_fitness_connections')
+      .upsert({
+        user_id: userId,
+        type: 'apple_health',
+        connected: true,
+        last_synced: new Date().toISOString(),
+        status: 'connected',
+        last_sync_status: 'success',
+        last_sync_count: steps + (calories > 0 ? 1 : 0),
+      });
+    
+    // Save last sync time
     await AsyncStorage.setItem(HEALTHKIT_LAST_SYNC_KEY, new Date().toISOString());
-
+    
   } catch (error) {
     console.error('Error syncing health data:', error);
+    
+    // Update connection status to error
+    await supabase
+      .from('user_fitness_connections')
+      .upsert({
+        user_id: userId,
+        type: 'apple_health',
+        connected: true,
+        last_synced: new Date().toISOString(),
+        status: 'error',
+        last_sync_status: 'error',
+        last_sync_error: String(error),
+      });
+    
     throw error;
-  }
-}
-
-// Get last sync time
-export async function getLastSyncTime(): Promise<string | null> {
-  try {
-    return await AsyncStorage.getItem(HEALTHKIT_LAST_SYNC_KEY);
-  } catch (error) {
-    console.error('Error getting last sync time:', error);
-    return null;
   }
 }

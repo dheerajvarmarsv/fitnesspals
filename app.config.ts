@@ -23,6 +23,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supportsTablet: true,
     bundleIdentifier: "com.dheshadev.ctp",
     buildNumber: "2",
+    // Merged into iOS Info.plist
     infoPlist: {
       UIBackgroundModes: [
         "remote-notification",
@@ -33,17 +34,22 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         "com.dheshadev.ctp.healthkitprocessing",
         "com.dheshadev.ctp.healthkitfetch"
       ],
-      NSHealthShareUsageDescription: "Allow CTPs to read your health and fitness data for accurate activity tracking and insights.",
-      NSHealthUpdateUsageDescription: "Allow CTPs to save your workouts and activities to Apple Health for a complete health profile.",
+      NSHealthShareUsageDescription:
+        "Allow CTPs to read your health data to track your activities including steps, calories, workouts, and more",
+      NSHealthUpdateUsageDescription:
+        "Allow CTPs to write your health data to track your activities",
       GADApplicationIdentifier: "ca-app-pub-6833157133488263~6430444881",
       UIRequiredDeviceCapabilities: [
         "arm64",
         "healthkit"
       ]
     },
+    // Merged into the entitlements file
     entitlements: {
       "com.apple.developer.healthkit": true,
       "com.apple.developer.healthkit.background-delivery": true,
+      // If you need 'com.apple.developer.healthkit.access', uncomment below:
+      "com.apple.developer.healthkit.access": []
     },
   },
   android: {
@@ -100,9 +106,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         iosAppId: "ca-app-pub-6833157133488263~6430444881",
         user_tracking_description: "This identifier will be used to deliver personalized ads to you.",
         delay_app_measurement_init: true,
-        sk_ad_network_items: [
-          "cstr6suwn9.skadnetwork"
-        ]
+        sk_ad_network_items: ["cstr6suwn9.skadnetwork"]
       }
     ],
     "expo-notifications"

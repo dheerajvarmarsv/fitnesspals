@@ -1,44 +1,175 @@
-from bolt >  react native health >example  and ios > @AppDelegate.m @Info.plist @example.entitlements @main.m @AppDelegate.h @app.json @App.tsx @index.js @package.json can you please check all the files i mentioned and the folders asd tell me why mine is failing like either its crashing or i am not able to get data from healthkit with you don't have enough permissions to get data error check my app.config, appconfig.ts info.plist entitlements app delegeate.mm healthkits.ts fitness-connections.tsx  in my project main ive me prod ready final full has code no filler or hardcoding or changing existing other functionalities and optimized
+can you check and think well in my profile settings i want something like in the image device and for ios show apple and watch and next allow the app to get data and then once allowed show that its conencted and fecth data and fectch above data and add to the summary now can you check my code and above files and fix the issue so that the healthkit works in my app in actual device without any erroracordingly think well and check current implenentation i dont see any of these and in my simulaotr and app i am getting error as you see in the jpeg file no function available error think well its very simple so can you check and think well in my profile settings i want something like in the image device and for ios show apple and watch and next allow the app to get data and then once allowed show that its conencted and fecth data and fectch above data and add to the summary now can you check my code and above files and fix the issue so that the healthkit works in my app in actual device without any erroracordingly think well and check current implenentation i dont see any of these and in my simulaotr and app i am getting error as you see in the jpeg file no function available error
 
-I'll analyze the Apple HealthKit integration in your project by comparing your implementation with the HealthKit example provided in the .bolt/react-native-health-master directory. Let me identify the issues causing your HealthKit integration to fail or crash.
+the implementation is simple dont over complicate things and think well and understand my code and tell me how to do it Database Schema - Complete Tables and Columns
+1. subscription_history
+* id: UUID (primary key)
+* user_id: UUID (foreign key)
+* transaction_id: TEXT
+* product_id: TEXT
+* subscription_tier: TEXT
+* payment_provider: TEXT
+* amount: NUMERIC
+* currency: TEXT
+* start_date: TIMESTAMP
+* end_date: TIMESTAMP
+* status: TEXT
+* created_at: TIMESTAMP
+2. friends
+* id: UUID (primary key)
+* user_id: UUID (foreign key)
+* friend_id: UUID (foreign key)
+* status_id: TEXT
+* created_at: TIMESTAMP
+3. friend_requests
+* id: UUID (primary key)
+* sender_id: UUID (foreign key)
+* receiver_id: UUID (foreign key)
+* status: TEXT
+* created_at: TIMESTAMP
+* updated_at: TIMESTAMP
+4. profile_settings
+* id: UUID (primary key)
+* timezone: TEXT
+* display_mode: TEXT
+* use_kilometers: BOOLEAN
+* notification_settings: JSONB
+* created_at: TIMESTAMP
+* updated_at: TIMESTAMP
+5. profiles
+* id: UUID (primary key)
+* email: TEXT
+* nickname: TEXT
+* avatar_url: TEXT
+* settings: JSONB
+* created_at: TIMESTAMP
+* updated_at: TIMESTAMP
+* trial_stage: TEXT
+* subscription_tier: TEXT
+* subscription_expiry: TIMESTAMP
+* subscription_status: TEXT
+* trial_end_date: TIMESTAMP
+* plan: TEXT
+* description: TEXT
+6. challenge
+* id: UUID (primary key)
+* description: TEXT
+* challenge_type: TEXT
+* status: TEXT
+* start_date: TIMESTAMP
+* end_date: TIMESTAMP
+* is_private: BOOLEAN
+* rules: JSONB
+* created_at: TIMESTAMP
+* updated_at: TIMESTAMP
+* survival_settings: JSONB
+7. challenge_activities
+* id: UUID (primary key)
+* challenge_id: UUID (foreign key)
+* user_id: UUID (foreign key)
+* activity_type: TEXT
+* points: INTEGER
+* target_value: NUMERIC
+* metric: TEXT
+* timeframe: TEXT
+8. activities
+* id: UUID (primary key)
+* user_id: UUID (foreign key)
+* activity_type: TEXT
+* duration: NUMERIC
+* distance: NUMERIC
+* calories: NUMERIC
+* steps: INTEGER
+* count: INTEGER
+* notes: TEXT
+* metric: TEXT
+* source: TEXT
+* created_at: TIMESTAMP
+9. challenge_invites
+* id: UUID (primary key)
+* challenge_id: UUID (foreign key)
+* sender_id: UUID (foreign key)
+* receiver_id: UUID (foreign key)
+* status: TEXT
+* created_at: TIMESTAMP
+* updated_at: TIMESTAMP
+10. challenge_participants
+* id: UUID (primary key)
+* challenge_id: UUID (foreign key)
+* user_id: UUID (foreign key)
+* status: TEXT
+* joined_at: TIMESTAMP
+* current_streak: INTEGER
+* longest_streak: INTEGER
+* total_points: INTEGER
+* map_position: INTEGER
+* last_awarded_day: DATE
+* last_awarded_week: DATE
+* last_activity_date: TIMESTAMP
+* distance_from_center: NUMERIC
+* angle: NUMERIC
+* is_eliminated: BOOLEAN
+* lives: INTEGER
+* days_in_danger: INTEGER
+* created_at: TIMESTAMP
+* updated_at: TIMESTAMP
+* processed_activity_ids: TEXT[]
+11. challenge_rules
+* challenge_id: UUID (foreign key, primary key)
+* sender_id: UUID (foreign key)
+* receiver_id: UUID (foreign key)
+* status: TEXT
+* created_at: TIMESTAMP
+* updated_at: TIMESTAMP
+12. health_data
+* id: UUID (primary key)
+* user_id: UUID (foreign key)
+* date: DATE
+* activity_id: UUID
+* steps: INTEGER
+* distance: NUMERIC
+* calories: NUMERIC
+* heart_rate: NUMERIC
+* sleep_minutes: INTEGER
+* created_at: TIMESTAMP
+* updated_at: TIMESTAMP
+13. user_fitness_connections
+* id: UUID (primary key)
+* user_id: UUID (foreign key)
+* type: TEXT
+* connected: BOOLEAN
+* last_synced: TIMESTAMP
+* permissions: TEXT[]
+* created_at: TIMESTAMP
+* updated_at: TIMESTAMP
+* source_id: TEXT
+* expire_at: TIMESTAMP
+* status: TEXT
+* device_info: JSONB
+* last_sync_status: TEXT
+* last_sync_error: TEXT
+* last_sync_count: INTEGER db for refercne so think all and tell me step by step what to do and hwo to add healthkit in my ios app and make it work in it
 
-HealthKit Integration Issues
-After reviewing your code and comparing it with the example implementation, I've identified several potential issues:
+Based on the images and code you've shared, I can see that your app is having issues with Apple HealthKit integration. The error "Connection error: undefined is not a function" suggests there's a problem with the HealthKit initialization. Let me walk you through fixing this issue step by step.
 
-1. AppDelegate Setup for Background Observers
-In the example AppDelegate.m, there's commented code for initializing background observers:
+Issue Analysis
+Looking at your implementation and screenshots:
+
+You're trying to create a fitness connection screen similar to what's shown in the screenshots, with the ability to connect to Apple Health and see connection status
+The error occurs in your fitness-connections.tsx component when trying to interact with HealthKit
+Your database schema has a health_data and user_fitness_connections table ready to store the synced data
+The issue likely stems from improper initialization of HealthKit in your app
+Fixing the HealthKit Integration
+Let's address the issues systematically:
+
+1. Fix the AppDelegate.mm Configuration
+The first issue is that your AppDelegate.mm is missing the proper HealthKit initialization:
 
 objective
-// [[RCTAppleHealthKit new] initializeBackgroundObservers:bridge]; // <-- Uncomment this line to use background observers
-However, in your AppDelegate.mm file, I don't see the proper initialization for HealthKit background observers, which is critical for real-time data updates.
-
-2. Entitlements Configuration
-The example project's example.entitlements contains three key entries:
-
-com.apple.developer.healthkit (set to true)
-com.apple.developer.healthkit.access (empty array)
-com.apple.developer.healthkit.background-delivery (set to true)
-Your CTP.entitlements file is missing the critical com.apple.developer.healthkit.background-delivery key.
-
-3. Info.plist Configuration
-Both projects have the required usage descriptions, but the wording and content might affect user acceptance.
-
-4. HealthKit Implementation
-Let's create a comprehensive solution that addresses these issues:
-
-Complete Solution
-1. Update AppDelegate.mm
-First, add the proper HealthKit initialization to your AppDelegate.mm file:
-
-objective
-// ios/CTP/AppDelegate.mm
-
+// In AppDelegate.mm
 #import "AppDelegate.h"
 #import <React/RCTBundleURLProvider.h>
 #import <React/RCTLinkingManager.h>
-
-// Add this import
-#import "RCTAppleHealthKit.h"
+#import "RCTAppleHealthKit.h" // Make sure this is present
 
 @implementation AppDelegate
 
@@ -56,44 +187,43 @@ objective
   return [super application:application didFinishLaunchingWithOptions:launchOptions];
 }
 
-// ... rest of your AppDelegate implementation
+// ... rest of your implementation
 @end
-2. Update CTP.entitlements
-Update your entitlements file to include background delivery:
-
-xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-  <dict>
-    <key>aps-environment</key>
-    <string>development</string>
-    <key>com.apple.developer.healthkit</key>
-    <true/>
-    <key>com.apple.developer.healthkit.access</key>
-    <array/>
-    <key>com.apple.developer.healthkit.background-delivery</key>
-    <true/>
-  </dict>
-</plist>
-3. Enhance healthKit.ts Implementation
-Let's improve the HealthKit implementation with better error handling and permissions:
+2. Enhance your healthKit.ts Implementation
+Your current healthKit.ts needs improvements. Here's a simplified but complete version:
 
 typescript
 // lib/healthKit.ts
-import { Platform, NativeEventEmitter, NativeModules } from 'react-native';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import AppleHealthKit, { 
-  HealthInputOptions, 
+import AppleHealthKit, {
+  HealthInputOptions,
   HealthKitPermissions,
   HealthValue,
-  HealthStatusCode,
 } from 'react-native-health';
 import { supabase } from './supabase';
 
 // Constants for storage
 const HEALTHKIT_ENABLED_KEY = 'healthkit_enabled';
 const HEALTHKIT_LAST_SYNC_KEY = 'healthkit_last_sync';
+
+// Define all permissions we need
+const PERMISSIONS: HealthKitPermissions = {
+  permissions: {
+    read: [
+      AppleHealthKit.Constants.Permissions.StepCount,
+      AppleHealthKit.Constants.Permissions.DistanceWalkingRunning,
+      AppleHealthKit.Constants.Permissions.ActiveEnergyBurned,
+      AppleHealthKit.Constants.Permissions.HeartRate,
+      AppleHealthKit.Constants.Permissions.SleepAnalysis,
+    ],
+    write: [
+      AppleHealthKit.Constants.Permissions.StepCount,
+      AppleHealthKit.Constants.Permissions.DistanceWalkingRunning,
+      AppleHealthKit.Constants.Permissions.ActiveEnergyBurned,
+    ],
+  },
+};
 
 // Define available permission types
 export interface HealthKitStatus {
@@ -103,20 +233,29 @@ export interface HealthKitStatus {
     steps: boolean;
     calories: boolean;
     distance: boolean;
+    heartRate: boolean;
+    sleep: boolean;
   };
 }
 
 // Check if HealthKit is available
-export function isHealthKitAvailable(): boolean {
-  return Platform.OS === 'ios';
+export async function isHealthKitAvailable(): Promise<boolean> {
+  if (Platform.OS !== 'ios') return false;
+  
+  return new Promise((resolve) => {
+    AppleHealthKit.isAvailable((err: any, available: boolean) => {
+      if (err) {
+        console.error('Error checking HealthKit availability:', err);
+        resolve(false);
+        return;
+      }
+      resolve(available);
+    });
+  });
 }
 
 // Check if HealthKit is enabled in app settings
 export async function isHealthKitEnabled(): Promise<boolean> {
-  if (!isHealthKitAvailable()) {
-    return false;
-  }
-  
   try {
     const value = await AsyncStorage.getItem(HEALTHKIT_ENABLED_KEY);
     return value === 'true';
@@ -126,9 +265,33 @@ export async function isHealthKitEnabled(): Promise<boolean> {
   }
 }
 
+// Initialize HealthKit with required permissions
+export function initHealthKit(): Promise<boolean> {
+  if (Platform.OS !== 'ios') return Promise.resolve(false);
+
+  return new Promise((resolve) => {
+    AppleHealthKit.initHealthKit(PERMISSIONS, async (err: any) => {
+      if (err) {
+        console.error('Error initializing HealthKit:', err);
+        resolve(false);
+        return;
+      }
+      
+      try {
+        await AsyncStorage.setItem(HEALTHKIT_ENABLED_KEY, 'true');
+        await AsyncStorage.setItem(HEALTHKIT_LAST_SYNC_KEY, new Date().toISOString());
+        resolve(true);
+      } catch (error) {
+        console.error('Error saving HealthKit status:', error);
+        resolve(false);
+      }
+    });
+  });
+}
+
 // Get detailed HealthKit status
 export async function getHealthKitStatus(): Promise<HealthKitStatus> {
-  if (!isHealthKitAvailable()) {
+  if (!(await isHealthKitAvailable())) {
     return {
       isAvailable: false,
       isAuthorized: false,
@@ -136,13 +299,15 @@ export async function getHealthKitStatus(): Promise<HealthKitStatus> {
         steps: false,
         calories: false,
         distance: false,
+        heartRate: false,
+        sleep: false,
       },
     };
   }
 
-  // Check if enabled in app settings
-  const isEnabled = await isHealthKitEnabled();
-  if (!isEnabled) {
+  // Check if HealthKit is enabled
+  const enabled = await isHealthKitEnabled();
+  if (!enabled) {
     return {
       isAvailable: true,
       isAuthorized: false,
@@ -150,38 +315,37 @@ export async function getHealthKitStatus(): Promise<HealthKitStatus> {
         steps: false,
         calories: false,
         distance: false,
+        heartRate: false,
+        sleep: false,
       },
     };
   }
 
   return new Promise((resolve) => {
-    const permissions = {
-      permissions: {
-        read: [
-          AppleHealthKit.Constants.Permissions.StepCount,
-          AppleHealthKit.Constants.Permissions.ActiveEnergyBurned,
-          AppleHealthKit.Constants.Permissions.DistanceWalkingRunning,
-        ],
-        write: [],
-      },
-    };
-
-    AppleHealthKit.getAuthStatus(permissions, (error, result) => {
-      if (error) {
-        console.error('Error getting auth status:', error);
+    AppleHealthKit.getAuthStatus(PERMISSIONS, (err: any, result: any) => {
+      if (err) {
+        console.error('Error getting auth status:', err);
         resolve({
           isAvailable: true,
           isAuthorized: false,
-          permissions: { steps: false, calories: false, distance: false },
+          permissions: {
+            steps: false,
+            calories: false,
+            distance: false,
+            heartRate: false,
+            sleep: false,
+          },
         });
         return;
       }
-
-      // Check permissions status (2 = authorized)
-      const hasStepsPermission = result.permissions.read[0] === HealthStatusCode.SharingAuthorized;
-      const hasCaloriesPermission = result.permissions.read[1] === HealthStatusCode.SharingAuthorized;
-      const hasDistancePermission = result.permissions.read[2] === HealthStatusCode.SharingAuthorized;
-
+      
+      // Check status for each permission type
+      const hasStepsPermission = result.permissions.read.includes(AppleHealthKit.Constants.Permissions.StepCount);
+      const hasCaloriesPermission = result.permissions.read.includes(AppleHealthKit.Constants.Permissions.ActiveEnergyBurned);
+      const hasDistancePermission = result.permissions.read.includes(AppleHealthKit.Constants.Permissions.DistanceWalkingRunning);
+      const hasHeartRatePermission = result.permissions.read.includes(AppleHealthKit.Constants.Permissions.HeartRate);
+      const hasSleepPermission = result.permissions.read.includes(AppleHealthKit.Constants.Permissions.SleepAnalysis);
+      
       resolve({
         isAvailable: true,
         isAuthorized: hasStepsPermission || hasCaloriesPermission || hasDistancePermission,
@@ -189,106 +353,43 @@ export async function getHealthKitStatus(): Promise<HealthKitStatus> {
           steps: hasStepsPermission,
           calories: hasCaloriesPermission,
           distance: hasDistancePermission,
+          heartRate: hasHeartRatePermission,
+          sleep: hasSleepPermission,
         },
       });
     });
   });
 }
 
-// Initialize HealthKit with required permissions
-export function initHealthKit(): Promise<boolean> {
-  if (!isHealthKitAvailable()) {
-    return Promise.resolve(false);
-  }
-
-  const permissions: HealthKitPermissions = {
-    permissions: {
-      read: [
-        AppleHealthKit.Constants.Permissions.StepCount,
-        AppleHealthKit.Constants.Permissions.ActiveEnergyBurned,
-        AppleHealthKit.Constants.Permissions.DistanceWalkingRunning,
-        AppleHealthKit.Constants.Permissions.HeartRate,
-        AppleHealthKit.Constants.Permissions.RestingHeartRate,
-        AppleHealthKit.Constants.Permissions.Workout,
-      ],
-      write: [
-        AppleHealthKit.Constants.Permissions.Steps,
-        AppleHealthKit.Constants.Permissions.DistanceWalkingRunning,
-      ],
-    },
-  };
-
-  return new Promise((resolve) => {
-    AppleHealthKit.initHealthKit(permissions, (error) => {
-      if (error) {
-        console.error('Error initializing HealthKit:', error);
-        resolve(false);
-        return;
-      }
-      
-      // Store that HealthKit is enabled
-      AsyncStorage.setItem(HEALTHKIT_ENABLED_KEY, 'true')
-        .then(() => resolve(true))
-        .catch((error) => {
-          console.error('Error saving HealthKit status:', error);
-          resolve(false);
-        });
-    });
-  });
-}
-
 // Disable HealthKit integration
 export async function disableHealthKit(): Promise<void> {
-  await AsyncStorage.setItem(HEALTHKIT_ENABLED_KEY, 'false');
+  await AsyncStorage.removeItem(HEALTHKIT_ENABLED_KEY);
+  await AsyncStorage.removeItem(HEALTHKIT_LAST_SYNC_KEY);
+}
+
+// Get last sync time
+export async function getLastSyncTime(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(HEALTHKIT_LAST_SYNC_KEY);
+  } catch (error) {
+    console.error('Error getting last sync time:', error);
+    return null;
+  }
 }
 
 // Set up background observers for HealthKit data changes
 export function setupBackgroundObservers(userId: string): void {
-  if (!isHealthKitAvailable()) {
-    return;
-  }
-
+  if (Platform.OS !== 'ios') return;
+  
   console.log('Setting up HealthKit background observers for user:', userId);
   
-  // Set up event listeners for observers
-  const healthKitEmitter = new NativeEventEmitter(NativeModules.AppleHealthKit);
-  
-  // Listen for step count updates
-  healthKitEmitter.addListener(
-    'healthKit:StepCount:new',
-    async () => {
-      console.log('New step count data detected');
-      const today = new Date().toISOString().split('T')[0];
-      await syncHealthData(userId, today);
-    }
-  );
-  
-  // Listen for active energy burned updates
-  healthKitEmitter.addListener(
-    'healthKit:ActiveEnergyBurned:new',
-    async () => {
-      console.log('New calories data detected');
-      const today = new Date().toISOString().split('T')[0];
-      await syncHealthData(userId, today);
-    }
-  );
-  
-  // Listen for distance walking/running updates
-  healthKitEmitter.addListener(
-    'healthKit:DistanceWalkingRunning:new',
-    async () => {
-      console.log('New distance data detected');
-      const today = new Date().toISOString().split('T')[0];
-      await syncHealthData(userId, today);
-    }
-  );
+  // Set up event listeners for observers if needed
+  // This will depend on how you want to handle background updates
 }
 
-// Get the step count for a specific day
+// Get step count for a specific day
 export function getStepCount(date: string): Promise<number> {
-  if (!isHealthKitAvailable()) {
-    return Promise.resolve(0);
-  }
+  if (Platform.OS !== 'ios') return Promise.resolve(0);
 
   const options = {
     date: date,
@@ -296,23 +397,20 @@ export function getStepCount(date: string): Promise<number> {
   };
 
   return new Promise((resolve) => {
-    AppleHealthKit.getStepCount(options, (error, results) => {
+    AppleHealthKit.getStepCount(options, (error: any, results: any) => {
       if (error) {
         console.error('Error getting step count:', error);
         resolve(0);
         return;
       }
-      
-      resolve(results.value);
+      resolve(results?.value || 0);
     });
   });
 }
 
-// Get active energy burned for a time period
+// Get active energy burned
 export function getActiveEnergyBurned(startDate: string, endDate: string): Promise<number> {
-  if (!isHealthKitAvailable()) {
-    return Promise.resolve(0);
-  }
+  if (Platform.OS !== 'ios') return Promise.resolve(0);
 
   const options = {
     startDate,
@@ -321,211 +419,99 @@ export function getActiveEnergyBurned(startDate: string, endDate: string): Promi
   };
 
   return new Promise((resolve) => {
-    AppleHealthKit.getActiveEnergyBurned(options, (error, results: HealthValue[]) => {
+    AppleHealthKit.getActiveEnergyBurned(options, (error: any, results: any) => {
       if (error) {
         console.error('Error getting active energy burned:', error);
         resolve(0);
         return;
       }
       
-      // Sum up all calories burned in this period
-      const totalCalories = results.reduce((sum, item) => sum + item.value, 0);
-      resolve(totalCalories);
-    });
-  });
-}
-
-// Get walking/running distance for a time period
-export function getDistanceWalkingRunning(startDate: string, endDate: string): Promise<number> {
-  if (!isHealthKitAvailable()) {
-    return Promise.resolve(0);
-  }
-
-  const options = {
-    startDate,
-    endDate,
-    includeManuallyAdded: true,
-    unit: 'meter', // Default unit is meters
-  };
-
-  return new Promise((resolve) => {
-    AppleHealthKit.getDistanceWalkingRunning(options, (error, results: HealthValue[]) => {
-      if (error) {
-        console.error('Error getting distance walking/running:', error);
-        resolve(0);
-        return;
+      let totalCalories = 0;
+      if (Array.isArray(results)) {
+        totalCalories = results.reduce((sum, item) => sum + (item.value || 0), 0);
+      } else if (results && typeof results.value === 'number') {
+        totalCalories = results.value;
       }
       
-      // Sum up all distances in this period and convert to kilometers
-      const totalMeters = results.reduce((sum, item) => sum + item.value, 0);
-      const totalKilometers = totalMeters / 1000; // Convert meters to kilometers
-      resolve(totalKilometers);
+      resolve(Math.round(totalCalories));
     });
   });
 }
 
-// Sync health data for a specific day
+// Sync health data
 export async function syncHealthData(userId: string, date: string): Promise<void> {
-  if (!userId || !isHealthKitAvailable()) {
-    return;
-  }
+  if (!userId || Platform.OS !== 'ios') return;
   
   try {
-    // Check if HealthKit is enabled
     const enabled = await isHealthKitEnabled();
-    if (!enabled) {
-      return;
-    }
-    
+    if (!enabled) return;
+
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);
     
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
+
+    const startDateString = startOfDay.toISOString();
+    const endDateString = endOfDay.toISOString();
     
-    // Get the data for today
-    const [steps, calories, distance] = await Promise.all([
-      getStepCount(date),
-      getActiveEnergyBurned(startOfDay.toISOString(), endOfDay.toISOString()),
-      getDistanceWalkingRunning(startOfDay.toISOString(), endOfDay.toISOString())
-    ]);
+    // Get step count
+    const steps = await getStepCount(date);
     
-    console.log(`Syncing health data for ${date}: ${steps} steps, ${calories} calories, ${distance} km`);
+    // Get calories burned
+    const calories = await getActiveEnergyBurned(startDateString, endDateString);
     
-    // Find existing activities from HealthKit for this day
-    const { data: existingActivities } = await supabase
-      .from('activities')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('source', 'healthkit')
-      .gte('created_at', startOfDay.toISOString())
-      .lt('created_at', endOfDay.toISOString());
+    // Insert data to Supabase
+    const { error } = await supabase
+      .from('health_data')
+      .upsert({
+        user_id: userId,
+        date,
+        steps,
+        calories,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+    if (error) throw error;
     
-    // Check if we need to update steps
-    if (steps > 0) {
-      const stepsActivity = existingActivities?.find((a: any) => 
-        a.activity_type === 'Steps' && a.source === 'healthkit');
-      
-      if (stepsActivity) {
-        // Update existing activity
-        await supabase
-          .from('activities')
-          .update({
-            steps: steps,
-            distance: Math.round(steps * 0.0008 * 10) / 10, // Rough km conversion if actual distance not available
-            calories: Math.round(steps * 0.05), // Rough estimation for calories per step
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', stepsActivity.id);
-          
-        console.log('Updated existing steps activity');
-      } else {
-        // Create new activity
-        await supabase
-          .from('activities')
-          .insert({
-            user_id: userId,
-            activity_type: 'Steps',
-            duration: 0,
-            distance: Math.round(steps * 0.0008 * 10) / 10, // Rough km conversion
-            calories: Math.round(steps * 0.05),
-            steps: steps,
-            count: 0,
-            notes: 'Imported from Apple Health',
-            metric: 'steps',
-            source: 'healthkit',
-            created_at: new Date().toISOString()
-          });
-          
-        console.log('Created new steps activity');
-      }
-    }
+    // Update user fitness connection
+    await supabase
+      .from('user_fitness_connections')
+      .upsert({
+        user_id: userId,
+        type: 'apple_health',
+        connected: true,
+        last_synced: new Date().toISOString(),
+        status: 'connected',
+        last_sync_status: 'success',
+        last_sync_count: steps + (calories > 0 ? 1 : 0),
+      });
     
-    // Check if we need to update distance
-    if (distance > 0) {
-      const distanceActivity = existingActivities?.find((a: any) => 
-        a.activity_type === 'Walking' && a.source === 'healthkit');
-      
-      if (distanceActivity) {
-        // Update existing activity
-        await supabase
-          .from('activities')
-          .update({
-            distance: distance,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', distanceActivity.id);
-          
-        console.log('Updated existing distance activity');
-      } else {
-        // Create new activity
-        await supabase
-          .from('activities')
-          .insert({
-            user_id: userId,
-            activity_type: 'Walking',
-            duration: 0,
-            distance: distance,
-            calories: 0,
-            steps: 0,
-            count: 0,
-            notes: 'Distance from Apple Health',
-            metric: 'distance_km',
-            source: 'healthkit',
-            created_at: new Date().toISOString()
-          });
-          
-        console.log('Created new distance activity');
-      }
-    }
-    
-    // Check if we need to update calories
-    if (calories > 0) {
-      const caloriesActivity = existingActivities?.find((a: any) => 
-        a.activity_type === 'Workout' && a.source === 'healthkit');
-      
-      if (caloriesActivity) {
-        // Update existing activity
-        await supabase
-          .from('activities')
-          .update({
-            calories: Math.round(calories),
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', caloriesActivity.id);
-          
-        console.log('Updated existing calories activity');
-      } else {
-        // Create new activity
-        await supabase
-          .from('activities')
-          .insert({
-            user_id: userId,
-            activity_type: 'Workout',
-            duration: 0,
-            distance: 0,
-            calories: Math.round(calories),
-            steps: 0,
-            count: 0,
-            notes: 'Active calories from Apple Health',
-            metric: 'calories',
-            source: 'healthkit',
-            created_at: new Date().toISOString()
-          });
-          
-        console.log('Created new calories activity');
-      }
-    }
-    
-    // Update last sync time
+    // Save last sync time
     await AsyncStorage.setItem(HEALTHKIT_LAST_SYNC_KEY, new Date().toISOString());
     
   } catch (error) {
     console.error('Error syncing health data:', error);
+    
+    // Update connection status to error
+    await supabase
+      .from('user_fitness_connections')
+      .upsert({
+        user_id: userId,
+        type: 'apple_health',
+        connected: true,
+        last_synced: new Date().toISOString(),
+        status: 'error',
+        last_sync_status: 'error',
+        last_sync_error: String(error),
+      });
+    
+    throw error;
   }
 }
-4. Update fitness-connections.tsx
-Let's enhance the user experience and error handling in the HealthKit UI:
+3. Update your fitness-connections.tsx Component
+Here's an improved version of your fitness-connections.tsx component:
 
 tsx
 import React, { useEffect, useState } from 'react';
@@ -539,11 +525,10 @@ import {
   Switch,
   Platform,
   Alert,
-  Image
+  Linking
 } from 'react-native';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import SharedLayout from '../../../components/SharedLayout';
 import { useUser } from '../../../components/UserContext';
 import {
@@ -552,8 +537,10 @@ import {
   initHealthKit,
   disableHealthKit,
   syncHealthData,
-  setupBackgroundObservers
+  setupBackgroundObservers,
+  getLastSyncTime
 } from '../../../lib/healthKit';
+import { supabase } from '../../../lib/supabase';
 
 export default function FitnessConnections() {
   const { settings, user } = useUser();
@@ -563,7 +550,9 @@ export default function FitnessConnections() {
     permissions: { 
       steps: false, 
       calories: false,
-      distance: false 
+      distance: false,
+      heartRate: false,
+      sleep: false
     }
   });
   const [healthKitEnabled, setHealthKitEnabled] = useState(false);
@@ -571,13 +560,38 @@ export default function FitnessConnections() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [permissionDeniedAlert, setPermissionDeniedAlert] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
+  const [lastSync, setLastSync] = useState<string | null>(null);
+  const [connection, setConnection] = useState<any>(null);
 
-  // Check availability on component mount
+  // Check availability and load connection status on component mount
   useEffect(() => {
     checkAvailability();
+    loadLastSyncTime();
+    loadConnectionStatus();
   }, []);
+
+  const loadLastSyncTime = async () => {
+    const time = await getLastSyncTime();
+    setLastSync(time);
+  };
+
+  const loadConnectionStatus = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('user_fitness_connections')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('type', 'apple_health')
+        .single();
+      
+      if (error) throw error;
+      setConnection(data);
+    } catch (error) {
+      console.error('Error loading connection status:', error);
+    }
+  };
 
   const checkAvailability = async () => {
     try {
@@ -585,7 +599,7 @@ export default function FitnessConnections() {
       setHasError(false);
       setErrorMessage('');
       
-      const available = isHealthKitAvailable();
+      const available = await isHealthKitAvailable();
       console.log("HealthKit available:", available);
       
       if (available) {
@@ -597,7 +611,7 @@ export default function FitnessConnections() {
       console.error("Error checking HealthKit availability:", error);
       setIsLoading(false);
       setHasError(true);
-      setErrorMessage(error.message || 'Failed to check HealthKit availability');
+      setErrorMessage(error.message || 'Failed to check availability');
     }
   };
 
@@ -610,7 +624,7 @@ export default function FitnessConnections() {
     } catch (error: any) {
       console.error('Error checking HealthKit status:', error);
       setHasError(true);
-      setErrorMessage(error.message || 'Failed to check HealthKit status');
+      setErrorMessage(error.message || 'Failed to check status');
     } finally {
       setIsLoading(false);
     }
@@ -626,32 +640,30 @@ export default function FitnessConnections() {
     try {
       const today = new Date().toISOString().split('T')[0];
       await syncHealthData(user.id, today);
-      setLastSyncTime(new Date().toLocaleTimeString());
-      
-      // Show success message
-      Alert.alert(
-        "Sync Complete", 
-        "Your health data has been synced successfully.",
-        [{ text: "OK" }]
-      );
+      await loadLastSyncTime();
+      await loadConnectionStatus();
+      Alert.alert("Success", "Your health data has been synced successfully.");
     } catch (error: any) {
       console.error("Error syncing data:", error);
-      Alert.alert(
-        "Sync Failed", 
-        error.message || "There was a problem syncing your health data. Please try again."
-      );
+      Alert.alert("Error", error.message || "There was a problem syncing your health data. Please try again.");
     } finally {
       setIsSyncing(false);
     }
   };
 
-  const handleHealthKitToggle = async (value: boolean) => {
-    if (!isHealthKitAvailable()) {
-      Alert.alert('Not Available', 'HealthKit is not available on this device.');
-      return;
-    }
+  const openHealthSettings = () => {
+    // This will open the Health app on iOS
+    Linking.openURL('x-apple-health://');
+  };
 
+  const handleHealthKitToggle = async (value: boolean) => {
     try {
+      const available = await isHealthKitAvailable();
+      if (!available) {
+        Alert.alert('Not Available', 'HealthKit is not available on this device.');
+        return;
+      }
+
       if (value) {
         setIsLoading(true);
         setHasError(false);
@@ -669,32 +681,55 @@ export default function FitnessConnections() {
             console.log("Syncing health data...");
             const today = new Date().toISOString().split('T')[0];
             await syncHealthData(user.id, today);
-            setLastSyncTime(new Date().toLocaleTimeString());
+            await loadLastSyncTime();
+            await loadConnectionStatus();
           }
           
           await checkHealthKitStatus();
           Alert.alert(
             "Success",
-            "Health data access has been enabled. Your activity data will now sync automatically.",
-            [{ text: "OK" }]
+            "Health data access has been enabled. Your activity data will now sync automatically."
           );
         } else {
-          setPermissionDeniedAlert(true);
+          Alert.alert(
+            "Permission Denied",
+            "You need to allow access to health data in order to sync activities.",
+            [
+              { 
+                text: "Open Health Settings", 
+                onPress: openHealthSettings 
+              },
+              { text: "OK" }
+            ]
+          );
         }
       } else {
         await disableHealthKit();
         await checkHealthKitStatus();
-        setLastSyncTime(null);
+        
+        if (user?.id) {
+          await supabase
+            .from('user_fitness_connections')
+            .upsert({
+              user_id: user.id,
+              type: 'apple_health',
+              connected: false,
+              status: 'disconnected',
+              updated_at: new Date().toISOString(),
+            });
+        }
+        
+        await loadConnectionStatus();
+        
         Alert.alert(
           "Health Data Disabled",
-          "Health data syncing has been disabled. Your activity data will no longer sync automatically.",
-          [{ text: "OK" }]
+          "Health data syncing has been disabled. Your activity data will no longer sync automatically."
         );
       }
     } catch (error: any) {
       console.error("Error toggling HealthKit:", error);
       setHasError(true);
-      setErrorMessage(error.message || 'Error toggling HealthKit');
+      setErrorMessage(error.message || 'Connection error');
       Alert.alert(
         "Error",
         "There was a problem setting up the health data connection. Please try again."
@@ -704,448 +739,253 @@ export default function FitnessConnections() {
     }
   };
 
-  const handleRetry = () => {
-    checkHealthKitStatus();
-  };
-
-  // Render error alert when permission is denied
-  useEffect(() => {
-    if (permissionDeniedAlert) {
-      Alert.alert(
-        "Permission Denied",
-        "You need to allow access to health data in order to sync activities. Please go to your iPhone's Settings > Privacy > Health to grant access.",
-        [
-          { 
-            text: "Open Settings", 
-            onPress: () => {
-              // This will open the app's settings page
-              Linking.openURL('app-settings:');
-              setPermissionDeniedAlert(false);
-            }
-          },
-          { 
-            text: "Cancel", 
-            style: "cancel", 
-            onPress: () => setPermissionDeniedAlert(false) 
-          }
-        ]
-      );
-    }
-  }, [permissionDeniedAlert]);
-
   return (
     <SharedLayout style={styles.container}>
-      <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.headerContainer}>
-          <LinearGradient
-            colors={['#4A90E2', '#5C38ED']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.headerGradient}
-          >
-            <Text style={styles.title}>Health Services</Text>
-            <Text style={styles.subtitle}>
-              Connect to your device's health services to automatically track your activities
-            </Text>
-          </LinearGradient>
-        </View>
+      <ScrollView style={styles.scrollContainer}>
+        <Text style={styles.title}>Health Tracking</Text>
+        <Text style={styles.description}>
+          Connect to your device's health services to automatically track your activities.
+        </Text>
 
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#4A90E2" />
+            <ActivityIndicator size="large" color="#000" />
             <Text style={styles.loadingText}>Checking health services...</Text>
           </View>
         ) : (
           <>
-            {Platform.OS === 'ios' ? (
+            {Platform.OS === 'ios' && (
               <View style={styles.card}>
-                <View style={styles.cardHeader}>
+                <View style={styles.connectionRow}>
                   <View style={styles.iconContainer}>
-                    <Image 
-                      source={{uri: 'https://developer.apple.com/design/human-interface-guidelines/macos/images/app-icon-realistic-materials_2x.png'}}
-                      style={styles.platformIcon}
-                    />
+                    <FontAwesome5 name="apple" size={24} color="#000" />
                   </View>
-                  <View style={styles.cardHeaderTextContent}>
+                  <View style={styles.connectionInfo}>
                     <Text style={styles.cardTitle}>Apple Health</Text>
-                    <Text style={styles.cardSubtitle}>
-                      Connect to Apple Health to automatically sync your health data
-                    </Text>
+                    {hasError ? (
+                      <Text style={styles.errorText}>
+                        Connection error: {errorMessage || 'Could not connect to Apple Health'}
+                      </Text>
+                    ) : (
+                      <Text style={styles.cardDescription}>
+                        {healthKitEnabled 
+                          ? "Sync steps, workouts, and calories with Apple Health" 
+                          : "Connect to Apple Health to sync your fitness data"}
+                      </Text>
+                    )}
+                    {lastSync && healthKitEnabled && (
+                      <Text style={styles.lastSyncText}>
+                        Last synced: {new Date(lastSync).toLocaleString()}
+                      </Text>
+                    )}
                   </View>
-                </View>
-                
-                {hasError ? (
-                  <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>{errorMessage || "Connection error"}</Text>
+                  
+                  {hasError ? (
                     <TouchableOpacity 
                       style={styles.retryButton} 
-                      onPress={handleRetry}
+                      onPress={checkAvailability}
                     >
                       <Text style={styles.retryText}>Retry</Text>
                     </TouchableOpacity>
-                  </View>
-                ) : (
-                  <View style={styles.connectionRow}>
-                    <Text style={styles.connectionText}>
-                      {healthKitEnabled ? 'Connected' : 'Not Connected'}
-                    </Text>
+                  ) : (
                     <Switch
                       value={healthKitEnabled}
                       onValueChange={handleHealthKitToggle}
-                      trackColor={{ false: "#d1d1d1", true: "#91c3fd" }}
-                      thumbColor={healthKitEnabled ? "#4A90E2" : "#f4f3f4"}
-                      ios_backgroundColor="#d1d1d1"
+                      trackColor={{ false: "#d1d1d1", true: "#81b0ff" }}
+                      thumbColor={healthKitEnabled ? "#2196F3" : "#f4f3f4"}
                     />
-                  </View>
-                )}
+                  )}
+                </View>
 
                 {healthKitEnabled && !hasError && (
-                  <>
-                    <View style={styles.permissionsContainer}>
-                      <Text style={styles.permissionsTitle}>Permissions</Text>
-                      
-                      <View style={styles.permissionItem}>
-                        <View style={styles.permissionInfo}>
-                          <Ionicons name="footsteps" size={20} color="#555" />
-                          <Text style={styles.permissionText}>Steps</Text>
-                        </View>
-                        <View style={[
-                          styles.statusBadge, 
-                          healthKitStatus.permissions.steps ? styles.statusBadgeActive : styles.statusBadgeInactive
-                        ]}>
-                          <Text style={styles.statusText}>
-                            {healthKitStatus.permissions.steps ? 'Active' : 'Inactive'}
-                          </Text>
-                        </View>
-                      </View>
-                      
-                      <View style={styles.permissionItem}>
-                        <View style={styles.permissionInfo}>
-                          <Ionicons name="flame" size={20} color="#555" />
-                          <Text style={styles.permissionText}>Active Energy</Text>
-                        </View>
-                        <View style={[
-                          styles.statusBadge, 
-                          healthKitStatus.permissions.calories ? styles.statusBadgeActive : styles.statusBadgeInactive
-                        ]}>
-                          <Text style={styles.statusText}>
-                            {healthKitStatus.permissions.calories ? 'Active' : 'Inactive'}
-                          </Text>
-                        </View>
-                      </View>
-                      
-                      <View style={styles.permissionItem}>
-                        <View style={styles.permissionInfo}>
-                          <Ionicons name="map" size={20} color="#555" />
-                          <Text style={styles.permissionText}>Distance</Text>
-                        </View>
-                        <View style={[
-                          styles.statusBadge, 
-                          healthKitStatus.permissions.distance ? styles.statusBadgeActive : styles.statusBadgeInactive
-                        ]}>
-                          <Text style={styles.statusText}>
-                            {healthKitStatus.permissions.distance ? 'Active' : 'Inactive'}
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-                    
-                    <View style={styles.syncContainer}>
-                      {lastSyncTime && (
-                        <Text style={styles.lastSyncText}>
-                          Last sync: {lastSyncTime}
-                        </Text>
+                  <View style={styles.permissionsContainer}>
+                    <PermissionItem 
+                      title="Steps" 
+                      isEnabled={healthKitStatus.permissions.steps} 
+                      icon="footsteps"
+                    />
+                    <PermissionItem 
+                      title="Calories" 
+                      isEnabled={healthKitStatus.permissions.calories} 
+                      icon="flame"
+                    />
+                    <PermissionItem 
+                      title="Distance" 
+                      isEnabled={healthKitStatus.permissions.distance} 
+                      icon="map"
+                    />
+                    {connection?.last_sync_count > 0 && (
+                      <Text style={styles.syncStatsText}>
+                        Last sync: {connection.last_sync_count} data points
+                      </Text>
+                    )}
+                    <TouchableOpacity 
+                      style={styles.syncButton} 
+                      onPress={handleManualSync}
+                      disabled={isSyncing}
+                    >
+                      {isSyncing ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.syncButtonText}>Sync Now</Text>
                       )}
-                      
-                      <TouchableOpacity 
-                        style={styles.syncButton} 
-                        onPress={handleManualSync}
-                        disabled={isSyncing}
-                      >
-                        {isSyncing ? (
-                          <ActivityIndicator size="small" color="#fff" />
-                        ) : (
-                          <>
-                            <Ionicons name="sync" size={16} color="#fff" style={styles.syncIcon} />
-                            <Text style={styles.syncButtonText}>Sync Now</Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  </>
-                )}
-                
-                {healthKitEnabled && (
-                  <View style={styles.infoContainer}>
-                    <Ionicons name="information-circle" size={18} color="#4A90E2" style={styles.infoIcon} />
-                    <Text style={styles.infoText}>
-                      Your activities will sync automatically in the background. You can also sync manually at any time.
-                    </Text>
+                    </TouchableOpacity>
                   </View>
                 )}
-              </View>
-            ) : (
-              <View style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <View style={styles.iconContainer}>
-                    <FontAwesome5 name="google" size={24} color="#4285F4" />
-                  </View>
-                  <View style={styles.cardHeaderTextContent}>
-                    <Text style={styles.
-
-continue
-
-Let me continue with the updated fitness-connections.tsx component:
-
-tsx
-              <View style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <View style={styles.iconContainer}>
-                    <FontAwesome5 name="google" size={24} color="#4285F4" />
-                  </View>
-                  <View style={styles.cardHeaderTextContent}>
-                    <Text style={styles.cardTitle}>Google Fit</Text>
-                    <Text style={styles.cardSubtitle}>
-                      Connect to Google Fit to automatically sync your health data
-                    </Text>
-                  </View>
-                </View>
-                
-                <View style={styles.comingSoonContainer}>
-                  <LinearGradient
-                    colors={['#FF9800', '#F57C00']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.comingSoonBadge}
-                  >
-                    <Text style={styles.comingSoonText}>Coming Soon</Text>
-                  </LinearGradient>
-                  <Text style={styles.comingSoonDescription}>
-                    Google Fit integration will be available in the next update
-                  </Text>
-                </View>
               </View>
             )}
 
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Manual Activity Tracking</Text>
               <Text style={styles.cardDescription}>
-                You can always manually track your activities in the app
+                You can always log your activities manually even if you don't connect to health services.
               </Text>
-              
-              <View style={styles.manualTrackingInfoContainer}>
-                <View style={styles.manualTrackingInfoItem}>
-                  <View style={[styles.infoCircle, {backgroundColor: '#4CAF50'}]}>
-                    <Ionicons name="add-circle" size={22} color="#fff" />
-                  </View>
-                  <Text style={styles.infoText}>Record workouts, steps, and activities</Text>
-                </View>
-                
-                <View style={styles.manualTrackingInfoItem}>
-                  <View style={[styles.infoCircle, {backgroundColor: '#2196F3'}]}>
-                    <Ionicons name="trending-up" size={22} color="#fff" />
-                  </View>
-                  <Text style={styles.infoText}>Track your progress over time</Text>
-                </View>
-                
-                <View style={styles.manualTrackingInfoItem}>
-                  <View style={[styles.infoCircle, {backgroundColor: '#9C27B0'}]}>
-                    <Ionicons name="trophy" size={22} color="#fff" />
-                  </View>
-                  <Text style={styles.infoText}>Compete in challenges with friends</Text>
-                </View>
-              </View>
-              
               <TouchableOpacity
                 style={styles.actionButton}
                 onPress={() => router.push('/(tabs)/')}
               >
-                <LinearGradient
-                  colors={['#4A90E2', '#5C38ED']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.actionButtonGradient}
-                >
-                  <Text style={styles.actionButtonText}>Go to Dashboard</Text>
-                  <Ionicons name="arrow-forward" size={18} color="#fff" />
-                </LinearGradient>
+                <Text style={styles.actionButtonText}>Go to Activity Tracking</Text>
               </TouchableOpacity>
             </View>
           </>
         )}
-        
-        <View style={styles.bottomInfoContainer}>
-          <Ionicons name="information-circle-outline" size={18} color="#666" style={{marginRight: 8}} />
-          <Text style={styles.bottomInfoText}>
-            Health data is securely stored and synced with your account. Your privacy is our priority.
-          </Text>
-        </View>
       </ScrollView>
     </SharedLayout>
+  );
+}
+
+// Helper component for permission items
+function PermissionItem({ title, isEnabled, icon }: { title: string, isEnabled: boolean, icon: string }) {
+  return (
+    <View style={styles.permissionItem}>
+      <View style={styles.permissionLeft}>
+        <Ionicons name={icon as any} size={20} color="#555" style={styles.permissionIcon} />
+        <Text style={styles.permissionText}>{title}</Text>
+      </View>
+      <View style={[
+        styles.statusBadge, 
+        isEnabled ? styles.statusBadgeActive : styles.statusBadgeInactive
+      ]}>
+        <Text style={[
+          styles.statusText,
+          isEnabled ? styles.statusTextActive : styles.statusTextInactive
+        ]}>
+          {isEnabled ? 'Active' : 'Inactive'}
+        </Text>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f8fa',
+    backgroundColor: '#f5f5f5',
   },
   scrollContainer: {
     flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 30,
-  },
-  headerContainer: {
-    marginBottom: 20,
-  },
-  headerGradient: {
-    padding: 24,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    padding: 16,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#fff',
     marginBottom: 8,
+    color: '#000',
   },
-  subtitle: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.8)',
-    lineHeight: 22,
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-  },
-  loadingText: {
-    marginTop: 16,
+  description: {
     fontSize: 16,
     color: '#666',
+    marginBottom: 24,
   },
   card: {
     backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    marginHorizontal: 16,
+    borderRadius: 12,
+    padding: 16,
     marginBottom: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: 'rgba(0,0,0,0.1)',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.8,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  cardHeaderTextContent: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 6,
-  },
-  cardSubtitle: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
-  },
-  cardDescription: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 20,
-    lineHeight: 22,
-  },
-  iconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#f0f2f5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  platformIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   connectionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f2f5',
-  },
-  connectionText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
-  },
-  errorContainer: {
-    padding: 12,
-    backgroundColor: '#FFEBEE',
-    borderRadius: 8,
     marginBottom: 16,
-    flexDirection: 'row',
+  },
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    marginRight: 12,
+  },
+  connectionInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 4,
+    color: '#000',
+  },
+  cardDescription: {
+    fontSize: 14,
+    color: '#666',
   },
   errorText: {
-    flex: 1,
     fontSize: 14,
-    color: '#D32F2F',
+    color: '#d32f2f',
+  },
+  lastSyncText: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 4,
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#666',
   },
   retryButton: {
-    backgroundColor: '#D32F2F',
+    backgroundColor: '#2196F3',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 4,
+    borderRadius: 6,
   },
   retryText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 12,
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
   },
   permissionsContainer: {
     marginTop: 16,
-    marginBottom: 20,
-  },
-  permissionsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    paddingTop: 16,
   },
   permissionItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f2f5',
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
-  permissionInfo: {
+  permissionLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  permissionIcon: {
+    marginRight: 12,
   },
   permissionText: {
     fontSize: 16,
     color: '#333',
-    marginLeft: 12,
   },
   statusBadge: {
     paddingHorizontal: 10,
@@ -1153,187 +993,1865 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   statusBadgeActive: {
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    backgroundColor: 'rgba(76, 175, 80, 0.1)', 
   },
   statusBadgeInactive: {
-    backgroundColor: 'rgba(158, 158, 158, 0.1)',
+    backgroundColor: 'rgba(189, 189, 189, 0.1)',
   },
   statusText: {
     fontSize: 12,
     fontWeight: '600',
   },
-  syncContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 16,
+  statusTextActive: {
+    color: '#4CAF50',
+  },
+  statusTextInactive: {
+    color: '#9E9E9E',
+  },
+  syncStatsText: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 8,
     marginBottom: 16,
   },
-  lastSyncText: {
-    fontSize: 14,
-    color: '#666',
-  },
   syncButton: {
-    backgroundColor: '#4A90E2',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    flexDirection: 'row',
+    backgroundColor: '#2196F3',
+    paddingVertical: 12,
+    borderRadius: 8,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  syncIcon: {
-    marginRight: 6,
+    marginTop: 8,
   },
   syncButtonText: {
-    color: 'white',
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
-    fontSize: 14,
-  },
-  infoContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: 'rgba(74, 144, 226, 0.1)',
-    borderRadius: 8,
-  },
-  infoIcon: {
-    marginRight: 8,
-  },
-  infoText: {
-    fontSize: 14,
-    color: '#555',
-    lineHeight: 20,
-    flex: 1,
-  },
-  comingSoonContainer: {
-    alignItems: 'center',
-    padding: 16,
-  },
-  comingSoonBadge: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginBottom: 12,
-  },
-  comingSoonText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  comingSoonDescription: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-  },
-  manualTrackingInfoContainer: {
-    marginTop: 12,
-    marginBottom: 20,
-  },
-  manualTrackingInfoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  infoCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
   },
   actionButton: {
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  actionButtonGradient: {
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    flexDirection: 'row',
+    backgroundColor: '#4A90E2',
+    paddingVertical: 12,
+    borderRadius: 8,
     alignItems: 'center',
-    justifyContent: 'center',
+    marginTop: 16,
   },
   actionButtonText: {
-    color: 'white',
-    fontWeight: '600',
+    color: '#fff',
     fontSize: 16,
-    marginRight: 8,
-  },
-  bottomInfoContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 16,
-    marginTop: 12,
-  },
-  bottomInfoText: {
-    fontSize: 12,
-    color: '#666',
-    flex: 1,
+    fontWeight: '600',
   },
 });
-5. Update app.json and app.config.ts
-Make sure both files have consistent configuration:
+4. Update Package.json
+Make sure your package.json has the correct dependencies:
 
-javascript
-// app.config.ts modifications - Add or ensure these settings
+json
+"dependencies": {
+  // ... other dependencies
+  "react-native-health": "^1.19.0"
+}
+5. Update app.json/app.config.ts
+Ensure your app.config.ts includes all the necessary configurations:
+
+typescript
+// app.config.ts
 export default ({ config }: ConfigContext): ExpoConfig => ({
-  // ...existing config
+  // ... existing config
   ios: {
-    // ...existing iOS config
+    // ... existing iOS config
     infoPlist: {
-      // Make sure these background modes are included
-      UIBackgroundModes: [
-        "remote-notification",
-        "processing",
-        "fetch"
-      ],
-      BGTaskSchedulerPermittedIdentifiers: [
-        "com.dheshadev.ctp.healthkitprocessing",
-        "com.dheshadev.ctp.healthkitfetch"
-      ],
-      NSHealthShareUsageDescription: "Allow CTP to read your health data to track your activities including steps, calories, and workouts.",
-      NSHealthUpdateUsageDescription: "Allow CTP to write your health data to track your activities and sync with Apple Health.",
+      // ... other configs
+      NSHealthShareUsageDescription: "Allow CTPs to read your health data to track your activities including steps, calories, and workouts.",
+      NSHealthUpdateUsageDescription: "Allow CTPs to write your health data to track your activities and sync with Apple Health.",
       UIRequiredDeviceCapabilities: [
         "arm64",
         "healthkit"
       ]
-    }
+    },
+    entitlements: {
+      "com.apple.developer.healthkit": true,
+      "com.apple.developer.healthkit.background-delivery": true,
+    },
   },
-  // ...other config
+  // ... other config
   plugins: [
-    // ...existing plugins
+    // ... other plugins
     [
       "react-native-health",
       {
-        healthSharePermission: "Allow CTP to read your health data to track your activities including steps, calories, and workouts.",
-        healthUpdatePermission: "Allow CTP to write your health data to track your activities and sync with Apple Health."
-      }
+        isClinicalDataEnabled: false,
+        healthSharePermission: "Allow CTPs to read your health data",
+        healthUpdatePermission: "Allow CTPs to update your health data",
+      },
     ],
   ],
 });
-6. Testing Instructions
-Once you've implemented these changes, try the following to confirm HealthKit is working:
+6. Update your Info.plist
+Make sure your Info.plist has all the necessary keys:
 
-Make sure your project builds correctly on iOS (these changes won't work on simulators)
-Try connecting to HealthKit and ensuring permissions are requested
-If permissions aren't requested, try:
-Checking your iOS settings > Privacy > Health and see if your app is listed
-Reinstalling your app to reset permissions
-Double checking entitlements in Xcode directly
-Summary of Changes
-AppDelegate.mm: Added proper initialization for HealthKit background observers
-CTP.entitlements: Added background delivery capability
-healthKit.ts: Enhanced implementation with better error handling, permission checks, and data syncing
-fitness-connections.tsx: Improved UI/UX with better error states, permissions display, and sync feedback
-app.config.ts: Ensured consistent configuration with the required HealthKit settings
-These changes should resolve the issues with your HealthKit integration. The main problems were likely:
+xml
+<key>NSHealthShareUsageDescription</key>
+<string>Allow CTPs to read your health data to track your activities including steps, calories, and workouts.</string>
+<key>NSHealthUpdateUsageDescription</key>
+<string>Allow CTPs to write your health data to track your activities and sync with Apple Health.</string>
+<key>UIRequiredDeviceCapabilities</key>
+<array>
+  <string>arm64</string>
+  <string>healthkit</string>
+</array>
+7. Update Entitlements File (CTP.entitlements)
+Make sure your entitlements file has the necessary HealthKit permissions:
 
-Missing background delivery capability in entitlements
-Improper initialization in AppDelegate.mm
-Insufficient error handling in the HealthKit implementation
-The updated code provides a robust, production-ready implementation of Apple HealthKit integration with proper error handling, background syncing, and a polished user interface.
+xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.
+
+continue
+
+I'll continue with the entitlements file and the remaining steps to fix the HealthKit integration in your app.
+
+7. Update Entitlements File (CTP.entitlements)
+Make sure your entitlements file has the necessary HealthKit permissions:
+
+xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>aps-environment</key>
+    <string>development</string>
+    <key>com.apple.developer.healthkit</key>
+    <true/>
+    <key>com.apple.developer.healthkit.access</key>
+    <array/>
+    <key>com.apple.developer.healthkit.background-delivery</key>
+    <true/>
+  </dict>
+</plist>
+8. Create a Plugin to Modify AppDelegate
+Create a file called plugins/ios-healthkit-config/index.js to ensure the AppDelegate is modified correctly when building:
+
+javascript
+const { withAppDelegate } = require("@expo/config-plugins");
+
+module.exports = function withHealthKitConfig(config) {
+  return withAppDelegate(config, async (config) => {
+    if (config.modResults.contents.includes('initializeBackgroundObservers')) {
+      return config;
+    }
+
+    // Add import statement if it doesn't exist
+    const importStatement = `#import "RCTAppleHealthKit.h"`;
+    if (!config.modResults.contents.includes(importStatement)) {
+      config.modResults.contents = config.modResults.contents.replace(
+        '#import <React/RCTLinkingManager.h>',
+        `#import <React/RCTLinkingManager.h>\n${importStatement}`
+      );
+    }
+
+    // Add HealthKit initialization
+    config.modResults.contents = config.modResults.contents.replace(
+      'RCTBridge *bridge = [[RCTBridge alloc] initWithDelegate:self launchOptions:launchOptions];',
+      'RCTBridge *bridge = [[RCTBridge alloc] initWithDelegate:self launchOptions:launchOptions];\n  // Initialize HealthKit background observers\n  [[RCTAppleHealthKit new] initializeBackgroundObservers:bridge];'
+    );
+
+    return config;
+  });
+};
+Then, add this plugin to your app.config.ts:
+
+typescript
+plugins: [
+  // ... other plugins
+  "./plugins/ios-healthkit-config",
+  [
+    "react-native-health",
+    {
+      healthSharePermission: "Allow CTPs to read your health data",
+      healthUpdatePermission: "Allow CTPs to update your health data",
+    }
+  ],
+]
+9. Add New Database Model (if needed)
+Create a new model for tracking health connections:
+
+typescript
+// models/healthConnections.ts
+import { supabase } from '../lib/supabase';
+
+export interface HealthConnection {
+  id: string;
+  user_id: string;
+  type: string;
+  connected: boolean;
+  last_synced?: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getHealthConnections(userId: string): Promise<HealthConnection[]> {
+  const { data, error } = await supabase
+    .from('user_fitness_connections')
+    .select('*')
+    .eq('user_id', userId);
+    
+  if (error) throw error;
+  return data || [];
+}
+
+export async function upsertHealthConnection(connection: any): Promise<void> {
+  const { error } = await supabase
+    .from('user_fitness_connections')
+    .upsert(connection);
+    
+  if (error) throw error;
+}
+10. Update UserContext.tsx to Support HealthKit
+Enhance your UserContext.tsx to include HealthKit setup:
+
+typescript
+// components/UserContext.tsx - Add these imports and functionality
+import { initHealthKit, setupBackgroundObservers, isHealthKitAvailable } from '../lib/healthKit';
+
+// Inside UserProvider component
+useEffect(() => {
+  // Initialize HealthKit if enabled
+  const initializeHealthKit = async () => {
+    try {
+      if (user && Platform.OS === 'ios' && await isHealthKitAvailable()) {
+        const { data } = await supabase
+          .from('user_fitness_connections')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('type', 'apple_health')
+          .single();
+          
+        if (data?.connected) {
+          console.log('Setting up HealthKit background observers');
+          setupBackgroundObservers(user.id);
+        }
+      }
+    } catch (error) {
+      console.error('Error initializing HealthKit:', error);
+    }
+  };
+
+  if (user) {
+    initializeHealthKit();
+  }
+}, [user]);
+Step-by-Step Implementation Process
+Now, let me outline the specific steps you need to take to implement this solution:
+
+First, check if you already have the react-native-health library installed. If not, install it:
+bash
+npm install react-native-health
+Update your AppDelegate.mm file with the code I provided in step 1, making sure to add the import for RCTAppleHealthKit and initialize the background observers.
+Create or update your healthKit.ts file in the lib folder with the implementation I provided.
+Update your fitness-connections.tsx component with the improved version I provided.
+Make sure your app.config.ts or app.json has the correct HealthKit configuration.
+Create the plugin file to ensure AppDelegate modifications are applied correctly during builds.
+Update your Info.plist and entitlements files to include the required HealthKit permissions.
+Create a model for tracking health connections if you need it.
+Test on a real device, not in the simulator (HealthKit requires a real device).
+Solving the Error "Connection error: undefined is not a function"
+The specific error you're seeing ("undefined is not a function") typically occurs when trying to call a method that doesn't exist or hasn't been properly initialized. In the context of HealthKit, this likely means that:
+
+The AppleHealthKit module is not being imported correctly
+The module is imported, but methods are being called before initialization
+There's a platform check issue (trying to use iOS-specific code on a non-iOS platform)
+The solution I've provided addresses all these possible causes:
+
+Proper imports in AppDelegate.mm
+Platform-specific checks in the healthKit.ts file
+Proper initialization sequence
+Error handling with meaningful error messages
+UI updates to show connection status
+Once implemented, your app should be able to:
+
+Show the Apple Health option in the fitness connections screen
+Allow users to toggle the connection
+Display connection status with permissions
+Sync health data manually
+Store data in your Supabase database
+Let me know if you have any questions or need further clarification on any part of the implementation!
 
 
 
+
+
+
+
+Unleashing the Potential of React Native Healthkit: Strengthening Health and Fitness Apps
+Fitness and health are changing due to wearable technology, which provides real-time data about our well-being. Wearables transform healthcare by changing how diseases are managed, prevented, and treated. These health monitoring devices enable users to make better decisions by providing rapid access to critical indicators like heart rate and activity levels. 
+
+React Native Healthkit
+
+React Native Health solutions allow developers to build mobile apps that seamlessly integrate with Apple HealthKit devices. This integration is crucial for enabling the collection and sharing of health data across multiple platforms, providing users with a unified health monitoring experience.
+
+Furthermore, wearables are revolutionizing healthcare delivery by allowing telemedicine and remote patient monitoring, guaranteeing everyone’s access to care. In this blog, we’ll discuss React Native HealthKit. To communicate with Apple HealthKit for iOS, we will use React Native Health, a react native package that allows access to health and fitness data exposed by Apple HealthKit. The methods are available here. 
+
+We will go through using the Apple HealthKit APIs and gaining access to Apple HealthKit in detail.
+
+Getting Started
+The “Expo Go” app is unable to utilise this package. Find out how to apply it for bespoke development clients.
+
+Installation
+First and foremost, we can start by installing the react-native-health in our React-Native project.
+
+Run the following command:
+You can use either npm or yarn to install the package.
+
+  yarn add react-native-health
+
+or
+
+  npm i react-native-health
+
+If you are using CocoaPods, you can run the following from the ios/ folder of your app.
+  pod install
+
+Or, if you need to link it manually, run
+  react-native link react-native-health
+
+Update the ios/<Project Name>/info.plist file in your project
+  <key>NSHealthShareUsageDescription</key>
+
+  <string>Read and understand health data.</string>
+
+  <key>NSHealthUpdateUsageDescription</key>
+
+  <string>Share workout data with other apps.</string>
+
+  <!– Below is only required if requesting clinical health data –>
+
+  <key>NSHealthClinicalHealthRecordsShareUsageDescription</key>
+
+  <string>Read and understand clinical health data.</string>
+
+To add Healthkit support to your application’s Capabilities
+
+Launch Xcode and navigate to your project’s ios/ folder.
+Choose the project name from the sidebar on the left.
+Double click ‘HealthKit’ after selecting ‘+ Capability’ in the central pane.
+Check the box next to Clinical Health Records to allow access to certain types of clinical data.
+Usage:
+Before you can begin data collection or storage in HealthKit, you must ask the user for permission to collect or save the specified data types. There are several ways to do this.
+ 
+
+import AppleHealthKit, {
+
+    HealthKitPermissions,
+
+  } from ‘react-native-health’
+
+  /* Permission options */
+
+  const permissions = {
+
+    permissions: {
+
+      read: [AppleHealthKit.Constants.Permissions.HeartRate],
+
+      write: [AppleHealthKit.Constants.Permissions.Steps],
+
+    },
+
+  }
+
+as HealthKitPermissions
+
+Click here for additional permissions.
+
+Background Processing
+Apple permits developers to set up persistent observer queries for the required health kinds to have background capabilities.
+
+Open your ios/AppDelegate.m file in XCode and add the following statements to configure that in your app:
+
+  #import “AppDelegate.h”  /* Add the library import at the top of AppDelegate.m */
+
+  #import “RCTAppleHealthKit.h”
+
+  @implementation AppDelegate
+
+  – (BOOL)application:(UIApplication *)application
+
+      didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+
+    RCTBridge *bridge = [[RCTBridge alloc] initWithDelegate:self
+
+    launchOptions:launchOptions];
+
+    /* Add Background initializer for HealthKit  */
+
+    [[RCTAppleHealthKit new] initializeBackgroundObservers:bridge];
+
+    return YES;
+
+  }
+
+Subsequently, you can use the React Native client to listen for data updates. See background observers for additional details.
+
+Initialize Apple HealthKit
+  AppleHealthKit.initHealthKit(    (options: HealthInputOptions),
+
+    (err: string, results: boolean) => {
+
+      if (err) {
+
+        console.log(‘error initializing Healthkit: ‘, err)
+
+        return
+
+      }
+
+      // Healthkit is initialized…
+
+      //Now it is safe to read and write Healthkit data…
+
+    },
+
+  )
+
+Check for HealthKit availability.
+ Import AppleHealthKit from ‘react-native-health’
+
+  AppleHealthKit.isAvailable((err: Object, available: boolean) => {
+
+    if (err) {
+
+      console.log(‘error initializing Healthkit: ‘, err)
+
+      return
+
+    }
+
+  })
+
+Example output:
+  true
+Implementation
+implementation of react native healthkit
+
+To fully leverage the capabilities of the Apple Watch, it’s essential to enable HealthKit on Apple Watch. By doing so, developers can create apps that not only track fitness metrics but also synchronize this data across various health apps, ensuring users have a comprehensive view of their health.
+
+We will now review various samples that may be obtained from the Apple HealthKit using the Apple HealthKit API’s. 
+
+Weight
+Height
+BMI
+Biological Sex
+Energy Consumed
+Protein
+Insulin Delivery
+Daily Step Count
+Step Count
+Calories
+ActiveEnergyBurned
+BasalEnergyBurned
+DailyDistanceWalkingRunning
+DailyDistanceSwimming
+Sleep
+Blood Pressure
+Electrocardiogram
+Heart Rate
+Heart Rate Variability
+Heartbeat Series
+Oxygen Saturation
+Resting Heart Rate
+Vo2Max
+Respiratory Rate
+Walking Heart Rate
+Weight:
+Code Sample
+  let options = {    unit: ‘pound’, // optional; default ‘pound’
+
+   startDate: new Date(2024, 0, 0).toISOString(), // required
+
+    endDate: new Date().toISOString(), // optional; default now
+
+    ascending: false, // optional; default false
+
+    limit: 10, // optional; default no limit
+
+  }
+
+  AppleHealthKit.getWeightSamples(
+
+    options,
+
+    (err: Object, results: Array<HealthValue>) => {
+
+      if (err) {
+
+        return
+
+      }
+
+      console.log(results)
+
+    },
+
+  )
+
+Output
+  [    {
+
+    // The universally unique identifier (UUID) for this HealthKit object.
+
+      “id”: “3d366e60-4f7c-4f72-b0ce-479ea19279b8”,  
+
+      “value”: 160,
+
+      “startDate”: “2024-07-09T00:00:00.000-0400”,
+
+      “endDate”: “2024-07-10T00:00:00.000-0400”,
+
+      “metadata”: {
+
+       “HKWasUserEntered”: false
+
+      }
+
+    },
+
+    {
+
+      “id”: “cb7a2de6-f8d2-48cc-8cca-3d9f58a3601a”,
+
+      “value”: 161,
+
+      “startDate”: “2024-07-08T00:00:00.000-0400”,
+
+      “endDate”: “2024-07-09T00:00:00.000-0400”,
+
+      “metadata”: {
+
+       “HKWasUserEntered”: false
+
+      }
+
+    },
+
+    {
+
+      “id”: “4dddd4da-2adf-4d1c-a400-10790ffe2c0d”,
+
+      “value”: 165,
+
+      “startDate”: “2024-07-07T00:00:00.000-0400”,
+
+      “endDate”: “2024-07-08T00:00:00.000-0400”,
+
+      “metadata”: {
+
+        “HKWasUserEntered”: false
+
+      }
+
+    }
+
+  ]
+
+Healthcare app development
+Height
+Code Sample
+  let options = {    unit: ‘inch’, // optional; default ‘inch’
+
+    startDate: new Date(2024, 0, 0).toISOString(), // required
+
+    endDate: new Date().toISOString(), // optional; default now
+
+    ascending: false, // optional; default false
+
+    limit: 10, // optional; default no limit
+
+  }
+
+  AppleHealthKit.getHeightSamples(
+
+    options,
+
+    (err: Object, results: Array<HealthValue>) => {
+
+      if (err) {
+
+        return
+
+      }
+
+      console.log(results)
+
+    },
+
+  )
+
+Output
+  [    {
+
+    // The universally unique identifier (UUID) for this HealthKit object.
+
+      “id”: “3d366e60-4f7c-4f72-b0ce-479ea19279b8”, 
+
+      “value”: 74.02,
+
+      “startDate”: “2024-06-29T17:55:00.000-0400”,
+
+      “endDate”: “2024-06-29T17:55:00.000-0400”,
+
+      “metadata”: {
+
+       “HKWasUserEntered”: true,
+
+      }
+
+  },
+
+  {
+
+    “id”: “19a9910d-230a-437f-a830-353f6e61f676”,
+
+    “value”: 74,
+
+    “startDate”: “2024-03-12T13:22:00.000-0400”,
+
+    “endDate”: “2024-03-12T13:22:00.000-0400”,
+
+    “metadata”: {
+
+        “HKWasUserEntered”: true,
+
+      }
+
+    }
+
+  ]
+
+BMI
+Code Sample
+  let options = {    startDate: new Date(2024, 0, 0).toISOString(), // required
+
+    endDate: new Date().toISOString(), // optional; default now
+
+    ascending: false, // optional; default false
+
+    limit: 10, // optional; default no limit
+
+  }
+
+  AppleHealthKit.getBmiSamples(
+
+    options,
+
+    (err: Object, results: Array<HealthValue>) => {
+
+      if (err) {
+
+        return
+
+      }
+
+      console.log(results)
+
+    },
+
+  )
+
+Output
+  [    {
+
+      “endDate”: “2024-10-10T09:19:00.000+0000”, 
+
+    // The universally unique identifier (UUID) for this HealthKit object.
+
+      “id”: “73A653BA-4715-47BD-98FE-E9AA91DB33CA”, 
+
+      “sourceId”: “com.apple.Health”, 
+
+      “sourceName”: “Health”, 
+
+      “startDate”: “2024-10-19T09:19:00.000+0000”, 
+
+      “value”: 18.5
+
+    },
+
+    {
+
+      “endDate”: “2024-08-23T08:50:00.000+0000”,
+
+      “id”: “B3D8B5BE-216C-4C10-A96E-3B2CF8EB646E”,
+
+      “sourceId”: “com.apple.Health”,
+
+      “sourceName”: “Health”,
+
+      “startDate”: “2024-08-23T08:50:00.000+0000”,
+
+      “value”: 18.83
+
+    }
+
+  ]
+
+Biological Sex
+Code Sample
+  AppleHealthKit.getBiologicalSex(null, (err: Object, results: Object) =>       {
+
+    if (err) {
+
+      return
+
+    }
+
+    console.log(results)
+
+  })
+
+Output
+  {    “value”: “female”
+
+  }
+
+Energy Consumed
+Code Sample
+  let options = {    startDate: new Date(2024, 0, 0).toISOString(), // required
+
+    endDate: new Date().toISOString(), // optional; default now
+
+  }
+
+  AppleHealthKit.getEnergyConsumedSamples(
+
+    (options: HealthInputOptions),
+
+    (err: Object, results: HealthValue) => {
+
+      if (err) {
+
+        return
+
+      }
+
+      console.log(results)
+
+    },
+
+  )
+
+Output
+  [    {
+
+      “endDate”: “2024-04-01T22:00:00.000+0300”, 
+
+      “startDate”: “2024-04-01T22:00:00.000+0300”, 
+
+      “value”: 204.5,
+
+      “metadata”: {
+
+        “HKWasUserEntered”: true,
+
+      }
+
+    }
+
+  ]
+
+Protein
+Code Sample
+  let options = {    startDate: new Date(2024, 0, 0).toISOString(), // required
+
+    endDate: new Date().toISOString(), // optional; default now
+
+  }
+
+  AppleHealthKit.getProteinSamples(
+
+    (options: HealthInputOptions),
+
+    (err: Object, results: HealthValue) => {
+
+      if (err) {
+
+        return
+
+      }
+
+      console.log(results)
+
+    },
+
+  )
+
+Output
+  [    {
+
+      “id”: “5013eca7-4aee-45af-83c1-dbe3696b2e51”, 
+
+  // The universally unique identifier (UUID) for this HealthKit object.
+
+      “endDate”: “2024-04-01T22:00:00.000+0300”, 
+
+      “startDate”: “2024-04-01T22:00:00.000+0300”, 
+
+      “value”: 39,
+
+      “metadata”: {
+
+        “HKWasUserEntered”: true,
+
+      }
+
+    }
+
+  ]
+
+Insulin Delivery
+Code Sample
+  let options = {    startDate: new Date(2024, 0, 0).toISOString(), // required
+
+    endDate: new Date().toISOString(), // optional; default now
+
+    ascending: false, // optional; default false
+
+    limit: 10, // optional; default no limit
+
+  }
+
+  AppleHealthKit.getInsulinDeliverySamples(
+
+      options,
+
+      (callbackError: string, results: HealthValue[]) => {
+
+          console.log(results)
+
+      },
+
+  );
+
+Output
+  [    {
+
+      “id”: “8DE6A905-02B7-41D2-BB6E-67D1DD82DD6F”, // The universally unique identifier (UUID) for this HealthKit object.
+
+      “endDate”: “2024-03-22T16:19:00.000-0300”,
+
+      “sourceId”: “com.apple.Health”,
+
+      “sourceName”: “Health”,
+
+     “startDate”: “2024-03-22T16:19:00.000-0300”,
+
+      “value”: 5,
+
+      “metadata”: {
+
+        “HKWasUserEntered”: true,
+
+        “HKInsulinDeliveryReason”: 2, // Basal = 1, Bolus = 2
+
+      }
+
+    }
+
+  ]
+
+ 
+
+Daily Step Count
+Code Sample
+  let options = {      startDate: (new Date(2024,1,1)).toISOString() // required
+
+      endDate:   (new Date()).toISOString() // optional; default now
+
+  };
+
+ 
+
+  AppleHealthKit.getDailyStepCountSamples(
+
+    (options: HealthInputOptions),
+
+    (err: Object, results: Array<Object>) => {
+
+      if (err) {
+
+        return
+
+      }
+
+      console.log(results)
+
+    },
+
+  )
+
+Output
+ [    {
+
+      “endDate”: “2024-03-22T17:00:00.000-0300”,
+
+      “startDate”: “2024-03-22T16:00:00.000-0300”,
+
+      “value”: 3978
+
+    }
+
+  ]
+
+ 
+
+Step Count
+Code Sample
+  let options = {      date: new Date().toISOString(), // optional; default now
+
+      includeManuallyAdded: false. // optional: default true
+
+  };
+
+ 
+
+  AppleHealthKit.getStepCount(
+
+    (options: HealthInputOptions),
+
+    (err: Object, results: HealthValue) => {
+
+      if (err) {
+
+        return
+
+      }
+
+      console.log(results)
+
+    },
+
+  )
+
+Output
+  {    “value”: 213
+
+  }
+
+ 
+
+Active Energy Burned / Active Kilocalories
+Code Sample
+  let options = {    startDate: new Date(2024, 0, 0).toISOString(), // required
+
+    endDate: new Date().toISOString(), // optional; default now
+
+    ascending: true, // optional
+
+    includeManuallyAdded: true, // optional
+
+  }
+
+ 
+
+ 
+
+  AppleHealthKit.getActiveEnergyBurned(
+
+    (options: HealthInputOptions),
+
+    (err: Object, results: HealthValue) => {
+
+      if (err) {
+
+        return
+
+      }
+
+      console.log(results)
+
+    },
+
+  )
+
+Output
+  [    {
+
+      “endDate”: “2024-03-22T16:00:00.000-0300”,
+
+      “startDate”: “2024-03-22T15:00:00.000-0300”,
+
+      “value”: 123
+
+    }
+
+  ]
+
+ 
+
+Basal Energy Burned / Resting Energy
+Code Sample
+  let options = {    startDate: new Date(2018, 10, 1).toISOString(), // required
+
+    endDate: new Date().toISOString(), // optional; default now
+
+    ascending: true, // optional
+
+    includeManuallyAdded: true, // optional
+
+  }
+
+ 
+
+  AppleHealthKit.getBasalEnergyBurned(
+
+    (options: HealthInputOptions),
+
+    (err: Object, results: HealthValue) => {
+
+      if (err) {
+
+        return
+
+      }
+
+      console.log(results)
+
+    },
+
+  )
+
+Output
+    [
+
+    {
+
+      “endDate”: “2024-03-22T17:00:00.000-0300”,
+
+      “startDate”: “2024-03-22T16:00:00.000-0300”,
+
+      “value”: 42
+
+    }  
+
+  ]
+
+ 
+
+Sleep
+Code Sample
+  let options = {    startDate: new Date(2024, 0, 0).toISOString(), // required
+
+    endDate: new Date().toISOString(), // optional; default now
+
+    limit: 10, // optional; default no limit
+
+    ascending: true, // optional; default false
+
+  }
+
+ 
+
+  AppleHealthKit.getSleepSamples(options, (err: Object, results:     Array<HealthValue>) => {
+
+    if (err) {
+
+      return;
+
+    }
+
+    console.log(results).
+
+   });
+
+Output
+    [
+
+    {
+
+      “id”: “3d366e60-4f7c-4f72-b0ce-479ea19279b8”, // The universally   unique identifier (UUID) for this HealthKit object.
+
+      “endDate”: “2024-03-22T16:34:00.000-0300”,
+
+      “sourceId”: “com.apple.Health”,
+
+      “sourceName”: “Health”,
+
+      “startDate”: “2024-03-22T15:34:00.000-0300”,
+
+      “value”: “INBED”
+
+    }
+
+  ]
+
+ 
+
+Blood Pressure
+Code Sample
+  let options = {    unit: ‘mmhg’, // optional; default ‘mmhg’
+
+    startDate: new Date(2024, 0, 0).toISOString(), // required
+
+    endDate: new Date().toISOString(), // optional; default now
+
+    ascending: false, // optional; default false
+
+    limit: 10, // optional; default no limit
+
+  }
+
+ 
+
+  AppleHealthKit.getBloodPressureSamples(
+
+    options,
+
+    (err: Object, results: Array<HealthValue>) => {
+
+      if (err) {
+
+        return
+
+      }
+
+      console.log(results)
+
+    },
+
+  )
+
+Output
+  [    {
+
+      “bloodPressureSystolicValue”: 120,
+
+      “bloodPressureDiastolicValue”: 81,
+
+      “startDate”: “2024-06-29T17:55:00.000-0400”,
+
+      “endDate”: “2024-06-29T17:55:00.000-0400”
+
+    },
+
+    {
+
+      “bloodPressureSystolicValue”: 119,
+
+      “bloodPressureDiastolicValue”: 77,
+
+      “startDate”: “2024-03-12T13:22:00.000-0400”,
+
+      “endDate”: “2024-03-12T13:22:00.000-0400”
+
+    }
+
+  ]
+
+ 
+
+Electrocardiogram
+Code Sample
+ let options = {    startDate: new Date(2024, 0, 0).toISOString(), // required
+
+    endDate: new Date().toISOString(), // optional; default now
+
+    ascending: false, // optional; default false
+
+    limit: 1, // optional; default no limit
+
+  }
+
+ 
+
+  AppleHealthKit.getElectrocardiogramSamples(
+
+    (options: HealthInputOptions),
+
+    (err: Object, results: ElectrocardiogramSampleValue[]) => {
+
+      if (err) {
+
+        return
+
+      }
+
+      console.log(results)
+
+    },
+
+  )
+
+Output
+  [
+
+    {
+
+      “id”: “5AF5F9E0-F27E-4BD7-8DBD-B7E00B9C68CF”,
+
+      “sourceName”: “ECG”,
+
+      “sourceId”: “com.apple.NanoHeartRhythm”,
+
+      “startDate”: “2024-06-16T19:10:52.498-0400”,
+
+      “endDate”: “2024-06-16T19:11:22.499-0400”,
+
+      “classification”: “SinusRhythm”, 
+
+     // see ElectrocardiogramClassification enum
+
+      “averageHeartRate”: 62,
+
+      “samplingFrequency”: 512.6171875,
+
+      “device”: “Watch4,1”,
+
+      “algorithmVersion”: 2,
+
+      “voltageMeasurements”: [
+
+        // [timeSinceSampleStart (s), voltage (V)]
+
+        [0, -0.000007642375469207763],
+
+        [0.0019507734511925627, -0.000005802469730377197],
+
+        [0.0039015469023851255, -0.000003958822011947631],
+
+        [0.005852320353577688, -0.0000021150546073913572],
+
+        [0.007803093804770251, -2.747770547866821e-7],
+
+        // …
+
+        [29.991191038634458, -0.00003649459075927734],
+
+        [29.99314181208565, -0.000035267024993896485],
+
+        [29.995092585536845, -0.000033975482940673826],
+
+        [29.997043358988037, -0.00003262416076660156],
+
+        [29.99899413243923, -0.000031217338562011714]
+
+      ]
+
+    }
+
+  ]
+
+
+
+Heart Rate
+Code Sample
+  let options = {    unit: ‘bpm’, // optional; default ‘bpm’
+
+    startDate: new Date(2024, 0, 0).toISOString(), // required
+
+    endDate: new Date().toISOString(), // optional; default now
+
+    ascending: false, // optional; default false
+
+    limit: 10, // optional; default no limit
+
+  }
+
+ 
+
+  AppleHealthKit.getHeartRateSamples(
+
+    options,
+
+    (err: Object, results: Array<HealthValue>) => {
+
+      if (err) {
+
+        return
+
+      }
+
+      console.log(results)
+
+    },
+
+  )
+
+
+Output
+  [    {
+
+      “id”: “5013eca7-4aee-45af-83c1-dbe3696b2e51”, 
+
+     // The universally unique identifier (UUID) for this HealthKit object.
+
+      “value”: 74.02,
+
+      “startDate”: “2024-06-29T17:55:00.000-0400”,
+
+      “endDate”: “2024-06-29T17:55:00.000-0400”,
+
+      “metadata”: {
+
+        “HKWasUserEntered”: false
+
+      }
+
+    },
+
+    {
+
+      “id”: “4ea9e479-86e2-4e82-8030-86a9a9b8e569”,
+
+      “value”: 74,
+
+      “startDate”: “2024-03-12T13:22:00.000-0400”,
+
+      “endDate”: “2024-03-12T13:22:00.000-0400”,
+
+      “metadata”: {
+
+        “HKWasUserEntered”: false
+
+      }
+
+    }
+
+  ]
+
+
+ 
+
+Heart Rate Variability
+Code Sample
+  let options = {    unit: ‘second’, // optional; default ‘second’
+
+    startDate: new Date(2024, 0, 0).toISOString(), // required
+
+    endDate: new Date().toISOString(), // optional; default now
+
+    ascending: false, // optional; default false
+
+    limit: 10, // optional; default no limit
+
+  }
+
+ 
+
+  
+
+  AppleHealthKit.getHeartRateVariabilitySamples(
+
+    options,
+
+    (err: Object, results: Array<HealthValue>) => {
+
+      if (err) {
+
+        return
+
+      }
+
+      console.log(results)
+
+    },
+
+  )
+
+
+Output
+   [
+
+    {
+
+      “id”: “5013eca7-4aee-45af-83c1-dbe3696b2e51”, 
+
+   // The universally unique identifier (UUID) for this HealthKit object.
+
+      “value”: 0.4223,
+
+      “startDate”: “2024-03-12T13:22:00.000-0400”,
+
+      “endDate”: “2024-03-12T13:22:00.000-0400”,
+
+      “metadata”: {
+
+        “HKWasUserEntered”: false
+
+      }
+
+    }
+
+  ]
+
+
+ 
+
+Heartbeat Series
+ 
+
+Code Sample
+  let options = {    startDate: new Date(2024, 0, 0).toISOString(), // required
+
+    endDate: new Date().toISOString(), // optional; default now
+
+    ascending: false, // optional; default false
+
+    limit: 10, // optional; default no limit
+
+  }
+
+ 
+
+  AppleHealthKit.getHeartbeatSeriesSamples(
+
+    options,
+
+    (err: Object, results: HeartbeatSeriesSampleValue[]) => {
+
+      if (err) {
+
+        return
+
+      }
+
+      console.log(results)
+
+    },
+
+  )
+
+
+Output
+  [    {
+
+      “id”: “9728168D-CFD4-4946-BF94-2789ECD39A72”,
+
+      “sourceName”: “Apple Watch”,
+
+      “startDate”: “2024-07-10T08:55:31.307-0400”,
+
+      “endDate”: “2024-07-10T08:56:34.731-0400”,
+
+      “sourceId”: “com.apple.health”,
+
+      “heartbeatSeries”: [
+
+        {
+
+          “timeSinceSeriesStart”: 0.97265625,
+
+          “precededByGap”: false
+
+        },
+
+        {
+
+          “timeSinceSeriesStart”: 1.55859375,
+
+          “precededByGap”: false
+
+        },
+
+        {
+
+          “timeSinceSeriesStart”: 2.16015625,
+
+          “precededByGap”: false
+
+        },
+
+      ]
+
+    }
+
+  ]
+
+
+ 
+
+Oxygen Saturation
+Code Sample
+  let options = {    startDate: new Date(2024, 1, 1).toISOString(), // required
+
+    endDate: new Date().toISOString(), // optional; default now
+
+    ascending: false, // optional; default false
+
+    limit: 10, // optional; default no limit
+
+  }
+
+ 
+
+  AppleHealthKit.getOxygenSaturationSamples(
+
+    options,
+
+    (callbackError: Object, results: Array<HealthValue>) => {
+
+      if (callbackError) {
+
+        return
+
+      }
+
+      console.log(results)
+
+    },
+
+  )
+
+
+Output
+  [
+
+    {
+
+      “id”: “5013eca7-4aee-45af-83c1-dbe3696b2e51”, // The universally unique identifier (UUID) for this HealthKit object.
+
+      “endDate”: “2024-03-04T10:56:00.000-0500”,
+
+      “sourceId”: “com.apple.Health”,
+
+      “sourceName”: “Health”,
+
+      “startDate”: “2024-03-04T10:56:00.000-0500”,
+
+      “value”: 0.98,
+
+      “metadata”: {
+
+        “HKWasUserEntered”: false
+
+      }
+
+    },
+
+    {
+
+      “id”: “86ff59e7-f393-4f32-95fb-b0bf7027374d”,
+
+      “endDate”: “2024-03-04T09:55:00.000-0500”,
+
+      “sourceId”: “com.apple.Health”,
+
+      “sourceName”: “Health”,
+
+      “startDate”: “2024-03-04T09:55:00.000-0500”,
+
+      “value”: 0.97,
+
+      “metadata”: {
+
+        “HKWasUserEntered”: false
+
+      }
+
+    },
+
+  ]
+
+Resting Heart Rate
+Code Sample
+  let options = {    unit: ‘bpm’, // optional; default ‘bpm’
+
+    startDate: new Date(2024, 0, 0).toISOString(), // required
+
+    endDate: new Date().toISOString(), // optional; default now
+
+    ascending: false, // optional; default false
+
+    limit: 10, // optional; default no limit
+
+  }
+
+  
+
+  AppleHealthKit.getRestingHeartRateSamples(
+
+    options,
+
+    (err: Object, results: Array<HealthValue>) => {
+
+      if (err) {
+
+        return
+
+      }
+
+      console.log(results)
+
+    },
+
+  )
+
+
+Output
+    [
+
+    {
+
+      “id”: “5013eca7-4aee-45af-83c1-dbe3696b2e51”, // The universally unique identifier (UUID) for this HealthKit object.
+
+      “value”: 74,
+
+      “startDate”: “2024-03-12T13:22:00.000-0400”,
+
+      “endDate”: “2024-03-12T13:22:00.000-0400”,
+
+    “metadata”: {
+
+        “HKWasUserEntered”: false
+
+      }
+
+    }
+
+  ]
+
+
+ 
+
+Vo2Max
+ 
+
+Code Sample
+  let options = {    unit: ‘bpm’, // optional; default ‘ml/(kg * min)’
+
+    startDate: new Date(2024, 0, 0).toISOString(), // required
+
+    endDate: new Date().toISOString(), // optional; default now
+
+    ascending: false, // optional; default false
+
+    limit: 10, // optional; default no limit
+
+  }
+
+  
+
+  AppleHealthKit.getVo2MaxSamples(
+
+    options,
+
+    (err: Object, results: Array<HealthValue>) => {
+
+      if (err) {
+
+        return
+
+      }
+
+      console.log(results)
+
+    },
+
+  )
+
+
+Output
+    [
+
+    {
+
+      “id”: “5013eca7-4aee-45af-83c1-dbe3696b2e51”, // The universally unique identifier (UUID) for this HealthKit object.
+
+      “endDate”: “2024-03-22T16:35:00.000-0300”,
+
+      “sourceId”: “com.apple.Health”,
+
+      “sourceName”: “Health”,
+
+      “startDate”: “2024-03-22T16:35:00.000-0300”,
+
+      “value”: 2,
+
+      “metadata”: {
+
+        “HKWasUserEntered”: false
+
+      }
+
+    }
+
+  ]
+
+
+ 
+
+Respiratory Rate
+Code Sample
+  let options = {    unit: ‘bpm’, // optional; default ‘bpm’
+
+    startDate: new Date(2024, 0, 0).toISOString(), // required
+
+    endDate: new Date().toISOString(), // optional; default now
+
+    ascending: false, // optional; default false
+
+    limit: 10, // optional; default no limit
+
+  }
+
+  AppleHealthKit.getRespiratoryRateSamples(
+
+    options,
+
+    (err: Object, results: Array<HealthValue>) => {
+
+      if (err) {
+
+        return
+
+      }
+
+      console.log(results)
+
+    },
+
+  )
+
+
+Output
+    [
+
+    {
+
+      “id”: “5013eca7-4aee-45af-83c1-dbe3696b2e51”, // The universally unique identifier (UUID) for this HealthKit object.
+
+      “endDate”: “2024-03-22T16:32:00.000-0300”,
+
+      “sourceId”: “com.apple.Health”,
+
+      “sourceName”: “Health”,
+
+      “startDate”: “2024-03-22T16:32:00.000-0300”,
+
+      “value”: 45,
+
+      “metadata”: {
+
+        “HKWasUserEntered”: false
+
+      }
+
+    }
+
+  ]
+
+
+Walking Heart Rate
+Code Sample
+  let options = {    unit: ‘bpm’, // optional; default ‘bpm’
+
+    startDate: new Date(2024, 0, 0).toISOString(), // required
+
+    endDate: new Date().toISOString(), // optional; default now
+
+    ascending: false, // optional; default false
+
+    limit: 10, // optional; default no limit
+
+  }
+
+  AppleHealthKit.getWalkingHeartRateAverage(
+
+    options,
+
+    (err: Object, results: HealthValue[]) => {
+
+      if (err) {
+
+        return;
+
+      }
+
+      console.log(results);
+
+    },
+
+  )
+
+
+Output
+  [    {
+
+      “value”: 77,
+
+      “sourceId”: “com.apple.health”,
+
+      “id”: “6AFB1A69-0165-4495-9B9A-7C594B63D88C”,
+
+      “sourceName”: “Source”,
+
+      “startDate”: “2024-07-05T12:53:58.870-0400”,
+
+      “endDate”: “2024-07-05T15:14:23.413-0400”,
+
+      “metadata”: {
+
+       “HKWasUserEntered”: false
+
+      }
+
+    },
+
+    {
+
+      “value”: 73,
+
+      “sourceId”: “com.apple.health”,
+
+      “id”: “A13D758C-DCD4-44FA-87A9-7DD63DED31F6”,
+
+      “sourceName”: “Source”,
+
+      “startDate”: “2024-07-04T00:00:25.881-0400”,
+
+      “endDate”: “2024-07-04T11:39:15.130-0400”,
+
+      “metadata”: {
+
+        “HKWasUserEntered”: false
+
+      }
+
+    }
+
+  ]
+
+
+Conclusion
+To sum up, the React Native Health library provides developers with an extensive toolkit to design all-encompassing health and fitness applications. Developers may create scalable, user-friendly solutions, enabling people to track fitness objectives, keep an eye on their health, and make educated lifestyle decisions by utilizing the benefits of React Native with wearable technology.
+
+For developers looking to build cross-platform health apps, React Native Apple Watch development is a powerful approach. It enables the creation of robust health applications that work seamlessly with Apple’s ecosystem, ensuring that users can monitor their health data in real-time and across all their devices.
+
+The React Native Health library is leading the way in innovation as technology develops, advancing digital health and completely changing how we think about personal wellness. It is important that we accept wearable technology’s promise to unlock a healthy future right now! Find out more about wearable devices for health monitoring and the future of wearable technology in healthcare. 
+
+Detailed Example
+
+For a more detailed example, check out the example from the library here:
+
+react-native-health 
+
+References
+
+Apple Healthkit Documentation
+
+Frequently Asked Questions
+How Do I Enable HealthKit on My Watch? / How Do I Activate Health on Apple Watch?
+Both questions have the same answer. If you have an iPhone with the HealthKit app, your Apple watch will sync all HealthKit data to it. All you need is an Apple watch and an iPhone with HealthKit enabled.
+
+Is Healthkit the Same as Apple Health?
+Yes, the HealthKit framework is built into Apple Watches and iPhones. This allows applications to access your health data consensually. 
+
+How to Enable HealthKit on Your App?
+While enabling HealthKit happens on the user’s device, your React Native app can request permission to access specific health data types. Here are some popular libraries to help you integrate HealthKit React Native:
+
+react-native-health GitHub repository for react-native-health: https://github.com/agencyenterprise/react-native-health
+react-native-healthkit GitHub repository for react-native-healthkit: https://github.com/kingstinct/react-native-healthkit
+How to Enable HealthKit on an iPhone?
+There’s no single switch to enable HealthKit on an iPhone. It’s automatically enabled when you use the Health app. Granting permission to access HealthKit data happens within individual apps that request it.
+
+Is Setting up HealthKit on Independent Apple Watch app possible?
+Unfortunately, you cannot integrate HealthKit directly into a standalone Apple Watch app. HealthKit functionality is currently limited to apps running on an iPhone that can communicate with a paired Apple Watch.
+
+ 
 
